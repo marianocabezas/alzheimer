@@ -85,8 +85,10 @@ class CustomModel(nn.Module):
         best_optim = base_optim
         best_loss = np.inf
         for batch_i in range(n_t_batches):
-            batch_ini = batch_i * batch_size
-            batch_end = (batch_i + 1) * batch_size
+            # batch_ini = batch_i * batch_size
+            batch_ini = 0
+            # batch_end = (batch_i + 1) * batch_size
+            batch_end = batch_size
             # Mini batch loop
             # I'll try to support both multi-input and multi-output approaches. That
             # is why we have this "complicated" batch approach.
@@ -132,6 +134,7 @@ class CustomModel(nn.Module):
 
             # Reload the network to its initial state
             self.load_state_dict(base_state)
+            optimizer_alg.load_state_dict(base_optim)
 
         self.load_state_dict(best_state)
         optimizer_alg.load_state_dict(best_optim)
