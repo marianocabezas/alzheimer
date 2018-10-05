@@ -67,6 +67,71 @@ class CustomModel(nn.Module):
 
         return np.mean(losses)
 
+    def mini_batch_exp_loop(
+            self,
+            train_x, train_y,
+            val_x, val_y,
+            n_t_batches, n_v_batches, batch_size,
+            epoch, criterion_alg, optimizer_alg
+    ):
+        # Init
+        # We need to keep the initial state to check which batch is better
+        losses = list()
+        best_batch = 0
+        best_state = base_state = self.state_dict()
+        best_loss = np.inf
+        for batch_i in range(n_t_batches):
+            batch_ini = batch_i * batch_size
+            batch_end = (batch_i + 1) * batch_size
+            # Mini batch loop
+            # I'll try to support both multi-input and multi-output approaches. That
+            # is why we have this "complicated" batch approach.
+            if isinstance(train_x, list):
+                batch_x = map(lambda b: to_torch_var(b[batch_ini:batch_end], requires_grad=True), train_x)
+            else:
+                batch_x = to_torch_var(train_x[batch_ini:batch_end], requires_grad=True)
+
+            if isinstance(train_y, list):
+                batch_y = map(lambda b: to_torch_var(b[batch_ini:batch_end]), train_y)
+            else:
+                batch_y = to_torch_var(train_y[batch_ini:batch_end])
+
+            # We train the model and check the loss
+            y_pred = self(batch_x)
+            batch_loss = criterion_alg(y_pred, batch_y)
+
+            # Backpropagation
+            optimizer_alg.zero_grad()
+            batch_loss.backward()
+            optimizer_alg.step()
+
+            # Validation of that mini batch
+            with torch.no_grad():
+                loss_value = self.mini_batch_loop(val_x, val_y, n_v_batches, batch_size, epoch, criterion_alg)
+                losses += loss_value
+
+            if loss_value < best_loss:
+                best_state = self.state_dict()
+                best_loss = loss_value
+                best_batch = batch_i
+
+            percent = 20 * batch_i / n_t_batches
+            bar = '[' + ''.join(['.'] * percent) + '>' + ''.join(['-'] * (20 - percent)) + ']'
+            curr_values_s = ' train_loss %f (best %f)' % (loss_value, best_loss)
+            batch_s = '%sEpoch %03d (%02d/%02d) %s%s' % (
+                ' '.join([''] * 12), epoch, batch_i, n_t_batches, bar, curr_values_s
+            )
+            print('\033[K', end='')
+            print(batch_s, end='\r')
+            sys.stdout.flush()
+
+            # Reload the network to its initial state
+            self.load_state_dict(base_state)
+
+        self.load_state_dict(best_state)
+
+        return losses, best_batch, best_loss
+
     def fit(
             self,
             data,
@@ -161,6 +226,105 @@ class CustomModel(nn.Module):
                 print('%sEpoch num | tr_loss%s |  time  ' % (' '.join([''] * 12), ' | vl_loss' if validation else ''))
                 print('%s----------|--------%s-|--------' % (' '.join([''] * 12), '-|--------' if validation else ''))
             print('%sEpoch %03d | %s | %.2fs' % (' '.join([''] * 12), e, loss_s, t_out))
+
+            if no_improv_e == patience:
+                self.load_state_dict(best_state)
+                break
+
+        t_end = time.time() - t_start
+        print(
+            'Training finished in %d epochs (%fs) with minimum loss = %f (epoch %d)' % (
+            e + 1, t_end, best_loss_tr, best_e)
+        )
+
+    def fit_exp(
+            self,
+            data,
+            target,
+            val_split=0,
+            criterion='xentr',
+            optimizer='adam',
+            epochs=100,
+            patience=10,
+            batch_size=32,
+            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    ):
+        # Init
+        self.to(device)
+        self.train()
+
+        best_e = 0
+        best_loss_tr = np.inf
+        no_improv_e = 0
+        best_state = self.state_dict()
+
+        validation = val_split > 0
+
+        criterion_dict = {
+            'xentr': nn.CrossEntropyLoss,
+            'mse': nn.MSELoss,
+        }
+
+        optimizer_dict = {
+            'adam': torch.optim.Adam,
+        }
+
+        model_params = filter(lambda p: p.requires_grad, self.parameters())
+
+        criterion_alg = criterion_dict[criterion]() if isinstance(criterion, basestring) else criterion
+        optimizer_alg = optimizer_dict[optimizer](model_params) if isinstance(optimizer, basestring) else optimizer
+
+        t_start = time.time()
+
+        # Data split (using numpy) for train and validation. We also compute the number of batches for both
+        # training and validation according to the batch size.
+        n_samples = len(data) if not isinstance(data, list) else len(data[0])
+
+        n_t_samples = int(n_samples * (1 - val_split))
+        n_t_batches = -(-n_t_samples / batch_size)
+
+        n_v_samples = n_samples - n_t_samples
+        n_v_batches = -(-n_v_samples / batch_size)
+
+        d_train = data[:n_t_samples] if not isinstance(data, list) else map(lambda d: d[:n_t_samples], data)
+        d_val = data[n_t_samples:] if not isinstance(data, list) else map(lambda d: d[n_t_samples:], data)
+
+        t_train = target[:n_t_samples] if not isinstance(target, list) else map(lambda t: t[:n_t_samples], target)
+        t_val = target[n_t_samples:] if not isinstance(target, list) else map(lambda t: t[n_t_samples:], target)
+
+        print('%sTraining / validation samples = %d / %d' % (' '.join([''] * 12), n_t_samples, n_v_samples))
+
+        for e in range(epochs):
+            # Main epoch loop
+            t_in = time.time()
+            losses, best_batch, loss_tr = self.mini_batch_exp_loop(
+                d_train, t_train,
+                d_val, t_val,
+                n_t_batches, n_v_batches, batch_size,
+                e, criterion_alg, optimizer_alg
+            )
+
+            if loss_tr < best_loss_tr:
+                best_loss_tr = loss_tr
+                best_e = e
+                best_state = self.state_dict()
+                no_improv_e = 0
+            else:
+                no_improv_e += 1
+
+            t_out = time.time() - t_in
+
+            losses_s = map(
+                lambda (i, l): ' %.5f |' % l if i == best_batch else ' \033[32m%0.5f\033[0m' % l,
+                enumerate(losses)
+            )
+
+            print('\033[K', end='')
+            if e == 0:
+                losses_h = ''.join(map(lambda i: ' loss %2d |' % i, range(n_t_batches)))
+                print('%sEpoch num |%s  time  ' % (' '.join([''] * 12), losses_h))
+                print('%s----------|%s--------' % (' '.join([''] * 12), ''.join(['-------|'] * n_t_batches)))
+            print('%sEpoch %03d |%s %.2fs' % (' '.join([''] * 12), e, ''.join(losses_s), t_out))
 
             if no_improv_e == patience:
                 self.load_state_dict(best_state)
