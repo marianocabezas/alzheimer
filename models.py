@@ -1,6 +1,7 @@
 from __future__ import print_function
 import time
 import sys
+from copy import deepcopy
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -78,7 +79,10 @@ class CustomModel(nn.Module):
         # We need to keep the initial state to check which batch is better
         losses = list()
         best_batch = 0
-        best_state = base_state = self.state_dict()
+        base_state = deepcopy(self.state_dict())
+        best_state = base_state
+        base_optim = deepcopy(optimizer_alg.state_dict())
+        best_optim = base_optim
         best_loss = np.inf
         for batch_i in range(n_t_batches):
             batch_ini = batch_i * batch_size
@@ -108,10 +112,11 @@ class CustomModel(nn.Module):
             # Validation of that mini batch
             with torch.no_grad():
                 loss_value = self.mini_batch_loop(val_x, val_y, n_v_batches, batch_size, epoch, criterion_alg)
-                losses += loss_value
+                losses += [loss_value]
 
             if loss_value < best_loss:
-                best_state = self.state_dict()
+                best_state = deepcopy(self.state_dict())
+                best_optim = deepcopy(optimizer_alg.state_dict())
                 best_loss = loss_value
                 best_batch = batch_i
 
@@ -129,6 +134,7 @@ class CustomModel(nn.Module):
             self.load_state_dict(base_state)
 
         self.load_state_dict(best_state)
+        optimizer_alg.load_state_dict(best_optim)
 
         return losses, best_batch, best_loss
 
@@ -151,7 +157,7 @@ class CustomModel(nn.Module):
         best_loss_tr = np.inf
         best_loss_val = np.inf
         no_improv_e = 0
-        best_state = self.state_dict()
+        best_state = deepcopy(self.state_dict())
 
         validation = val_split > 0
 
@@ -215,7 +221,7 @@ class CustomModel(nn.Module):
 
             if improvement:
                 best_e = e
-                best_state = self.state_dict()
+                best_state = deepcopy(self.state_dict())
                 no_improv_e = 0
             else:
                 no_improv_e += 1
@@ -256,7 +262,7 @@ class CustomModel(nn.Module):
         best_e = 0
         best_loss_tr = np.inf
         no_improv_e = 0
-        best_state = self.state_dict()
+        best_state = deepcopy(self.state_dict())
 
         validation = val_split > 0
 
@@ -297,25 +303,35 @@ class CustomModel(nn.Module):
         for e in range(epochs):
             # Main epoch loop
             t_in = time.time()
-            losses, best_batch, loss_tr = self.mini_batch_exp_loop(
-                d_train, t_train,
-                d_val, t_val,
-                n_t_batches, n_v_batches, batch_size,
-                e, criterion_alg, optimizer_alg
-            )
+            if validation:
+                losses, best_batch, loss_tr = self.mini_batch_exp_loop(
+                    d_train, t_train,
+                    d_val, t_val,
+                    n_t_batches, n_v_batches, batch_size,
+                    e, criterion_alg, optimizer_alg
+                )
+            else:
+                losses, best_batch, loss_tr = self.mini_batch_exp_loop(
+                    d_train, t_train,
+                    d_train, t_train,
+                    n_t_batches, n_v_batches, batch_size,
+                    e, criterion_alg, optimizer_alg
+                )
 
             if loss_tr < best_loss_tr:
+                color = '\033[32m'
                 best_loss_tr = loss_tr
                 best_e = e
-                best_state = self.state_dict()
+                best_state = deepcopy(self.state_dict())
                 no_improv_e = 0
             else:
+                color = '\033[31m'
                 no_improv_e += 1
 
             t_out = time.time() - t_in
 
             losses_s = map(
-                lambda (i, l): ' %.5f |' % l if i == best_batch else ' \033[32m%0.5f\033[0m' % l,
+                lambda (i, l): ' %.5f |' % l if i != best_batch else ' %s%0.5f\033[0m |' % (color, l),
                 enumerate(losses)
             )
 
@@ -323,7 +339,7 @@ class CustomModel(nn.Module):
             if e == 0:
                 losses_h = ''.join(map(lambda i: ' loss %2d |' % i, range(n_t_batches)))
                 print('%sEpoch num |%s  time  ' % (' '.join([''] * 12), losses_h))
-                print('%s----------|%s--------' % (' '.join([''] * 12), ''.join(['-------|'] * n_t_batches)))
+                print('%s----------|%s--------' % (' '.join([''] * 12), ''.join(['---------|'] * n_t_batches)))
             print('%sEpoch %03d |%s %.2fs' % (' '.join([''] * 12), e, ''.join(losses_s), t_out))
 
             if no_improv_e == patience:

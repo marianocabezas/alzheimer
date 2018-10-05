@@ -269,7 +269,7 @@ def preprocess_input(x):
     return x_norm
 
 
-def train_survival_function(image_names, survival, features, slices, save_path, sufix=''):
+def train_net(net, net_name, image_names, survival, features, slices):
     # Init
     options = parse_inputs()
     c = color_codes()
@@ -277,14 +277,9 @@ def train_survival_function(image_names, survival, features, slices, save_path, 
     epochs = options['epochs']
     n_slices = options['n_slices']
 
-    net = BratsSurvivalNet(n_slices=n_slices, n_features=features.shape[-1])
-    net = net.cuda()
-
-    net_name = 'brats2018-pytorch-survival%s.hdf5' % sufix
-
     ''' Training '''
     try:
-        net.load_state_dict(torch.load(os.path.join(save_path, net_name)))
+        net.load_state_dict(torch.load(net_name))
 
         print(
             '%s[%s] %sSurvival network weights %sloaded%s' % (
@@ -320,10 +315,34 @@ def train_survival_function(image_names, survival, features, slices, save_path, 
         y = survival[idx].astype(np.float32)
 
         print('%sStarting train loop' % ' '.join([''] * 12))
-        net.fit(x, y, epochs=epochs, batch_size=2, criterion='mse', val_split=0.25)
-        torch.save(net.state_dict(), os.path.join(save_path, net_name))
+        # net.fit(x, y, epochs=epochs, batch_size=2, criterion='mse', val_split=0.25)
+        net.fit_exp(x, y, epochs=epochs, batch_size=2, criterion='mse', val_split=0.25)
+        torch.save(net.state_dict(), net_name)
 
-    return net
+
+def train_survival_function(image_names, survival, features, slices, save_path, sufix=''):
+    # Init
+    options = parse_inputs()
+    # Prepare the net hyperparameters
+    n_slices = options['n_slices']
+
+    # Old network
+    net_old = BratsSurvivalNet(n_slices=n_slices, n_features=features.shape[-1])
+    net_old = net_old.cuda()
+
+    net_name = os.path.join(save_path, 'brats2018-pytorch-survival%s.hdf5' % sufix)
+
+    train_net(net_old, net_name, image_names, survival, features, slices)
+
+    # Experimental network
+    net_exp = BratsSurvivalNet(n_slices=n_slices, n_features=features.shape[-1])
+    net_exp = net_exp.cuda()
+
+    net_name = os.path.join(save_path, 'brats2018-pytorch_exp-survival%s.hdf5' % sufix)
+
+    train_net(net_exp, net_name, image_names, survival, features, slices)
+
+    return net_old, net_exp
 
 
 def test_survival_function(net, image_names, features, slices, n_slices):
@@ -368,71 +387,75 @@ def main():
     max_survival = np.max(tst_survival)
     n_folds = len(tst_simage_names)
     print('%s[%s] %sStarting leave-one-out (survival)%s' % (c['c'], strftime("%H:%M:%S"), c['g'], c['nc']))
-    with open(os.path.join(options['loo_dir'], 'survival_results.csv'), 'w') as csvfile:
-        csvwriter = csv.writer(csvfile, delimiter=',')
-        for i in range(n_folds):
-            ''' Training '''
-            ini_p = len(tst_simage_names) * i / n_folds
-            end_p = len(tst_simage_names) * (i + 1) / n_folds
-            # Validation data
-            p = tst_simage_names[ini_p:end_p]
-            p_features = np.asarray(tst_features[ini_p:end_p])
-            p_slices = tst_slices[ini_p:end_p]
-            p_survival = tst_survival[ini_p:end_p]
-            # Training data
-            train_images = np.concatenate([
-                tst_simage_names[:ini_p, :],
-                tst_simage_names[end_p:, :],
-            ], axis=0)
-            train_survival = np.asarray(
-                tst_survival.tolist()[:ini_p] + tst_survival.tolist()[end_p:]
-            )
-            train_features = np.asarray(
-                tst_features.tolist()[:ini_p] + tst_features.tolist()[end_p:]
-            )
-            train_slices = tst_slices[:ini_p] + tst_slices[end_p:]
+    for i in range(n_folds):
+        ''' Training '''
+        ini_p = len(tst_simage_names) * i / n_folds
+        end_p = len(tst_simage_names) * (i + 1) / n_folds
+        # Validation data
+        p = tst_simage_names[ini_p:end_p]
+        p_features = np.asarray(tst_features[ini_p:end_p])
+        p_slices = tst_slices[ini_p:end_p]
+        p_survival = tst_survival[ini_p:end_p]
+        # Training data
+        train_images = np.concatenate([
+            tst_simage_names[:ini_p, :],
+            tst_simage_names[end_p:, :],
+        ], axis=0)
+        train_survival = np.asarray(
+            tst_survival.tolist()[:ini_p] + tst_survival.tolist()[end_p:]
+        )
+        train_features = np.asarray(
+            tst_features.tolist()[:ini_p] + tst_features.tolist()[end_p:]
+        )
+        train_slices = tst_slices[:ini_p] + tst_slices[end_p:]
 
-            # Patient info
-            p_name = map(lambda pi: pi[0].rsplit('/')[-2], p)
+        # Patient info
+        p_name = map(lambda pi: pi[0].rsplit('/')[-2], p)
 
-            # Data stuff
-            print('%s[%s] %sFold %s(%s%d%s%s/%d)%s' % (
+        # Data stuff
+        print('%s[%s] %sFold %s(%s%d%s%s/%d)%s' % (
+            c['c'], strftime("%H:%M:%S"),
+            c['g'], c['c'], c['b'], i + 1, c['nc'], c['c'], n_folds, c['nc']
+        ))
+
+        print(
+            '%s[%s] %sStarting training (%ssurvival%s)%s' % (
                 c['c'], strftime("%H:%M:%S"),
-                c['g'], c['c'], c['b'], i + 1, c['nc'], c['c'], n_folds, c['nc']
-            ))
-
-            print(
-                '%s[%s] %sStarting training (%ssurvival%s)%s' % (
-                    c['c'], strftime("%H:%M:%S"),
-                    c['g'], c['b'], c['nc'] + c['g'], c['nc']
-                )
+                c['g'], c['b'], c['nc'] + c['g'], c['nc']
             )
+        )
 
-            snet = train_survival_function(
-                train_images,
-                train_survival / max_survival,
-                train_features,
-                train_slices,
-                save_path=options['loo_dir'],
-                sufix='-fold%d' % i
-            )
+        net_old, net_exp = train_survival_function(
+            train_images,
+            train_survival / max_survival,
+            train_features,
+            train_slices,
+            save_path=options['loo_dir'],
+            sufix='-fold%d' % i
+        )
 
-            ''' Testing '''
-            survival_out = test_survival_function(
-                snet,
-                p,
-                p_features,
-                p_slices,
-                options['n_slices']
-            ) * max_survival
-            print(
-                '%s[%s] %sPatient %s%s%s predicted survival = %s%f (%f)%s' % (
-                    c['c'], strftime("%H:%M:%S"),
-                    c['g'], c['b'], p_name[0], c['nc'],
-                    c['g'], survival_out, p_survival, c['nc']
-                )
+        ''' Testing '''
+        survival_old = test_survival_function(
+            net_old,
+            p,
+            p_features,
+            p_slices,
+            options['n_slices']
+        ) * max_survival
+        survival_exp = test_survival_function(
+            net_exp,
+            p,
+            p_features,
+            p_slices,
+            options['n_slices']
+        ) * max_survival
+        print(
+            '%s[%s] %sPatient %s%s%s predicted survival = %s%f %svs%s %f (%f)%s' % (
+                c['c'], strftime("%H:%M:%S"),
+                c['g'], c['b'], p_name[0], c['nc'],
+                c['g'], survival_old, c['nc'], c['g'], survival_exp, p_survival, c['nc']
             )
-            csvwriter.writerow([p_name[0], '%f' % float(survival_out)])
+        )
 
 
 if __name__ == '__main__':
