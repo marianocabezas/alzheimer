@@ -77,69 +77,105 @@ class CustomModel(nn.Module):
     ):
         # Init
         # We need to keep the initial state to check which batch is better
-        losses = list()
-        best_batch = 0
-        base_state = deepcopy(self.state_dict())
-        best_state = base_state
-        base_optim = deepcopy(optimizer_alg.state_dict())
-        best_optim = base_optim
+        trained = [False] * n_t_batches
         best_loss = np.inf
-        for batch_i in range(n_t_batches):
-            # batch_ini = batch_i * batch_size
-            batch_ini = 0
-            # batch_end = (batch_i + 1) * batch_size
-            batch_end = batch_size
-            # Mini batch loop
-            # I'll try to support both multi-input and multi-output approaches. That
-            # is why we have this "complicated" batch approach.
-            if isinstance(train_x, list):
-                batch_x = map(lambda b: to_torch_var(b[batch_ini:batch_end], requires_grad=True), train_x)
-            else:
-                batch_x = to_torch_var(train_x[batch_ini:batch_end], requires_grad=True)
+        final_loss = np.inf
+        for step in range(n_t_batches):
+            # Step init
+            t_in = time.time()
 
-            if isinstance(train_y, list):
-                batch_y = map(lambda b: to_torch_var(b[batch_ini:batch_end]), train_y)
-            else:
-                batch_y = to_torch_var(train_y[batch_ini:batch_end])
+            losses = list()
+            losses_s = ''
+            best_batch = 0
+            base_state = deepcopy(self.state_dict())
+            best_state = base_state
+            base_optim = deepcopy(optimizer_alg.state_dict())
+            best_optim = base_optim
+            best_loss_batch = np.inf
 
-            # We train the model and check the loss
-            y_pred = self(batch_x)
-            batch_loss = criterion_alg(y_pred, batch_y)
+            for batch_i in range(n_t_batches):
+                # We haven't trained with that batch yet
+                if not trained[batch_i]:
+                    batch_ini = batch_i * batch_size
+                    batch_end = (batch_i + 1) * batch_size
+                    # Mini batch loop
+                    # I'll try to support both multi-input and multi-output approaches. That
+                    # is why we have this "complicated" batch approach.
+                    if isinstance(train_x, list):
+                        batch_x = map(lambda b: to_torch_var(b[batch_ini:batch_end], requires_grad=True), train_x)
+                    else:
+                        batch_x = to_torch_var(train_x[batch_ini:batch_end], requires_grad=True)
 
-            # Backpropagation
-            optimizer_alg.zero_grad()
-            batch_loss.backward()
-            optimizer_alg.step()
+                    if isinstance(train_y, list):
+                        batch_y = map(lambda b: to_torch_var(b[batch_ini:batch_end]), train_y)
+                    else:
+                        batch_y = to_torch_var(train_y[batch_ini:batch_end])
 
-            # Validation of that mini batch
-            with torch.no_grad():
-                loss_value = self.mini_batch_loop(val_x, val_y, n_v_batches, batch_size, epoch, criterion_alg)
+                    # We train the model and check the loss
+                    y_pred = self(batch_x)
+                    batch_loss = criterion_alg(y_pred, batch_y)
+
+                    # Backpropagation
+                    optimizer_alg.zero_grad()
+                    batch_loss.backward()
+                    optimizer_alg.step()
+
+                    # Validation of that mini batch
+                    with torch.no_grad():
+                        loss_value = self.mini_batch_loop(val_x, val_y, n_v_batches, batch_size, epoch, criterion_alg)
+
+                    if loss_value < best_loss_batch:
+                        best_state = deepcopy(self.state_dict())
+                        best_optim = deepcopy(optimizer_alg.state_dict())
+                        best_loss_batch = loss_value
+                        best_batch = batch_i
+                else:
+                    loss_value = np.inf
+
                 losses += [loss_value]
 
-            if loss_value < best_loss:
-                best_state = deepcopy(self.state_dict())
-                best_optim = deepcopy(optimizer_alg.state_dict())
-                best_loss = loss_value
-                best_batch = batch_i
+                percent = 20 * batch_i / n_t_batches
+                bar = '[' + ''.join(['.'] * percent) + '>' + ''.join(['-'] * (20 - percent)) + ']'
+                curr_values_s = ' train_loss %f (best %f)' % (loss_value, best_loss_batch)
+                batch_s = '%sStep %3d-%03d (%2d/%2d) %s%s' % (
+                    ' '.join([''] * 12), epoch, step, batch_i, n_t_batches, bar, curr_values_s
+                )
+                print('\033[K', end='')
+                print(batch_s, end='\r')
+                sys.stdout.flush()
 
-            percent = 20 * batch_i / n_t_batches
-            bar = '[' + ''.join(['.'] * percent) + '>' + ''.join(['-'] * (20 - percent)) + ']'
-            curr_values_s = ' train_loss %f (best %f)' % (loss_value, best_loss)
-            batch_s = '%sEpoch %03d (%02d/%02d) %s%s' % (
-                ' '.join([''] * 12), epoch, batch_i, n_t_batches, bar, curr_values_s
+                # Reload the network to its initial state
+                self.load_state_dict(base_state)
+                optimizer_alg.load_state_dict(base_optim)
+
+            # Prepare for the next step
+            trained[best_batch] = True
+            self.load_state_dict(best_state)
+            optimizer_alg.load_state_dict(best_optim)
+
+            t_out = time.time() - t_in
+
+            if best_loss_batch < best_loss:
+                best_loss = best_loss_batch
+                color = '\033[32m'
+            else:
+                color = '\033[31m'
+
+            losses_s = map(
+                lambda (i, l): ' %7.4f |' % l if i != best_batch else ' %s%7.4f\033[0m |' % (color, l),
+                enumerate(losses)
             )
+
             print('\033[K', end='')
-            print(batch_s, end='\r')
-            sys.stdout.flush()
+            if step == 0:
+                losses_h = ''.join(map(lambda i: ' loss %2d |' % i, range(n_t_batches)))
+                print('%sStep epo-num |%s  time  ' % (' '.join([''] * 12), losses_h))
+                print('%s-------------|%s--------' % (' '.join([''] * 12), ''.join(['---------|'] * n_t_batches)))
+            print('%sStep %3d-%03d |%s %.2fs' % (' '.join([''] * 12), epoch, step, ''.join(losses_s), t_out))
 
-            # Reload the network to its initial state
-            self.load_state_dict(base_state)
-            optimizer_alg.load_state_dict(base_optim)
+            final_loss = best_loss_batch
 
-        self.load_state_dict(best_state)
-        optimizer_alg.load_state_dict(best_optim)
-
-        return losses, best_batch, best_loss
+        return final_loss
 
     def fit(
             self,
@@ -307,14 +343,14 @@ class CustomModel(nn.Module):
             # Main epoch loop
             t_in = time.time()
             if validation:
-                losses, best_batch, loss_tr = self.mini_batch_exp_loop(
+                loss_tr = self.mini_batch_exp_loop(
                     d_train, t_train,
                     d_val, t_val,
                     n_t_batches, n_v_batches, batch_size,
                     e, criterion_alg, optimizer_alg
                 )
             else:
-                losses, best_batch, loss_tr = self.mini_batch_exp_loop(
+                loss_tr = self.mini_batch_exp_loop(
                     d_train, t_train,
                     d_train, t_train,
                     n_t_batches, n_v_batches, batch_size,
@@ -322,28 +358,19 @@ class CustomModel(nn.Module):
                 )
 
             if loss_tr < best_loss_tr:
-                color = '\033[32m'
+                loss_s = '\033[32m%7.4f\033[0m' % loss_tr
                 best_loss_tr = loss_tr
                 best_e = e
                 best_state = deepcopy(self.state_dict())
                 no_improv_e = 0
             else:
-                color = '\033[31m'
+                loss_s = '%2.4f' % loss_tr
                 no_improv_e += 1
 
             t_out = time.time() - t_in
 
-            losses_s = map(
-                lambda (i, l): ' %.5f |' % l if i != best_batch else ' %s%0.5f\033[0m |' % (color, l),
-                enumerate(losses)
-            )
-
             print('\033[K', end='')
-            if e == 0:
-                losses_h = ''.join(map(lambda i: ' loss %2d |' % i, range(n_t_batches)))
-                print('%sEpoch num |%s  time  ' % (' '.join([''] * 12), losses_h))
-                print('%s----------|%s--------' % (' '.join([''] * 12), ''.join(['---------|'] * n_t_batches)))
-            print('%sEpoch %03d |%s %.2fs' % (' '.join([''] * 12), e, ''.join(losses_s), t_out))
+            print('%sEpoch %3d | tr_loss = %s | %.2fs' % (' '.join([''] * 12), e, loss_s, t_out))
 
             if no_improv_e == patience:
                 self.load_state_dict(best_state)

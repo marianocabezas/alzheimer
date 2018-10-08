@@ -269,7 +269,7 @@ def preprocess_input(x):
     return x_norm
 
 
-def train_net(net, net_name, image_names, survival, features, slices):
+def train_net(net, net_name, image_names, survival, features, slices, experimental=False):
     # Init
     options = parse_inputs()
     c = color_codes()
@@ -315,8 +315,10 @@ def train_net(net, net_name, image_names, survival, features, slices):
         y = survival[idx].astype(np.float32)
 
         print('%sStarting train loop' % ' '.join([''] * 12))
-        # net.fit(x, y, epochs=epochs, batch_size=2, criterion='mse', val_split=0.25)
-        net.fit_exp(x, y, epochs=epochs, batch_size=2, criterion='mse', val_split=0.25)
+        if experimental:
+            net.fit_exp(x, y, epochs=epochs, batch_size=2, criterion='mse', val_split=0.25)
+        else:
+            net.fit(x, y, epochs=epochs, batch_size=2, criterion='mse', val_split=0.25)
         torch.save(net.state_dict(), net_name)
 
 
@@ -340,7 +342,7 @@ def train_survival_function(image_names, survival, features, slices, save_path, 
 
     net_name = os.path.join(save_path, 'brats2018-pytorch_exp-survival%s.hdf5' % sufix)
 
-    train_net(net_exp, net_name, image_names, survival, features, slices)
+    train_net(net_exp, net_name, image_names, survival, features, slices, experimental=True)
 
     return net_old, net_exp
 
@@ -450,7 +452,7 @@ def main():
             options['n_slices']
         ) * max_survival
         print(
-            '%s[%s] %sPatient %s%s%s predicted survival = %s%f %svs%s %f (%f)%s' % (
+            '%s[%s] %sPatient %s%s%s predicted survival = old - %s%f %svs%s exp - %f (%f)%s' % (
                 c['c'], strftime("%H:%M:%S"),
                 c['g'], c['b'], p_name[0], c['nc'],
                 c['g'], survival_old, c['nc'], c['g'], survival_exp, p_survival, c['nc']
