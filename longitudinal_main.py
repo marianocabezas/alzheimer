@@ -11,11 +11,13 @@ import sys
 import time
 import re
 import traceback
+from itertools import product
 from nibabel import load as load_nii
 import SimpleITK as sitk
 from time import strftime
 from subprocess import call
 from data_manipulation.sitk import itkn4, itkhist_match, itksubtraction, itkdemons
+from data_manipulation.generate_features import get_mask_voxels
 
 
 """
@@ -178,7 +180,7 @@ def remove_small_regions(img_vol, min_size=3):
 """
 
 
-def main(
+def initial_analysis(
         d_path=None,
         pd_tags=list(['DP', 'PD', 'pd', 'dp']),
         t1_tags=list(['MPRAGE', 'mprage', 'MPR', 'mpr', 'T1', 't1']),
@@ -207,9 +209,8 @@ def main(
 
     # Init
     if d_path is None:
-        options = parse_args()
-        d_path = options['dataset_path']
-    robex = os.path.join(options['tools_path'], 'ROBEX', 'runROBEX.sh')
+        d_path = parse_args()['dataset_path']
+    robex = os.path.join(parse_args()['tools_path'], 'ROBEX', 'runROBEX.sh')
     tags = [pd_tags, t1_tags, t2_tags, flair_tags]
     images = ['pd', 't1', 't2', 'flair']
     patients = get_dirs(d_path)
@@ -250,6 +251,7 @@ def main(
             # Check if there is a brainmask
             brainmask_name = find_file('brainmask.nii.gz', full_folder)
             if brainmask_name is None:
+                brainmask_name = os.path.join(full_folder, 'brainmask.nii.gz')
                 brain_name = os.path.join(full_folder, 'stripped.nii.gz')
                 base_pd = filter(
                     lambda x: not os.path.isdir(x) and re.search(r'(\w|\W)*(t1|T1)(\w|\W)', x),
@@ -271,7 +273,7 @@ def main(
                 print('\t-------------------------------')
             original_files = map(lambda t: find_file('(' + '|'.join(t) + ')', full_folder), tags)
             map(
-                lambda (b, im): itkn4(b, full_folder, im, levels=3, verbose=verbose),
+                lambda (b, im): itkn4(b, full_folder, im, max_iters=200, levels=4, verbose=verbose),
                 filter(lambda (b, _): b is not None, zip(original_files, images))
             )
 
@@ -279,13 +281,9 @@ def main(
         followup = timepoints[-1]
         followup_path = os.path.join(patient_path, followup)
 
-        brain = reduce(
-            np.logical_or,
-            map(
-                lambda t: load_nii(os.path.join(patient_path, t, 'brainmask.nii.gz')).get_data(),
-                timepoints
-            )
-        )
+        bm_tag = 'brainmask.nii.gz'
+        brains = map(lambda t: load_nii(os.path.join(patient_path, t, bm_tag)).get_data(), timepoints)
+        brain = reduce(np.logical_or, brains)
         brain_nii = load_nii(os.path.join(patient_path, timepoints[-1], 'brainmask.nii.gz'))
         brain_nii.get_data()[:] = brain
         brain_nii.to_filename(os.path.join(followup_path, 'union_brainmask.nii.gz'))
@@ -315,13 +313,8 @@ def main(
                 print('/-------------------------------\\')
                 print('|          Subtraction          |')
                 print('\\-------------------------------/')
-            baseline_files = map(
-                lambda im: find_file(
-                    im + '_' + image_tag + '_corrected_matched.nii.gz',
-                    followup_path
-                ),
-                images
-            )
+            hm_tag = '_corrected_matched.nii.gz'
+            baseline_files = map(lambda im: find_file(im + '_' + image_tag + hm_tag, followup_path), images)
 
             map(
                 lambda (f, b, im): itksubtraction(f, b, followup_path, im + '_' + image_tag, verbose=verbose),
@@ -345,8 +338,69 @@ def main(
                 )
             )
 
+        time_str = time.strftime(
+            '%H hours %M minutes %S seconds',
+            time.gmtime(time.time() - patient_start)
+        )
+        print('%sPatient %s finished%s (total time %s)\n' % (c['r'], patient, c['nc'], time_str))
+
     time_str = time.strftime('%H hours %M minutes %S seconds', time.gmtime(time.time() - global_start))
     print_message('%sAll patients finished %s(total time %s)%s' % (c['r'],  c['b'], time_str, c['nc']))
+
+
+def naive_registration(
+        d_path=None,
+        image='flair_corrected.nii.gz',
+        lesion_tags=list(['_bin', 'lesion', 'lesionMask']),
+        fixed_folder='time6',
+        moving_folder='time1',
+        width=5,
+        dim=3,
+        verbose=1,
+):
+    """
+    Function that applies a lesion by lesion naive registration. The idea is that after 3 years,
+    the atrophy of the MS patient is noticeable and that causes a movement on the chronic MS lesions
+    (due to the ventricle expansion). The assumption is that we can use a naive registration approach
+    that open a sliding window around the baseline mask and tries to find the best match in tems
+    of intensity similarity on the follow-up image.
+    :param d_path: Path where the whole database is stored. If not specified, it will be read from the
+     config file.
+    :param image: Image name that will be used for matching.
+    :param lesion_tags: Tags that may be contained on the lesion mask filename.
+    :param fixed_folder: Folder that contains the fixed image.
+    :param moving_folder: Folder that contains the moving image.
+    :param width: Width of the sliding window.
+    :param dim: Number of dimensions of the fixed and moving images.
+    :param verbose: Verbosity level.
+    :return: None.
+    """
+
+    c = color_codes()
+
+    # Init
+    if d_path is None:
+        d_path = parse_args()['dataset_path']
+    mov_pair = [(-width, -1), (width, 1)]
+    movs = np.unique(np.concatenate(map(lambda (e, s): list(product(range(0, e, s), repeat=dim)), mov_pair)), axis=0)
+    fixed = load_nii(os.path.join(d_path, fixed_folder, image)).get_data()
+    moving = load_nii(os.path.join(d_path, moving_folder, image)).get_data()
+
+    mask_name = find_file(lesion_tags, d_path)
+    if mask_name is not None:
+        mask = load_nii(mask_name)
+        labels, nlabels = nd.label(mask)
+        match_scores = map(
+            lambda vox: map(
+                lambda mov: (np.correlate(fixed[vox], moving[vox + movs]), vox + movs),
+                movs
+            ),
+            map(lambda l: np.array(get_mask_voxels(labels == l)), range(1, nlabels + 1))
+        )
+
+
+def main():
+    initial_analysis()
 
 
 if __name__ == "__main__":
