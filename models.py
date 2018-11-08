@@ -85,7 +85,6 @@ class CustomModel(nn.Module):
             t_in = time.time()
 
             losses = list()
-            losses_s = ''
             best_batch = 0
             base_state = deepcopy(self.state_dict())
             best_state = base_state
@@ -129,10 +128,10 @@ class CustomModel(nn.Module):
                         best_optim = deepcopy(optimizer_alg.state_dict())
                         best_loss_batch = loss_value
                         best_batch = batch_i
+                    losses += ['%5.2f' % loss_value]
                 else:
                     loss_value = np.inf
-
-                losses += [loss_value]
+                    losses += ['\033[30m  -  \033[0m']
 
                 percent = 20 * batch_i / n_t_batches
                 bar = '[' + ''.join(['.'] * percent) + '>' + ''.join(['-'] * (20 - percent)) + ']'
@@ -162,16 +161,17 @@ class CustomModel(nn.Module):
                 color = '\033[31m'
 
             losses_s = map(
-                lambda (i, l): ' %7.4f |' % l if i != best_batch else ' %s%7.4f\033[0m |' % (color, l),
+                lambda (i, l): ' %s |' % l if i != best_batch else ' %s%s\033[0m |' % (color, l),
                 enumerate(losses)
             )
 
             print('\033[K', end='')
             if step == 0:
-                losses_h = ''.join(map(lambda i: ' loss %2d |' % i, range(n_t_batches)))
-                print('%sStep epo-num |%s  time  ' % (' '.join([''] * 12), losses_h))
-                print('%s-------------|%s--------' % (' '.join([''] * 12), ''.join(['---------|'] * n_t_batches)))
-            print('%sStep %3d-%03d |%s %.2fs' % (' '.join([''] * 12), epoch, step, ''.join(losses_s), t_out))
+                losses_h = ''.join(map(lambda i: ' b  %2d |' % i, range(n_t_batches)))
+                print('%s---------%s--------' % (' '.join([''] * 12), ''.join(['--------'] * n_t_batches)))
+                print('%sEpo-num |%s  time  ' % (' '.join([''] * 12), losses_h))
+                print('%s--------|%s--------' % (' '.join([''] * 12), ''.join(['-------|'] * n_t_batches)))
+            print('%s%3d-%03d |%s %.2fs' % (' '.join([''] * 12), epoch, step, ''.join(losses_s), t_out))
 
             final_loss = best_loss_batch
 
@@ -187,7 +187,8 @@ class CustomModel(nn.Module):
             epochs=100,
             patience=10,
             batch_size=32,
-            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
+            verbose=True
     ):
         # Init
         self.to(device)
@@ -232,7 +233,8 @@ class CustomModel(nn.Module):
         t_train = target[:n_t_samples] if not isinstance(target, list) else map(lambda t: t[:n_t_samples], target)
         t_val = target[n_t_samples:] if not isinstance(target, list) else map(lambda t: t[n_t_samples:], target)
 
-        print('%sTraining / validation samples = %d / %d' % (' '.join([''] * 12), n_t_samples, n_v_samples))
+        if verbose:
+            print('%sTraining / validation samples = %d / %d' % (' '.join([''] * 12), n_t_samples, n_v_samples))
 
         for e in range(epochs):
             # Main epoch loop
@@ -266,21 +268,23 @@ class CustomModel(nn.Module):
                 no_improv_e += 1
 
             t_out = time.time() - t_in
-            print('\033[K', end='')
-            if e == 0:
-                print('%sEpoch num | tr_loss%s |  time  ' % (' '.join([''] * 12), ' | vl_loss' if validation else ''))
-                print('%s----------|--------%s-|--------' % (' '.join([''] * 12), '-|--------' if validation else ''))
-            print('%sEpoch %03d | %s | %.2fs' % (' '.join([''] * 12), e, loss_s, t_out))
+            if verbose:
+                print('\033[K', end='')
+                if e == 0:
+                    print('%sEpoch num | tr_loss%s |  time  ' % (' '.join([''] * 12), ' | vl_loss' if validation else ''))
+                    print('%s----------|--------%s-|--------' % (' '.join([''] * 12), '-|--------' if validation else ''))
+                print('%sEpoch %03d | %s | %.2fs' % (' '.join([''] * 12), e, loss_s, t_out))
 
             if no_improv_e == patience:
                 self.load_state_dict(best_state)
                 break
 
         t_end = time.time() - t_start
-        print(
-            'Training finished in %d epochs (%fs) with minimum loss = %f (epoch %d)' % (
-            e + 1, t_end, best_loss_tr, best_e)
-        )
+        if verbose:
+            print(
+                'Training finished in %d epochs (%fs) with minimum loss = %f (epoch %d)' % (
+                    e + 1, t_end, best_loss_tr, best_e)
+            )
 
     def fit_exp(
             self,
@@ -352,8 +356,8 @@ class CustomModel(nn.Module):
             else:
                 loss_tr = self.mini_batch_exp_loop(
                     d_train, t_train,
-                    d_train, t_train,
-                    n_t_batches, n_v_batches, batch_size,
+                    deepcopy(d_train), deepcopy(t_train),
+                    n_t_batches, n_t_batches, batch_size,
                     e, criterion_alg, optimizer_alg
                 )
 
@@ -386,7 +390,8 @@ class CustomModel(nn.Module):
             self,
             data,
             batch_size=32,
-            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
+            verbose=True
     ):
         # Init
         self.to(device)
@@ -395,29 +400,34 @@ class CustomModel(nn.Module):
         n_batches = -(-len(data) / batch_size) if not isinstance(data, list) else -(-len(data[0]) / batch_size)
 
         y_pred = list()
+        with torch.no_grad():
+            for batch_i in range(n_batches):
+                # Print stuff
+                if verbose:
+                    percent = 20 * batch_i / n_batches
+                    bar = '[' + ''.join(['.'] * percent) + '>' + ''.join(['-'] * (20 - percent)) + ']'
+                    print(
+                        '\033[K%sTesting batch (%02d/%02d) %s' % (' '.join([''] * 12), batch_i, n_batches, bar),
+                        end='\r'
+                    )
 
-        for batch_i in range(n_batches):
+                # Testing stuff
+                batch_ini = batch_i * batch_size
+                batch_end = (batch_i + 1) * batch_size
+                # Mini batch loop
+                # I'll try to support both multi-input and multi-output approaches. That
+                # is why we have this "complicated" batch approach.
+                if isinstance(data, list):
+                    batch_x = map(lambda b: to_torch_var(b[batch_ini:batch_end]), data)
+                else:
+                    batch_x = to_torch_var(data[batch_i * batch_size:(batch_i + 1) * batch_size])
 
-            # Print stuff
-            percent = 20 * batch_i / n_batches
-            bar = '[' + ''.join(['.'] * percent) + '>' + ''.join(['-'] * (20 - percent)) + ']'
-            print('\033[K%sTesting batch (%02d/%02d) %s' % (' '.join([''] * 12), batch_i, n_batches, bar), end='\r')
+                # We test the model with the current batch
+                y_pred += self(batch_x).tolist()
 
-            # Testing stuff
-            batch_ini = batch_i * batch_size
-            batch_end = (batch_i + 1) * batch_size
-            # Mini batch loop
-            # I'll try to support both multi-input and multi-output approaches. That
-            # is why we have this "complicated" batch approach.
-            if isinstance(data, list):
-                batch_x = map(lambda b: to_torch_var(b[batch_ini:batch_end], requires_grad=True), data)
-            else:
-                batch_x = to_torch_var(data[batch_i * batch_size:(batch_i + 1) * batch_size], requires_grad=True)
-
-            # We test the model with the current batch
-            y_pred += self(batch_x).tolist()
-
-        print('\033[K%sTesting finished succesfully' % ' '.join([''] * 12))
+        if verbose:
+            print('\033[K%sTesting finished succesfully' % ' '.join([''] * 12))
+            print('\033[K%sTesting finished succesfully' % ' '.join([''] * 12))
 
         return y_pred
 
@@ -430,13 +440,17 @@ class ScalingLayer(nn.Module):
             device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     ):
         super(ScalingLayer, self).__init__()
-        self.ws = torch.unsqueeze(torch.rand(shape_in, device=device, dtype=dtype, requires_grad=True), dim=0)
-        self.ws.to(device)
-        self.bs = torch.unsqueeze(torch.randn(shape_in, device=device, dtype=dtype, requires_grad=True), dim=0)
-        self.bs.to(device)
+        self.weight = nn.Parameter(
+            torch.unsqueeze(torch.rand(shape_in, device=device, dtype=dtype, requires_grad=True), dim=0)
+        )
+        self.weight.to(device)
+        self.bias = nn.Parameter(
+            torch.unsqueeze(torch.randn(shape_in, device=device, dtype=dtype, requires_grad=True), dim=0)
+        )
+        self.bias.to(device)
 
     def forward(self, x):
-        return x * self.ws + self.bs
+        return x * self.weight + self.bias
 
 
 class BratsSurvivalNet(CustomModel):
@@ -485,13 +499,16 @@ class BratsSurvivalNet(CustomModel):
 
         vgg_fccout1 = map(self.vgg_fcc1, vgg_norm)
         vgg_relu1 = map(F.relu, vgg_fccout1)
-        vgg_dropout1 = map(self.dropout1, vgg_relu1)
-        vgg_poolout1 = map(self.vgg_pool1, vgg_dropout1)
+        # vgg_dropout1 = map(self.dropout1, vgg_relu1)
+        # vgg_poolout1 = map(self.vgg_pool1, vgg_dropout1)
+        vgg_poolout1 = map(self.vgg_pool1, vgg_relu1)
 
-        vgg_fccout2 = map(self.dropout2, map(F.relu, map(self.vgg_fcc2, vgg_poolout1)))
+        # vgg_fccout2 = map(self.dropout2, map(F.relu, map(self.vgg_fcc2, vgg_poolout1)))
+        vgg_fccout2 = map(F.relu, map(self.vgg_fcc2, vgg_poolout1))
         vgg_poolout2 = map(self.vgg_pool2, vgg_fccout2)
 
-        vgg_fccout3 = map(self.dropout3, map(F.relu, map(self.vgg_fcc3, vgg_poolout2)))
+        # vgg_fccout3 = map(self.dropout3, map(F.relu, map(self.vgg_fcc3, vgg_poolout2)))
+        vgg_fccout3 = map(F.relu, map(self.vgg_fcc3, vgg_poolout2))
 
         vgg_out = torch.cat(map(self.vgg_dense, map(lambda yi: yi.view(-1, yi.size()[1]), vgg_fccout3)), dim=-1)
 

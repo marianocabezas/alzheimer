@@ -46,7 +46,7 @@ def parse_inputs():
     )
     parser.add_argument(
         '-e', '--epochs',
-        action='store', dest='epochs', type=int, default=10,
+        action='store', dest='epochs', type=int, default=30,
         help='Number of maximum epochs for training the segmentation task'
     )
     parser.add_argument(
@@ -269,7 +269,7 @@ def preprocess_input(x):
     return x_norm
 
 
-def train_net(net, net_name, image_names, survival, features, slices, experimental=False):
+def train_net(net, net_name, image_names, survival, features, slices, experimental=False, verbose=False):
     # Init
     options = parse_inputs()
     c = color_codes()
@@ -280,14 +280,16 @@ def train_net(net, net_name, image_names, survival, features, slices, experiment
     ''' Training '''
     try:
         net.load_state_dict(torch.load(net_name))
-
-        print(
-            '%s[%s] %sSurvival network weights %sloaded%s' % (
-                c['c'], strftime("%H:%M:%S"), c['g'],
-                c['b'], c['nc']
+        if verbose:
+            print(
+                '%s[%s] %sSurvival network weights %sloaded%s' % (
+                    c['c'], strftime("%H:%M:%S"), c['g'],
+                    c['b'], c['nc']
+                )
             )
-        )
     except IOError:
+        net = net.cuda()
+
         trainable_params = count_params(net)
         print(
             '%s[%s] %sTraining the survival network %s(%s%d %sparameters)' % (
@@ -297,15 +299,19 @@ def train_net(net, net_name, image_names, survival, features, slices, experiment
         )
 
         # Data preparation
-        x_vol = get_reshaped_data(image_names, slices, (224, 224), n_slices=n_slices, verbose=True)
-        print('%s- Concatenating the data' % ' '.join([''] * 12))
+        x_vol = get_reshaped_data(image_names, slices, (224, 224), n_slices=n_slices, verbose=verbose)
+
+        if verbose:
+            print('%s- Concatenating the data' % ' '.join([''] * 12))
         x_vol = np.stack(x_vol, axis=0)
 
-        print('%s-- X (volume) shape: (%s)' % (' '.join([''] * 12), ', '.join(map(str, x_vol.shape))))
-        print('%s-- X (features) shape: (%s)' % (' '.join([''] * 12), ', '.join(map(str, features.shape))))
-        print('%s-- Y shape: (%s)' % (' '.join([''] * 12), ', '.join(map(str, survival.shape))))
+        if verbose:
+            print('%s-- X (volume) shape: (%s)' % (' '.join([''] * 12), ', '.join(map(str, x_vol.shape))))
+            print('%s-- X (features) shape: (%s)' % (' '.join([''] * 12), ', '.join(map(str, features.shape))))
+            print('%s-- Y shape: (%s)' % (' '.join([''] * 12), ', '.join(map(str, survival.shape))))
 
-        print('%s- Randomising the training data' % ' '.join([''] * 12))
+            print('%s- Randomising the training data' % ' '.join([''] * 12))
+
         idx = np.random.permutation(range(len(features)))
 
         x_vol = preprocess_input(x_vol[idx].astype(np.float32))
@@ -314,62 +320,62 @@ def train_net(net, net_name, image_names, survival, features, slices, experiment
 
         y = survival[idx].astype(np.float32)
 
-        print('%sStarting train loop' % ' '.join([''] * 12))
+        if verbose:
+            print('%sStarting train loop' % ' '.join([''] * 12))
+
         if experimental:
-            net.fit_exp(x, y, epochs=epochs, batch_size=2, criterion='mse', val_split=0.25)
+            # net.fit_exp(x, y, epochs=epochs, batch_size=2, criterion='mse', val_split=0.25)
+            net.fit_exp(x, y, epochs=epochs, batch_size=4, criterion='mse', verbose=verbose)
         else:
-            net.fit(x, y, epochs=epochs, batch_size=2, criterion='mse', val_split=0.25)
+            # net.fit(x, y, epochs=epochs, batch_size=2, criterion='mse', val_split=0.25)
+            net.fit(x, y, epochs=epochs, batch_size=4, criterion='mse', verbose=verbose, patience=10)
         torch.save(net.state_dict(), net_name)
 
 
-def train_survival_function(image_names, survival, features, slices, save_path, sufix=''):
+def train_survival_function(image_names, survival, features, slices, save_path, sufix='', verbose=False):
     # Init
     options = parse_inputs()
     # Prepare the net hyperparameters
     n_slices = options['n_slices']
 
     # Old network
-    net_old = BratsSurvivalNet(n_slices=n_slices, n_features=features.shape[-1])
-    net_old = net_old.cuda()
+    net = BratsSurvivalNet(n_slices=n_slices, n_features=features.shape[-1])
 
     net_name = os.path.join(save_path, 'brats2018-pytorch-survival%s.hdf5' % sufix)
 
-    train_net(net_old, net_name, image_names, survival, features, slices)
+    train_net(net, net_name, image_names, survival, features, slices, verbose=verbose)
 
-    # Experimental network
-    net_exp = BratsSurvivalNet(n_slices=n_slices, n_features=features.shape[-1])
-    net_exp = net_exp.cuda()
-
-    net_name = os.path.join(save_path, 'brats2018-pytorch_exp-survival%s.hdf5' % sufix)
-
-    train_net(net_exp, net_name, image_names, survival, features, slices, experimental=True)
-
-    return net_old, net_exp
+    return net
 
 
-def test_survival_function(net, image_names, features, slices, n_slices):
-    print(
-        '%s[%s] %sTesting the survival network %s' % (
-            color_codes()['c'], strftime("%H:%M:%S"), color_codes()['g'], color_codes()['nc']
+def test_survival_function(net, image_names, features, slices, n_slices, verbose=False):
+    if verbose:
+        print(
+            '%s[%s] %sTesting the survival network %s' % (
+                color_codes()['c'], strftime("%H:%M:%S"), color_codes()['g'], color_codes()['nc']
+            )
         )
-    )
 
-    x_vol = get_reshaped_data(image_names, slices, (224, 224), n_slices=n_slices)
-    print('%s- Concatenating the data' % ' '.join([''] * 12))
+    x_vol = get_reshaped_data(image_names, slices, (224, 224), n_slices=n_slices, verbose=verbose)
+
+    if verbose:
+        print('%s- Concatenating the data' % ' '.join([''] * 12))
+
     x_vol = np.stack(x_vol, axis=0).astype(np.float32)
 
-    print('%s-- X (volume) shape: (%s)' % (' '.join([''] * 12), ', '.join(map(str, x_vol.shape))))
-    print('%s-- X (features) shape: (%s)' % (' '.join([''] * 12), ', '.join(map(str, features.shape))))
-
-    print('%s- Randomising the training data' % ' '.join([''] * 12))
+    if verbose:
+        print('%s-- X (volume) shape: (%s)' % (' '.join([''] * 12), ', '.join(map(str, x_vol.shape))))
+        print('%s-- X (features) shape: (%s)' % (' '.join([''] * 12), ', '.join(map(str, features.shape))))
 
     x_vol = preprocess_input(x_vol.astype(np.float32))
     x_feat = features.astype(np.float32)
 
     x = [x_vol, x_feat]
 
-    print('%sStarting test loop' % ' '.join([''] * 12))
-    survival = net.predict(x, batch_size=4)
+    if verbose:
+        print('%sStarting test loop' % ' '.join([''] * 12))
+    survival = net.predict(x, batch_size=4, verbose=verbose)
+
     return np.fabs(np.squeeze(survival))
 
 
@@ -427,36 +433,39 @@ def main():
             )
         )
 
-        net_old, net_exp = train_survival_function(
-            train_images,
-            train_survival / max_survival,
-            train_features,
-            train_slices,
-            save_path=options['loo_dir'],
-            sufix='-fold%d' % i
-        )
+        survivals = list()
 
-        ''' Testing '''
-        survival_old = test_survival_function(
-            net_old,
-            p,
-            p_features,
-            p_slices,
-            options['n_slices']
-        ) * max_survival
-        survival_exp = test_survival_function(
-            net_exp,
-            p,
-            p_features,
-            p_slices,
-            options['n_slices']
-        ) * max_survival
+        for j in range(20):
+            net = train_survival_function(
+                train_images,
+                train_survival / max_survival,
+                train_features,
+                train_slices,
+                save_path=options['loo_dir'],
+                sufix='_%02d-fold%02d' % (j, i),
+                verbose=True
+            )
+
+            ''' Testing '''
+            survival = test_survival_function(
+                net,
+                p,
+                p_features,
+                p_slices,
+                options['n_slices'],
+                verbose=True
+            ) * max_survival
+
+            survivals += [survival]
+
         print(
-            '%s[%s] %sPatient %s%s%s predicted survival = old - %s%f %svs%s exp - %f (%f)%s' % (
+            '%s[%s] %sPatient %s%s%s predicted survival = %s [%smean = %f %s(%s%f%s)] %s(%f)%s' % (
                 c['c'], strftime("%H:%M:%S"),
                 c['g'], c['b'], p_name[0], c['nc'],
-                c['g'], survival_old, c['nc'], c['g'], survival_exp, p_survival, c['nc']
+                ' / '.join(map(lambda s: '%s%f%s' % (c['g'], s, c['nc']), survivals)),
+                c['g'], np.mean(survivals), c['nc'], c['g'], np.std(survivals), c['nc'], c['g'], p_survival, c['nc']
             )
+
         )
 
 
