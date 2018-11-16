@@ -527,11 +527,14 @@ def naive_registration(
     # Init
     if d_path is None:
         d_path = parse_args()['dataset_path']
-    mov_pair = [(-width, -1), (width, 1)]
-    movs = map(lambda (e, s): list(product(range(0, e, s), repeat=dim)), mov_pair)
-    print(len(movs))
-    movs = filter(lambda mov: np.linalg.norm(mov) <= width, movs)
-    print(len(movs))
+    movs = map(
+        lambda (e, s): list(product(range(0, e, s), repeat=dim)),
+        [(-width, -1), (width, 1)]
+    )
+    movs = map(
+        lambda lmovs: filter(lambda mov: np.linalg.norm(mov) <= width, lmovs),
+        movs
+    )
     np_movs = np.unique(np.concatenate(movs), axis=0)
     patients = get_dirs(d_path)
 
@@ -807,9 +810,14 @@ def subtraction_registration(
     # Init
     if d_path is None:
         d_path = parse_args()['dataset_path']
-    mov_pair = [(-width, -1), (width, 1)]
-    movs = map(lambda (e, s): list(product(range(0, e, s), repeat=dim)), mov_pair)
-    movs = filter(lambda mov: np.linalg.norm(mov) <= width, movs)
+    movs = map(
+        lambda (e, s): list(product(range(0, e, s), repeat=dim)),
+        [(-width, -1), (width, 1)]
+    )
+    movs = map(
+        lambda lmovs: filter(lambda mov: np.linalg.norm(mov) <= width, lmovs),
+        movs
+    )
     np_movs = np.unique(np.concatenate(movs), axis=0)
     patients = get_dirs(d_path)
 
