@@ -7,6 +7,7 @@ from torch import nn
 import torch.nn.functional as F
 from torchvision import models
 import numpy as np
+from layers import ScalingLayer, SpatialTransformer
 
 
 def to_torch_var(
@@ -432,27 +433,6 @@ class CustomModel(nn.Module):
         return y_pred
 
 
-class ScalingLayer(nn.Module):
-    def __init__(
-            self,
-            shape_in,
-            dtype=torch.float,
-            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
-    ):
-        super(ScalingLayer, self).__init__()
-        self.weight = nn.Parameter(
-            torch.unsqueeze(torch.rand(shape_in, device=device, dtype=dtype, requires_grad=True), dim=0)
-        )
-        self.weight.to(device)
-        self.bias = nn.Parameter(
-            torch.unsqueeze(torch.randn(shape_in, device=device, dtype=dtype, requires_grad=True), dim=0)
-        )
-        self.bias.to(device)
-
-    def forward(self, x):
-        return x * self.weight + self.bias
-
-
 class BratsSurvivalNet(CustomModel):
     def __init__(
             self,
@@ -493,7 +473,10 @@ class BratsSurvivalNet(CustomModel):
 
     def forward(self, x):
 
-        x_sliced = map(lambda xi: torch.squeeze(xi, dim=-1), torch.split(x[0], 1, dim=-1))
+        x_sliced = map(
+            lambda xi: torch.squeeze(xi, dim=-1),
+            torch.split(x[0], 1, dim=-1)
+        )
         vgg_in = map(self.base_model, x_sliced)
         vgg_norm = map(self.batchnorm, vgg_in)
 
@@ -510,7 +493,94 @@ class BratsSurvivalNet(CustomModel):
         # vgg_fccout3 = map(self.dropout3, map(F.relu, map(self.vgg_fcc3, vgg_poolout2)))
         vgg_fccout3 = map(F.relu, map(self.vgg_fcc3, vgg_poolout2))
 
-        vgg_out = torch.cat(map(self.vgg_dense, map(lambda yi: yi.view(-1, yi.size()[1]), vgg_fccout3)), dim=-1)
+        vgg_out = torch.cat(
+            map(
+                self.vgg_dense,
+                map(
+                    lambda yi: yi.view(-1, yi.size()[1]),
+                    vgg_fccout3
+                )
+            ),
+            dim=-1
+        )
+
+        # Here we add the final layers to compute the survival value
+
+        final_tensor = torch.cat([x[1], vgg_out], dim=-1)
+        output = self.dense(final_tensor)
+        return output
+
+
+class MaskAtrophyNet(CustomModel):
+    def __init__(
+            self,
+            n_slices,
+            n_features=4,
+            dense_size=256,
+            dropout=0.1,
+            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    ):
+
+        # Init
+        super(MaskAtrophyNet, self).__init__()
+
+        # VGG init
+        base_model = nn.Sequential(*list(models.vgg16(pretrained=True).children())[:-1])
+        base_model.to(device)
+        for param in base_model.parameters():
+            param.requires_grad = False
+
+        self.base_model = base_model
+        self.batchnorm = nn.BatchNorm2d(512)
+
+        self.vgg_fcc1 = ScalingLayer((512, 7, 7))
+        self.dropout1 = nn.Dropout2d(dropout)
+        self.vgg_pool1 = nn.AvgPool2d(2)
+
+        self.vgg_fcc2 = ScalingLayer((512, 3, 3))
+        self.dropout2 = nn.Dropout2d(dropout)
+        self.vgg_pool2 = nn.AvgPool2d(2)
+
+        self.vgg_fcc3 = ScalingLayer((512, 1, 1))
+        self.dropout3 = nn.Dropout2d(dropout)
+
+        # Linear activation?
+        self.vgg_dense = nn.Linear(512, dense_size)
+
+        self.dense = nn.Linear((dense_size * n_slices) + n_features, 1)
+
+    def forward(self, x):
+
+        x_sliced = map(
+            lambda xi: torch.squeeze(xi, dim=-1),
+            torch.split(x[0], 1, dim=-1)
+        )
+        vgg_in = map(self.base_model, x_sliced)
+        vgg_norm = map(self.batchnorm, vgg_in)
+
+        vgg_fccout1 = map(self.vgg_fcc1, vgg_norm)
+        vgg_relu1 = map(F.relu, vgg_fccout1)
+        # vgg_dropout1 = map(self.dropout1, vgg_relu1)
+        # vgg_poolout1 = map(self.vgg_pool1, vgg_dropout1)
+        vgg_poolout1 = map(self.vgg_pool1, vgg_relu1)
+
+        # vgg_fccout2 = map(self.dropout2, map(F.relu, map(self.vgg_fcc2, vgg_poolout1)))
+        vgg_fccout2 = map(F.relu, map(self.vgg_fcc2, vgg_poolout1))
+        vgg_poolout2 = map(self.vgg_pool2, vgg_fccout2)
+
+        # vgg_fccout3 = map(self.dropout3, map(F.relu, map(self.vgg_fcc3, vgg_poolout2)))
+        vgg_fccout3 = map(F.relu, map(self.vgg_fcc3, vgg_poolout2))
+
+        vgg_out = torch.cat(
+            map(
+                self.vgg_dense,
+                map(
+                    lambda yi: yi.view(-1, yi.size()[1]),
+                    vgg_fccout3
+                )
+            ),
+            dim=-1
+        )
 
         # Here we add the final layers to compute the survival value
 

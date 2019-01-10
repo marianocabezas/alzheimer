@@ -231,10 +231,10 @@ def best_match(
 
     fixed_idx = np.array(fixed_idx)
     moved_idx = map(lambda mov: fixed_idx + mov, movs)
-    fixed_voxels = get_voxels(fixed, fixed_idx)
+    fixed_voxels = get_voxels(moving, fixed_idx)
     if moving is not None:
         match_scores = map(
-            lambda mov: c_function(fixed_voxels, get_voxels(moving, mov)),
+            lambda mov: c_function(fixed_voxels, get_voxels(fixed, mov)),
             moved_idx
         )
     else:
@@ -251,6 +251,46 @@ def best_match(
             '%s\-The best score was %f (movement (%s))' %
             (whites, best_score, ', '.join(map(str, movs[best_mov]))))
     return best_idx
+
+
+def improve_mask(image, mask, expansion=1, verbose=1):
+    """
+    Function that improves a segmentation mask by removing outlier voxels from
+    it and adapting the boundary to include voxels that might be part of the
+    mask.
+    :param image: Image that was segmented.
+    :param mask: Original mask.
+    :param expansion: Expansion of the bounding box for all dimensions.
+    :param verbose: Verbosity level.
+    :return: The refined mask of the same shape as mask.
+    """
+
+    bounding_box_min = np.min(np.nonzero(mask), axis=1) - expansion
+    bounding_box_max = np.max(np.nonzero(mask), axis=1) + 1 + expansion
+    bounding_box = map(
+        lambda (min_i, max_i): slice(min_i, max_i),
+        zip(bounding_box_min, bounding_box_max)
+    )
+
+
+    mask_int = image[mask.astype(bool)]
+    bb_int = image[bounding_box]
+    mask_mu = np.mean(mask_int)
+    nu_mask = bb_int > mask_mu
+
+    fixed_mask = np.zeros_like(image)
+    fixed_mask[bounding_box][nu_mask] = True
+
+    if verbose > 1:
+        whites = ''.join([' '] * 11)
+        print(
+            '%s\-Intensity min = %f from %d pixels to %d pixels' % (
+                whites,
+                mask_mu,
+                len(mask_int), np.sum(nu_mask)
+            )
+        )
+    return np.logical_and(fixed_mask, mask)
 
 
 """
@@ -498,16 +538,18 @@ def naive_registration(
         c_function=lambda x, y: -bidirectional_mahalanobis(x, y),
         width=5,
         dim=3,
+        refine=False,
+        expansion=1,
         verbose=1,
 ):
     """
     Function that applies a lesion by lesion naive registration. The idea is
-     that after 3 years, the atrophy of the MS patient is noticeable and that
-     causes a movement on the chronic MS lesions (due to the ventricle
-     expansion). The assumption is that we can use a naive registration
-     approach that open a sliding window around the baseline mask and tries to
-     find the best match in terms of intensity similarity on the follow-up
-     image.
+    that after 3 years, the atrophy of the MS patient is noticeable and that
+    causes a movement on the chronic MS lesions (due to the ventricle
+    expansion). The assumption is that we can use a naive registration
+    approach that open a sliding window around the baseline mask and tries to
+    find the best match in terms of intensity similarity on the follow-up
+    image.
     :param d_path: Path where the whole database is stored. If not specified,
     it will be read from the command parameters.
     :param image: Image name that will be used for matching.
@@ -518,6 +560,11 @@ def naive_registration(
     value of their similarity.
     :param width: Width of the sliding window.
     :param dim: Number of dimensions of the fixed and moving images.
+    :param refine: Whether to refine the original mask or not. The refined mask
+    is based on the gaussian distribution of the voxels.
+    inside the original mask and the bounding box of the mask with a user
+    defined expansion.
+    :param expansion: expansion of the bounding box for the refinement.
     :param verbose: Verbosity level.
     :return: None.
     """
@@ -560,14 +607,14 @@ def naive_registration(
 
         patient_path = os.path.join(d_path, patient)
 
-        moving_name = image + '_corrected.nii.gz'
-        moving = load_nii(
-            os.path.join(patient_path, fixed_folder, moving_name)
-        ).get_data()
-        fixed_tag = '_' + moving_folder + '-' + fixed_folder
-        fixed_name = image + fixed_tag + '_corrected_matched.nii.gz'
+        fixed_name = image + '_corrected.nii.gz'
         fixed = load_nii(
             os.path.join(patient_path, fixed_folder, fixed_name)
+        ).get_data()
+        moving_tag = '_' + moving_folder + '-' + fixed_folder
+        moving_name = image + moving_tag + '_corrected_matched.nii.gz'
+        moving = load_nii(
+            os.path.join(patient_path, fixed_folder, moving_name)
         ).get_data()
 
         mask_name = find_file('(' + '|'.join(lesion_tags) + ')', patient_path)
@@ -588,6 +635,33 @@ def naive_registration(
 
             if verbose > 1:
                 print(
+                    '%s-Refining the %s%d%s lesions' %
+                    (
+                        ''.join([' '] * 11),
+                        c['b'], nlabels,
+                        c['nc']
+                    )
+                )
+
+            if refine:
+                masks = map(
+                    lambda l: improve_mask(
+                        moving, labels == l,
+                        expansion, verbose
+                    ),
+                    range(1, nlabels + 1)
+                )
+
+                refined_mask = reduce(np.logical_or, masks)
+                mask_nii.get_data()[:] = refined_mask
+                mask_nii.to_filename(
+                    os.path.join(patient_path, 'refined_mask.nii.gz')
+                )
+            else:
+                masks = map(lambda l: labels == l, range(1, nlabels + 1))
+
+            if verbose > 1:
+                print(
                     '%s-Moving %s%d%s lesions' %
                     (
                         ''.join([' '] * 11),
@@ -605,13 +679,13 @@ def naive_registration(
             for n_f, c_f in c_functions.items():
 
                 matches = map(
-                    lambda l: best_match(
+                    lambda mask: best_match(
                         fixed, moving,
-                        get_mask_voxels(labels == l), np_movs,
+                        get_mask_voxels(mask), np_movs,
                         c_function=c_f,
                         verbose=verbose
                     ),
-                    range(1, nlabels + 1)
+                    masks
                 )
 
                 nulesion_idx = np.concatenate(matches, axis=0)
@@ -620,9 +694,14 @@ def naive_registration(
                     numask[tuple(idx)] = True
 
                 mask_nii.get_data()[:] = numask
-                mask_nii.to_filename(
-                    os.path.join(patient_path, '%s_mask.nii.gz' % n_f)
-                )
+                if refine:
+                    mask_nii.to_filename(
+                        os.path.join(patient_path, '%s_ref_mask.nii.gz' % n_f)
+                    )
+                else:
+                    mask_nii.to_filename(
+                        os.path.join(patient_path, '%s_mask.nii.gz' % n_f)
+                    )
 
         if verbose > 0:
             time_str = time.strftime(
@@ -925,8 +1004,9 @@ def subtraction_registration(
 def main():
     # initial_analysis()
     naive_registration(verbose=2)
+    naive_registration(refine=True, verbose=2)
     # deformationbased_registration(verbose=2)
-    subtraction_registration(image='m60_flair', verbose=2)
+    # subtraction_registration(image='m60_flair', verbose=2)
 
 
 if __name__ == "__main__":
