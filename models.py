@@ -272,8 +272,16 @@ class CustomModel(nn.Module):
             if verbose:
                 print('\033[K', end='')
                 if e == 0:
-                    print('%sEpoch num | tr_loss%s |  time  ' % (' '.join([''] * 12), ' | vl_loss' if validation else ''))
-                    print('%s----------|--------%s-|--------' % (' '.join([''] * 12), '-|--------' if validation else ''))
+                    print(
+                        '%sEpoch num | tr_loss%s |  time  ' % (
+                            ' '.join([''] * 12),
+                            ' | vl_loss' if validation else '')
+                    )
+                    print(
+                        '%s----------|--------%s-|--------' % (
+                            ' '.join([''] * 12),
+                            '-|--------' if validation else '')
+                    )
                 print('%sEpoch %03d | %s | %.2fs' % (' '.join([''] * 12), e, loss_s, t_out))
 
             if no_improv_e == patience:
