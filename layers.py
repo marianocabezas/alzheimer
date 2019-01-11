@@ -44,17 +44,12 @@ class SpatialTransformer(nn.Module):
 
     def __init__(self,
                  interp_method='linear',
-                 single_transform=False,
                  **kwargs):
         """
         Parameters:
             :param interp_method: 'linear' or 'nearest'
-            :param single_transform: whether a single transform supplied for the whole batch
         """
         self.interp_method = interp_method
-        self.ndims = None
-        self.inshape = None
-        self.single_transform = single_transform
 
         super(self.__class__, self).__init__(**kwargs)
 
@@ -166,7 +161,7 @@ class SpatialTransformer(nn.Module):
                 # compute final weighted value for each cube corner
                 interp_vol += wt * vol_val
 
-        else:
+        elif self.interp_method == 'nearest':
             roundloc = torch.round(loc).type('int32')
 
             # clip values
