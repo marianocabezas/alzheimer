@@ -1,2 +1,2 @@
-# alzheimer
-Repository to work on Alzheimer's prediction and pyTorch
+# pytorch-based repository
+The objective of this code is to migrate all my code to pytorch. I also want to start developing any new thing with it, that's why it supposedly started as an Alzheimer's repo, but I still have to do anything with the disease. Right now, the code includes part of my BraTS 2018 code ported to pytorch and what I'm doing for longitudinal analysis in MS with a mix of simpleITK, pytorch and more standard processing with numpy, scipy and regular python 2.7.
