@@ -53,7 +53,7 @@ class SpatialTransformer(nn.Module):
 
         super(self.__class__, self).__init__(**kwargs)
 
-    def forward(self, vol, df):
+    def forward(self, input):
         """
         Transform (interpolation N-D volumes (features) given shifts at each location in pytorch
         Essentially interpolates volume vol at locations determined by loc_shift.
@@ -68,6 +68,7 @@ class SpatialTransformer(nn.Module):
         """
 
         # parse shapes
+        vol, df = input
         volshape = df.shape[:-1]
         nb_dims = len(volshape)
 

@@ -522,13 +522,8 @@ class BratsSurvivalNet(CustomModel):
 class MaskAtrophyNet(CustomModel):
     def __init__(
             self,
-            n_slices,
             conv_filters=list([16, 32, 32, 32]),
             deconv_filters=list([16, 32, 32, 32, 64, 64]),
-            n_features=4,
-            dense_size=256,
-            dropout=0.1,
-            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     ):
 
         # Init
@@ -538,13 +533,29 @@ class MaskAtrophyNet(CustomModel):
             lambda f_in, f_out: nn.Conv3d(f_in, f_out, 3, padding=1),
             zip([1] + conv_filters[1:], conv_filters)
         )
-        self.deconv = map(lambda f: nn.Conv3d(3, f, padding=1), deconv_filters)
+        self.deconv = map(
+            lambda f_out: nn.Conv3d(conv_filters[-1], f_out, 3, padding=1),
+            deconv_filters
+        )
         self.to_df = nn.Conv3d(3, 3, padding=1)
 
         self.trans_im = SpatialTransformer()
         self.trans_mask = SpatialTransformer('nearest')
 
-    def forward(self, source, target, mask):
+    def forward(self, input):
 
-        output = self.dense(source)
-        return output
+        source, target, mask = input
+        input_s = source
+
+        for c in self.conv:
+            input_s = c(input_s)
+
+        for d in self.deconv:
+            input_s = d(input_s)
+
+        df = self.to_df(input_s)
+
+        source_mov = self.trans_im([source, df])
+        mask_mov = self.trans_mask([mask, df])
+
+        return source_mov, mask_mov, df
