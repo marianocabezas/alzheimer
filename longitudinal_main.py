@@ -14,6 +14,7 @@ import traceback
 from itertools import product
 from nibabel import load as load_nii
 import SimpleITK as sitk
+import nibabel as nib
 from time import strftime
 from subprocess import call
 from scipy.ndimage.morphology import binary_erosion as erode
@@ -21,6 +22,7 @@ from sklearn.metrics import mean_squared_error
 from data_manipulation.sitk import itkn4, itkhist_match, itksubtraction, itkdemons
 from data_manipulation.generate_features import get_mask_voxels, get_voxels
 from data_manipulation.information_theory import bidirectional_mahalanobis, normalized_mutual_information
+from models import MaskAtrophyNet
 
 
 """
@@ -1001,10 +1003,145 @@ def subtraction_registration(
         )
 
 
+def cnn_registration(
+        d_path=None,
+        lesion_tags=list(['_bin', 'lesion', 'lesionMask']),
+        folder='time6',
+        source='flair_time1-time6_corrected_matched.nii.gz',
+        target='flair_corrected.nii.gz',
+        verbose=1,
+):
+    """
+        Function that applies a CNN-based registration approach. The goal of
+        this network is to find the atrophy deformation, and how it affects the
+        lesion mask, manually segmented on the baseline image.
+        :param d_path: Path where the whole database is stored. If not specified,
+        it will be read from the command parameters.
+        :param lesion_tags: Tags that may be contained on the lesion mask filename.
+        :param folder: Folder that contains the images.
+        :param source: Source image name.
+        :param target: Target image name
+        :param verbose: Verbosity level.
+        :return: None.
+        """
+
+    c = color_codes()
+
+    # Init
+    if d_path is None:
+        d_path = parse_args()['dataset_path']
+    patients = get_dirs(d_path)
+
+    time_str = strftime("%H:%M:%S")
+    print('\n%s[%s]%s CNN registration' % (
+        c['c'], time_str, c['nc']
+    ))
+
+    global_start = time.time()
+    reg_net = MaskAtrophyNet().cuda()
+
+    # Main loop
+    for i, patient in enumerate(patients):
+        patient_start = time.time()
+        if verbose > 0:
+            print(
+                '%s[%s]%s Starting CNN with patient %s %s(%d/%d)%s' %
+                (
+                    c['c'], strftime("%H:%M:%S"),
+                    c['g'], patient,
+                    c['c'], i + 1, len(patients), c['nc']
+                )
+            )
+        # Load mask, source and target and expand the dimensions.
+        patient_path = os.path.join(d_path, patient)
+        source_name = os.path.join(patient_path, folder, source)
+        target_name = os.path.join(patient_path, folder, target)
+        mask_name = find_file('(' + '|'.join(lesion_tags) + ')', patient_path)
+        if verbose > 1:
+            print(
+                '%s-Using image %s%s%s' %
+                (
+                    ''.join([' '] * 11),
+                    c['b'], mask_name,
+                    c['nc']
+                )
+            )
+
+        source_nii = load_nii(source_name)
+        source_image = source_nii.get_data()
+        source_image = np.reshape(source_image, (1, 1) + source_image.shape)
+        source_mu = np.mean(source_image)
+        source_sigma = np.std(source_image)
+        norm_source = (source_image - source_mu) / source_sigma
+        target_image = load_nii(target_name).get_data()
+        target_image = np.reshape(target_image, (1, 1) + target_image.shape)
+        target_mu = np.mean(target_image)
+        target_sigma = np.std(target_image)
+        norm_target = (target_image - target_mu) / target_sigma
+        mask_image = load_nii(mask_name).get_data()
+        mask_image = np.reshape(mask_image, (1, 1) + mask_image.shape)
+
+        # Create the network and run it.
+        reg_net.fit(
+            (norm_source, mask_image),
+            norm_target,
+            epochs=1000,
+            patience=500
+        )
+        source_mov, mask_mov, df = reg_net.transform(
+            norm_source, norm_target, mask_image
+        )
+
+        source_nii.get_data()[:] = source_mu - source_mov * source_sigma
+        source_nii.to_filename(
+            os.path.join(patient_path, 'cnn_defo.nii.gz')
+        )
+        mask_nii = nib.Nifti1Image(
+            mask_mov,
+            source_nii.get_qform(),
+            source_nii.get_header()
+        )
+        mask_nii.to_filename(
+            os.path.join(patient_path, 'cnn_defo_mask.nii.gz')
+        )
+
+        df_nii = nib.Nifti1Image(
+            np.moveaxis(np.squeeze(df), 0, -1),
+            source_nii.get_qform(),
+            source_nii.get_header()
+        )
+        df_nii.to_filename(
+            os.path.join(patient_path, 'cnn_defo_df.nii.gz')
+        )
+
+        # Patient done
+        if verbose > 0:
+            time_str = time.strftime(
+                '%H hours %M minutes %S seconds',
+                time.gmtime(time.time() - patient_start)
+            )
+            print(
+                '%sPatient %s finished%s (total time %s)\n' %
+                (c['r'], patient, c['nc'], time_str)
+            )
+
+    # Finished
+    if verbose > 0:
+        time_str = time.strftime(
+            '%H hours %M minutes %S seconds',
+            time.gmtime(time.time() - global_start)
+        )
+        print_message(
+            '%sAll patients finished %s(total time %s)%s' %
+            (c['r'], c['b'], time_str, c['nc'])
+        )
+
+
 def main():
     # initial_analysis()
-    naive_registration(verbose=2)
-    naive_registration(refine=True, verbose=2)
+    # naive_registration(verbose=2)
+    # naive_registration(refine=True, verbose=2)
+    cnn_registration(verbose=2)
     # deformationbased_registration(verbose=2)
     # subtraction_registration(image='m60_flair', verbose=2)
 

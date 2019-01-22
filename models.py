@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from torchvision import models
 import numpy as np
 from layers import ScalingLayer, SpatialTransformer
+from criterions import longitudinal_loss
 
 
 def to_torch_var(
@@ -20,7 +21,7 @@ def to_torch_var(
 
 
 class CustomModel(nn.Module):
-    def __init(self):
+    def __init__(self):
         super(CustomModel, self).__init__()
 
     def forward(self, *input):
@@ -519,33 +520,40 @@ class BratsSurvivalNet(CustomModel):
         return output
 
 
-class MaskAtrophyNet(CustomModel):
+class MaskAtrophyNet(nn.Module):
     def __init__(
             self,
-            conv_filters=list([16, 32, 32, 32]),
-            deconv_filters=list([16, 32, 32, 32, 64, 64]),
+            conv_filters=list([8, 16, 16, 32]),
+            deconv_filters=list([8, 16, 16, 32, 64, 64]),
+            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     ):
 
         # Init
         super(MaskAtrophyNet, self).__init__()
-
         self.conv = map(
-            lambda f_in, f_out: nn.Conv3d(f_in, f_out, 3, padding=1),
-            zip([1] + conv_filters[1:], conv_filters)
+            lambda (f_in, f_out): nn.Conv3d(f_in, f_out, 3, padding=1),
+            zip([2] + conv_filters[:-1], conv_filters)
         )
+        for c in self.conv:
+            c.to(device)
         self.deconv = map(
-            lambda f_out: nn.Conv3d(conv_filters[-1], f_out, 3, padding=1),
-            deconv_filters
+            lambda (f_in, f_out): nn.Conv3d(f_in, f_out, 3, padding=1),
+            zip([conv_filters[-1]] + deconv_filters[:-1], deconv_filters)
         )
-        self.to_df = nn.Conv3d(3, 3, padding=1)
+        for d in self.deconv:
+            d.to(device)
+        self.to_df = nn.Conv3d(deconv_filters[-1], 3, 3, padding=1)
+        self.to_df.to(device)
 
         self.trans_im = SpatialTransformer()
+        self.trans_im.to(device)
         self.trans_mask = SpatialTransformer('nearest')
+        self.trans_mask.to(device)
 
-    def forward(self, input):
+    def forward(self, inputs):
 
-        source, target, mask = input
-        input_s = source
+        source, target, mask = inputs
+        input_s = torch.cat([source, target], dim=1)
 
         for c in self.conv:
             input_s = c(input_s)
@@ -559,3 +567,157 @@ class MaskAtrophyNet(CustomModel):
         mask_mov = self.trans_mask([mask, df])
 
         return source_mov, mask_mov, df
+
+    def fit(
+            self,
+            data,
+            target,
+            optimizer='adam',
+            epochs=100,
+            patience=10,
+            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
+            verbose=True
+    ):
+        # Init
+        self.to(device)
+        self.train()
+
+        best_loss_tr = np.inf
+        no_improv_e = 0
+        best_state = deepcopy(self.state_dict())
+
+        optimizer_dict = {
+            'adam': torch.optim.Adam,
+        }
+
+        model_params = filter(lambda p: p.requires_grad, self.parameters())
+
+        optimizer_alg = optimizer_dict[optimizer](model_params)
+
+        t_start = time.time()
+
+        # This is actually a registration approach. It uses the nn framework
+        # but it doesn't actually do any supervised training. Therefore, there
+        # is only one sample per execution and there's no real validation.
+        # Due to this, we modified the generic fit algorithm.
+        source, mask = data
+        source_t = to_torch_var(source, requires_grad=True)
+        target_in_t = to_torch_var(source, requires_grad=True)
+        mask_t = to_torch_var(mask)
+        target_t = to_torch_var(target)
+
+        l_names = [
+            ' loss ',
+            'global',
+            'mask d',
+            ' hist '
+            # 'deform'
+        ]
+        best_losses = [np.inf] * (len(l_names) - 1)
+
+        for e in range(epochs):
+            # Main epoch loop
+            t_in = time.time()
+            loss_tr, mid_losses = self.step(
+                (source_t, target_in_t, mask_t),
+                target_t,
+                e,
+                optimizer_alg
+            )
+
+            losses_color = map(
+                lambda (pl, l): '\033[36m%.4f\033[0m' if l < pl else '%.4f',
+                zip(best_losses, mid_losses)
+            )
+            losses_s = map(lambda (c, l): c % l, zip(losses_color, mid_losses))
+            best_losses = map(
+                lambda (pl, l): l if l < pl else pl,
+                zip(best_losses, mid_losses)
+            )
+
+            # Patience check
+            improvement = loss_tr < best_loss_tr
+            if improvement:
+                best_loss_tr = loss_tr
+                epoch_s = '\033[32mEpoch %03d\033[0m' % e
+                loss_s = '\033[32m%.4f\033[0m' % loss_tr
+                best_e = e
+                best_state = deepcopy(self.state_dict())
+                no_improv_e = 0
+            else:
+                epoch_s = 'Epoch %03d' % e
+                loss_s = '%.4f' % loss_tr
+                no_improv_e += 1
+
+            t_out = time.time() - t_in
+            t_s = '%.2fs' % t_out
+
+            if verbose:
+                print('\033[K', end='')
+                whites = ' '.join([''] * 12)
+                if e == 0:
+                    l_bars = '-|-'.join(['-' * 6] * len(l_names))
+                    l_hdr = ' | '.join(l_names)
+                    print('%sEpoch num | %s |' % (whites, l_hdr))
+                    print('%s----------|-%s-|' % (whites, l_bars))
+                final_s = whites + ' | '.join([epoch_s, loss_s] + losses_s + [t_s])
+                print(final_s)
+
+            if no_improv_e == patience:
+                break
+
+        self.load_state_dict(best_state)
+        t_end = time.time() - t_start
+        if verbose:
+            print(
+                'Registration finished in %d epochs (%fs) with minimum loss = %f (epoch %d)' % (
+                    e + 1, t_end, best_loss_tr, best_e)
+            )
+
+    def step(self, inputs, target, epoch, optimizer_alg):
+        # Again. This is supposed to be a step on the registration process,
+        # there's no need for splitting data. We just compute the deformation,
+        # then compute the global loss (and intermidiate ones to show) and do
+        # back propagation.
+        with torch.autograd.set_detect_anomaly(True):
+            # We train the model and check the loss
+            y_pred = self(inputs)
+            losses = longitudinal_loss(y_pred, inputs + (target,))
+            batch_loss = sum(losses).to(target.device)
+
+            loss_value = batch_loss.tolist()
+            mid_losses = map(lambda l: l.tolist(), losses)
+
+            # Backpropagation
+            optimizer_alg.zero_grad()
+            batch_loss.backward()
+            optimizer_alg.step()
+
+        return loss_value, mid_losses
+
+    def transform(
+            self,
+            source,
+            target,
+            mask,
+            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
+            verbose=True
+    ):
+        # Init
+        self.to(device)
+        self.eval()
+
+        source_tensor = to_torch_var(source)
+        target_tensor = to_torch_var(target)
+        mask_tensor = to_torch_var(mask)
+
+        with torch.no_grad():
+            source_mov, mask_mov, df = self(
+                (source_tensor, target_tensor, mask_tensor)
+            )
+        if verbose:
+            print(
+                '\033[K%sTransformation finished' % ' '.join([''] * 12)
+            )
+
+        return source_mov.cpu().numpy(), mask_mov.cpu().numpy(), df.cpu().numpy()
