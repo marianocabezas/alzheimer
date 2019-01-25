@@ -5,10 +5,12 @@ from copy import deepcopy
 import torch
 from torch import nn
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
 from torchvision import models
 import numpy as np
 from layers import ScalingLayer, SpatialTransformer
 from criterions import longitudinal_loss
+from datasets import ImageCroppingDataset
 
 
 def to_torch_var(
@@ -530,15 +532,27 @@ class MaskAtrophyNet(nn.Module):
 
         # Init
         super(MaskAtrophyNet, self).__init__()
+        self.device = device
         self.conv = map(
-            lambda (f_in, f_out): nn.Conv3d(f_in, f_out, 3, padding=1),
+            lambda (f_in, f_out): nn.Conv3d(f_in, f_out, 3),
             zip([2] + conv_filters[:-1], conv_filters)
         )
+        unet_filters = len(conv_filters)
         for c in self.conv:
             c.to(device)
         self.deconv = map(
-            lambda (f_in, f_out): nn.Conv3d(f_in, f_out, 3, padding=1),
-            zip([conv_filters[-1]] + deconv_filters[:-1], deconv_filters)
+            lambda (f_in, f_out): nn.ConvTranspose3d(f_in, f_out, 3),
+            zip(
+                [conv_filters[-1]] + deconv_filters[:unet_filters - 1],
+                deconv_filters[:unet_filters]
+            )
+        )
+        self.deconv += map(
+            lambda (f_in, f_out): nn.ConvTranspose3d(f_in, f_out, 3, padding=1),
+            zip(
+                deconv_filters[unet_filters - 1:-1],
+                deconv_filters[unet_filters:]
+            )
         )
         for d in self.deconv:
             d.to(device)
@@ -568,50 +582,67 @@ class MaskAtrophyNet(nn.Module):
 
         return source_mov, mask_mov, df
 
-    def fit(
+    def register(
             self,
             data,
             target,
+            brain_mask,
+            patch_size=24,
+            batch_size=32,
             optimizer='adam',
             epochs=100,
             patience=10,
             device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
+            num_workers=10,
             verbose=True
     ):
         # Init
         self.to(device)
         self.train()
 
-        best_loss_tr = np.inf
-        no_improv_e = 0
-        best_state = deepcopy(self.state_dict())
-
+        # Optimizer init
         optimizer_dict = {
             'adam': torch.optim.Adam,
         }
-
         model_params = filter(lambda p: p.requires_grad, self.parameters())
-
         optimizer_alg = optimizer_dict[optimizer](model_params)
+
+        # Pre-loop init
+        best_loss_tr = np.inf
+        no_improv_e = 0
+        best_state = deepcopy(self.state_dict())
 
         t_start = time.time()
 
         # This is actually a registration approach. It uses the nn framework
         # but it doesn't actually do any supervised training. Therefore, there
-        # is only one sample per execution and there's no real validation.
+        # is no real validation.
         # Due to this, we modified the generic fit algorithm.
         source, mask = data
         source_t = to_torch_var(source, requires_grad=True)
         target_in_t = to_torch_var(source, requires_grad=True)
+        brain_mask_t = to_torch_var(brain_mask)
         mask_t = to_torch_var(mask)
         target_t = to_torch_var(target)
+
+        cropping_dataset = ImageCroppingDataset(
+            np.squeeze(source),
+            np.squeeze(target),
+            np.squeeze(mask),
+            np.squeeze(brain_mask),
+            patch_size
+        )
+        dataloader = DataLoader(
+            cropping_dataset, batch_size, True, num_workers=num_workers
+        )
 
         l_names = [
             ' loss ',
             'global',
-            'mask d',
-            ' hist '
-            # 'deform'
+            # 'mask d',
+            # ' hist '
+            'deform',
+            # 'modulo'
         ]
         best_losses = [np.inf] * (len(l_names) - 1)
 
@@ -621,8 +652,10 @@ class MaskAtrophyNet(nn.Module):
             loss_tr, mid_losses = self.step(
                 (source_t, target_in_t, mask_t),
                 target_t,
-                e,
-                optimizer_alg
+                brain_mask_t,
+                dataloader,
+                optimizer_alg,
+                e
             )
 
             losses_color = map(
@@ -674,24 +707,59 @@ class MaskAtrophyNet(nn.Module):
                     e + 1, t_end, best_loss_tr, best_e)
             )
 
-    def step(self, inputs, target, epoch, optimizer_alg):
+    def step(self, inputs, target, mask, dataloader, optimizer_alg, epoch):
         # Again. This is supposed to be a step on the registration process,
         # there's no need for splitting data. We just compute the deformation,
         # then compute the global loss (and intermidiate ones to show) and do
         # back propagation.
         with torch.autograd.set_detect_anomaly(True):
-            # We train the model and check the loss
-            y_pred = self(inputs)
-            losses = longitudinal_loss(y_pred, inputs + (target,))
-            batch_loss = sum(losses).to(target.device)
+            n_batches = len(dataloader.dataset) / dataloader.batch_size + 1
+            loss_list = []
+            for batch_i, sample in enumerate(dataloader):
+                # We train the model and check the loss
+                b_inputs = map(lambda s: s.to(self.device), sample[0])
+                b_target = sample[1].to(self.device)
+                y_pred = self(b_inputs[:-1])
+                loss_in = b_inputs[:-1]
+                loss_in.append(b_target)
+                brain_mask = b_inputs[-1]
+                b_losses = longitudinal_loss(y_pred, loss_in, brain_mask)
 
-            loss_value = batch_loss.tolist()
-            mid_losses = map(lambda l: l.tolist(), losses)
+                # Final loss value computation per batch
+                batch_loss = sum(b_losses).to(target.device)
+                b_loss_value = batch_loss.tolist()
+                loss_list.append(b_loss_value)
+                mean_loss = np.mean(loss_list)
 
-            # Backpropagation
-            optimizer_alg.zero_grad()
-            batch_loss.backward()
-            optimizer_alg.step()
+                # Print the intermediate results
+                whites = ' '.join([''] * 12)
+                percent = 20 * batch_i / n_batches
+                progress_s = ''.join(['-'] * percent)
+                remaining_s = ''.join([' '] * (20 - percent))
+                bar = '[' + progress_s + '>' + remaining_s + ']'
+                curr_values_s = ' loss %f (%f)' % (b_loss_value, mean_loss)
+                batch_s = '%sEpoch %03d (%02d/%02d) %s%s' % (
+                    whites, epoch, batch_i, n_batches, bar, curr_values_s
+                )
+                print('\033[K', end='')
+                print(batch_s, end='\r')
+                sys.stdout.flush()
+
+                # Backpropagation
+                optimizer_alg.zero_grad()
+                batch_loss.backward()
+                optimizer_alg.step()
+
+            # We compute the "validation loss" with the whole image
+            with torch.no_grad():
+                y_pred = self(inputs)
+                losses = longitudinal_loss(
+                    y_pred, inputs + (target,), mask
+                )
+                batch_loss = sum(losses).to(target.device)
+
+                loss_value = batch_loss.tolist()
+                mid_losses = map(lambda l: l.tolist(), losses)
 
         return loss_value, mid_losses
 
@@ -720,4 +788,8 @@ class MaskAtrophyNet(nn.Module):
                 '\033[K%sTransformation finished' % ' '.join([''] * 12)
             )
 
-        return source_mov.cpu().numpy(), mask_mov.cpu().numpy(), df.cpu().numpy()
+        source_mov = map(np.squeeze, source_mov.cpu().numpy())
+        mask_mov = map(np.squeeze, mask_mov.cpu().numpy())
+        df = map(np.squeeze, df.cpu().numpy())
+
+        return source_mov, mask_mov, df

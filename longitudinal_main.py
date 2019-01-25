@@ -1009,6 +1009,7 @@ def cnn_registration(
         folder='time6',
         source='flair_time1-time6_corrected_matched.nii.gz',
         target='flair_corrected.nii.gz',
+        mask='union_brainmask.nii.gz',
         verbose=1,
 ):
     """
@@ -1021,6 +1022,7 @@ def cnn_registration(
         :param folder: Folder that contains the images.
         :param source: Source image name.
         :param target: Target image name
+        :param mask: Brainmask name.
         :param verbose: Verbosity level.
         :return: None.
         """
@@ -1056,6 +1058,7 @@ def cnn_registration(
         patient_path = os.path.join(d_path, patient)
         source_name = os.path.join(patient_path, folder, source)
         target_name = os.path.join(patient_path, folder, target)
+        brain_name = os.path.join(patient_path, folder, mask)
         mask_name = find_file('(' + '|'.join(lesion_tags) + ')', patient_path)
         if verbose > 1:
             print(
@@ -1067,37 +1070,47 @@ def cnn_registration(
                 )
             )
 
+        # Brain mask
+        brain_mask = load_nii(brain_name).get_data()
+        brain_bin = brain_mask > 0
+
+        # Baseline image
         source_nii = load_nii(source_name)
         source_image = source_nii.get_data()
+        source_mu = np.mean(source_image[brain_bin])
+        source_sigma = np.std(source_image[brain_bin])
         source_image = np.reshape(source_image, (1, 1) + source_image.shape)
-        source_mu = np.mean(source_image)
-        source_sigma = np.std(source_image)
         norm_source = (source_image - source_mu) / source_sigma
+
+        # Follow-up image
         target_image = load_nii(target_name).get_data()
+        target_mu = np.mean(target_image[brain_bin])
+        target_sigma = np.std(target_image[brain_bin])
         target_image = np.reshape(target_image, (1, 1) + target_image.shape)
-        target_mu = np.mean(target_image)
-        target_sigma = np.std(target_image)
         norm_target = (target_image - target_mu) / target_sigma
+
+        # Lesion mask
         mask_image = load_nii(mask_name).get_data()
         mask_image = np.reshape(mask_image, (1, 1) + mask_image.shape)
 
         # Create the network and run it.
-        reg_net.fit(
+        reg_net.register(
             (norm_source, mask_image),
             norm_target,
-            epochs=1000,
-            patience=500
+            np.reshape(brain_mask, (1, 1) + brain_mask.shape),
+            epochs=200,
+            patience=200
         )
         source_mov, mask_mov, df = reg_net.transform(
             norm_source, norm_target, mask_image
         )
-
-        source_nii.get_data()[:] = source_mu - source_mov * source_sigma
+        source_mov = source_mov[0] * source_sigma + source_mu
+        source_nii.get_data()[:] = source_mov * brain_mask
         source_nii.to_filename(
             os.path.join(patient_path, 'cnn_defo.nii.gz')
         )
         mask_nii = nib.Nifti1Image(
-            mask_mov,
+            np.swapaxes(mask_mov[0], 0, -1),
             source_nii.get_qform(),
             source_nii.get_header()
         )
@@ -1105,8 +1118,9 @@ def cnn_registration(
             os.path.join(patient_path, 'cnn_defo_mask.nii.gz')
         )
 
+        df_mask = np.repeat(np.expand_dims(brain_mask, -1), 3, -1)
         df_nii = nib.Nifti1Image(
-            np.moveaxis(np.squeeze(df), 0, -1),
+            np.moveaxis(df[0], 0, -1) * df_mask,
             source_nii.get_qform(),
             source_nii.get_header()
         )

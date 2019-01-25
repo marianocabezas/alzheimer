@@ -79,13 +79,13 @@ class SpatialTransformer(nn.Module):
         # location should be mesh and delta
         linvec = map(lambda s: torch.arange(0, s), df_shape)
         mesh = map(
-            lambda m_i: nn.Parameter(m_i.type(dtype=torch.float32)),
+            lambda m_i: m_i.type(dtype=torch.float32),
             torch.meshgrid(linvec)
         )
         loc = [mesh[d].cuda(df.device) + df[:, d, ...] for d in range(nb_dims)]
 
         # pre ind2sub setup
-        d_length = np.cumprod((1,) + vol.shape[2:-1])
+        d_size = np.cumprod((1,) + vol.shape[2:-1])
 
         # interpolate
         if self.interp_method == 'linear':
@@ -122,7 +122,7 @@ class SpatialTransformer(nn.Module):
             def get_point_value(point):
                 subs = map(lambda (l, cd): l[cd], zip(locs, point))
 
-                loc_list_p = map(lambda (s, l): s * l, zip(subs, d_length))
+                loc_list_p = map(lambda (s, l): s * l, zip(subs, d_size))
                 idx_p = torch.sum(torch.stack(loc_list_p, dim=0), dim=0)
                 vol_val_flat = torch.take(vol, idx_p.type(torch.long))
                 vol_val = torch.reshape(vol_val_flat, vol.shape)
@@ -146,7 +146,7 @@ class SpatialTransformer(nn.Module):
             )
 
             # get values
-            loc_list = map(lambda (s, l): s * l, zip(roundloc, d_length))
+            loc_list = map(lambda (s, l): s * l, zip(roundloc, d_size))
             idx = torch.sum(torch.stack(loc_list, dim=0), dim=0)
             interp_vol_flat = torch.take(vol, idx.type(torch.long))
             interp_vol = torch.reshape(interp_vol_flat, vol.shape)
