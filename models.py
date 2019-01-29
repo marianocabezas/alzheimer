@@ -9,7 +9,8 @@ from torch.utils.data import DataLoader
 from torchvision import models
 import numpy as np
 from layers import ScalingLayer, SpatialTransformer
-from criterions import longitudinal_loss
+from criterions import normalized_xcor_loss, df_modulo, df_gradient_mean
+from criterions import dice_loss, histogram_loss
 from datasets import ImageCroppingDataset
 
 
@@ -525,13 +526,22 @@ class BratsSurvivalNet(CustomModel):
 class MaskAtrophyNet(nn.Module):
     def __init__(
             self,
-            conv_filters=list([8, 16, 16, 32]),
-            deconv_filters=list([8, 16, 16, 32, 64, 64]),
-            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+            conv_filters=list([16, 32, 32, 32]),
+            deconv_filters=list([32, 32, 32, 32, 32, 16, 16]),
+            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
+            loss_names=list([
+                ' xcor ',
+                # ' mse  ',
+                # 'mask d',
+                #  ' hist '
+                # 'deform',
+                # 'modulo'
+            ])
     ):
 
         # Init
         super(MaskAtrophyNet, self).__init__()
+        self.loss_names = loss_names
         self.device = device
         self.conv = map(
             lambda (f_in, f_out): nn.Conv3d(f_in, f_out, 3),
@@ -587,7 +597,8 @@ class MaskAtrophyNet(nn.Module):
             data,
             target,
             brain_mask,
-            patch_size=24,
+            patch_size=None,
+            overlap=None,
             batch_size=32,
             optimizer='adam',
             epochs=100,
@@ -625,25 +636,24 @@ class MaskAtrophyNet(nn.Module):
         mask_t = to_torch_var(mask)
         target_t = to_torch_var(target)
 
-        cropping_dataset = ImageCroppingDataset(
-            np.squeeze(source),
-            np.squeeze(target),
-            np.squeeze(mask),
-            np.squeeze(brain_mask),
-            patch_size
-        )
-        dataloader = DataLoader(
-            cropping_dataset, batch_size, True, num_workers=num_workers
-        )
+        if patch_size is not None:
+            if overlap is None:
+                overlap = patch_size
+            cropping_dataset = ImageCroppingDataset(
+                np.squeeze(source),
+                np.squeeze(target),
+                np.squeeze(mask),
+                np.squeeze(brain_mask),
+                patch_size=patch_size,
+                overlap=overlap
+            )
+            dataloader = DataLoader(
+                cropping_dataset, batch_size, True, num_workers=num_workers
+            )
+        else:
+            dataloader = None
 
-        l_names = [
-            ' loss ',
-            'global',
-            # 'mask d',
-            # ' hist '
-            'deform',
-            # 'modulo'
-        ]
+        l_names = [' loss '] + self.loss_names
         best_losses = [np.inf] * (len(l_names) - 1)
 
         for e in range(epochs):
@@ -653,9 +663,9 @@ class MaskAtrophyNet(nn.Module):
                 (source_t, target_in_t, mask_t),
                 target_t,
                 brain_mask_t,
-                dataloader,
                 optimizer_alg,
-                e
+                e,
+                dataloader
             )
 
             losses_color = map(
@@ -707,59 +717,94 @@ class MaskAtrophyNet(nn.Module):
                     e + 1, t_end, best_loss_tr, best_e)
             )
 
-    def step(self, inputs, target, mask, dataloader, optimizer_alg, epoch):
+    def step(
+            self,
+            inputs,
+            target,
+            mask,
+            optimizer_alg,
+            epoch,
+            dataloader = None,
+    ):
         # Again. This is supposed to be a step on the registration process,
         # there's no need for splitting data. We just compute the deformation,
         # then compute the global loss (and intermidiate ones to show) and do
         # back propagation.
         with torch.autograd.set_detect_anomaly(True):
-            n_batches = len(dataloader.dataset) / dataloader.batch_size + 1
-            loss_list = []
-            for batch_i, sample in enumerate(dataloader):
-                # We train the model and check the loss
-                b_inputs = map(lambda s: s.to(self.device), sample[0])
-                b_target = sample[1].to(self.device)
-                y_pred = self(b_inputs[:-1])
-                loss_in = b_inputs[:-1]
-                loss_in.append(b_target)
-                brain_mask = b_inputs[-1]
-                b_losses = longitudinal_loss(y_pred, loss_in, brain_mask)
+            if dataloader is not None:
+                n_batches = len(dataloader.dataset) / dataloader.batch_size + 1
+                loss_list = []
+                for batch_i, sample in enumerate(dataloader):
+                    # We train the model and check the loss
+                    b_inputs = map(lambda s: s.to(self.device), sample[0])
+                    b_target = sample[1].to(self.device)
+                    b_y_pred = self(b_inputs[:-1])
+                    loss_in = b_inputs[:-1]
+                    loss_in.append(b_target)
+                    b_source, _, b_lesion_mask, b_mask = b_inputs
+                    b_moved, b_moved_lesion_mask, b_df = b_y_pred
+                    b_losses = self.longitudinal_loss(
+                        b_source,
+                        b_moved,
+                        b_lesion_mask,
+                        b_moved_lesion_mask,
+                        b_target,
+                        b_df,
+                        b_mask
+                    )
 
-                # Final loss value computation per batch
-                batch_loss = sum(b_losses).to(target.device)
-                b_loss_value = batch_loss.tolist()
-                loss_list.append(b_loss_value)
-                mean_loss = np.mean(loss_list)
+                    # Final loss value computation per batch
+                    batch_loss = sum(b_losses).to(target.device)
+                    b_loss_value = batch_loss.tolist()
+                    loss_list.append(b_loss_value)
+                    mean_loss = np.mean(loss_list)
 
-                # Print the intermediate results
-                whites = ' '.join([''] * 12)
-                percent = 20 * batch_i / n_batches
-                progress_s = ''.join(['-'] * percent)
-                remaining_s = ''.join([' '] * (20 - percent))
-                bar = '[' + progress_s + '>' + remaining_s + ']'
-                curr_values_s = ' loss %f (%f)' % (b_loss_value, mean_loss)
-                batch_s = '%sEpoch %03d (%02d/%02d) %s%s' % (
-                    whites, epoch, batch_i, n_batches, bar, curr_values_s
-                )
-                print('\033[K', end='')
-                print(batch_s, end='\r')
-                sys.stdout.flush()
+                    # Print the intermediate results
+                    whites = ' '.join([''] * 12)
+                    percent = 20 * batch_i / n_batches
+                    progress_s = ''.join(['-'] * percent)
+                    remaining_s = ''.join([' '] * (20 - percent))
+                    bar = '[' + progress_s + '>' + remaining_s + ']'
+                    curr_values_s = ' loss %f (%f)' % (b_loss_value, mean_loss)
+                    batch_s = '%sEpoch %03d (%02d/%02d) %s%s' % (
+                        whites, epoch, batch_i, n_batches, bar, curr_values_s
+                    )
+                    print('\033[K', end='')
+                    print(batch_s, end='\r')
+                    sys.stdout.flush()
 
-                # Backpropagation
-                optimizer_alg.zero_grad()
-                batch_loss.backward()
-                optimizer_alg.step()
+                    # Backpropagation
+                    optimizer_alg.zero_grad()
+                    batch_loss.backward()
+                    optimizer_alg.step()
 
-            # We compute the "validation loss" with the whole image
-            with torch.no_grad():
+                # We compute the "validation loss" with the whole image
+                with torch.no_grad():
+                    y_pred = self(inputs)
+            else:
                 y_pred = self(inputs)
-                losses = longitudinal_loss(
-                    y_pred, inputs + (target,), mask
-                )
-                batch_loss = sum(losses).to(target.device)
 
-                loss_value = batch_loss.tolist()
-                mid_losses = map(lambda l: l.tolist(), losses)
+            source, _, lesion_mask = inputs
+            moved, moved_lesion_mask, df = y_pred
+
+            losses = self.longitudinal_loss(
+                source,
+                moved,
+                lesion_mask,
+                moved_lesion_mask,
+                target,
+                df,
+                mask
+            )
+            loss = sum(losses).to(target.device)
+
+            loss_value = loss.tolist()
+            mid_losses = map(lambda l: l.tolist(), losses)
+
+            if dataloader is None:
+                optimizer_alg.zero_grad()
+                loss.backward()
+                optimizer_alg.step()
 
         return loss_value, mid_losses
 
@@ -793,3 +838,28 @@ class MaskAtrophyNet(nn.Module):
         df = map(np.squeeze, df.cpu().numpy())
 
         return source_mov, mask_mov, df
+
+    def longitudinal_loss(
+            self,
+            source,
+            moved,
+            mask,
+            moved_mask,
+            target,
+            df,
+            roi,
+    ):
+        # Init
+        losses_dict = {
+            ' xcor ': lambda: normalized_xcor_loss(moved[roi], target[roi]),
+            ' mse  ': lambda: torch.nn.MSELoss()(moved, target),
+            'mask d': lambda: dice_loss(moved_mask, mask),
+            ' hist ': lambda: histogram_loss(moved[moved_mask], source[mask]),
+            'deform': lambda: df_gradient_mean(df, roi),
+            'modulo': lambda: df_modulo(df, roi),
+
+        }
+
+        losses = tuple(map(lambda l: losses_dict[l](), self.loss_names))
+
+        return losses

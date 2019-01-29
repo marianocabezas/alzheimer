@@ -1040,7 +1040,6 @@ def cnn_registration(
     ))
 
     global_start = time.time()
-    reg_net = MaskAtrophyNet().cuda()
 
     # Main loop
     for i, patient in enumerate(patients):
@@ -1094,12 +1093,16 @@ def cnn_registration(
         mask_image = np.reshape(mask_image, (1, 1) + mask_image.shape)
 
         # Create the network and run it.
+        reg_net = MaskAtrophyNet().cuda()
         reg_net.register(
             (norm_source, mask_image),
             norm_target,
             np.reshape(brain_mask, (1, 1) + brain_mask.shape),
+            batch_size=64,
+            patch_size=16,
+            overlap=15,
             epochs=200,
-            patience=200
+            patience=100
         )
         source_mov, mask_mov, df = reg_net.transform(
             norm_source, norm_target, mask_image
