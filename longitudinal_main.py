@@ -1099,10 +1099,10 @@ def cnn_registration(
             norm_target,
             np.reshape(brain_mask, (1, 1) + brain_mask.shape),
             batch_size=64,
-            patch_size=24,
-            overlap=16,
-            epochs=200,
-            patience=100
+            patch_size=16,
+            overlap=12,
+            epochs=100,
+            patience=50
         )
         source_mov, mask_mov, df = reg_net.transform(
             norm_source, norm_target, mask_image
