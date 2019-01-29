@@ -580,12 +580,12 @@ class MaskAtrophyNet(nn.Module):
         input_s = torch.cat([source, target], dim=1)
 
         for c in self.conv:
-            input_s = c(input_s)
+            input_s = F.relu(c(input_s))
 
         for d in self.deconv:
-            input_s = d(input_s)
+            input_s = F.relu(d(input_s))
 
-        df = self.to_df(input_s)
+        df = F.relu(self.to_df(input_s))
 
         source_mov = self.trans_im([source, df])
         mask_mov = self.trans_mask([mask, df])
