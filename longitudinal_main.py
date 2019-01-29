@@ -1099,8 +1099,8 @@ def cnn_registration(
             norm_target,
             np.reshape(brain_mask, (1, 1) + brain_mask.shape),
             batch_size=64,
-            patch_size=16,
-            overlap=15,
+            patch_size=24,
+            overlap=16,
             epochs=200,
             patience=100
         )
