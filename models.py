@@ -585,7 +585,7 @@ class MaskAtrophyNet(nn.Module):
         for d in self.deconv:
             input_s = F.relu(d(input_s))
 
-        df = F.relu(self.to_df(input_s))
+        df = self.to_df(input_s)
 
         source_mov = self.trans_im([source, df])
         mask_mov = self.trans_mask([mask, df])
