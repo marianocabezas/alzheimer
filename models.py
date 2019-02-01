@@ -530,8 +530,8 @@ class MaskAtrophyNet(nn.Module):
             deconv_filters=list([64, 64, 64, 64, 64, 32, 32]),
             device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
             loss_names=list([
-                ' xcor ',
-                # ' mse  ',
+                # ' xcor ',
+                ' mse  ',
                 # 'mask d',
                 # ' hist ',
                 # 'deform',
@@ -854,12 +854,12 @@ class MaskAtrophyNet(nn.Module):
         # Init
         moved_lesion = moved[moved_mask > 0]
         source_lesion = source[mask > 0]
-        moved_roi = moved[roi]
-        target_roi = target[roi]
+        moved_roi = moved[roi > 0]
+        target_roi = target[roi > 0]
 
         losses_dict = {
             ' xcor ': lambda: normalized_xcor_loss(moved_roi, target_roi),
-            ' mse  ': lambda: torch.nn.MSELoss()(moved, target),
+            ' mse  ': lambda: torch.nn.MSELoss()(moved_roi, target_roi),
             'mask d': lambda: dice_loss(moved_mask, mask),
             ' hist ': lambda: histogram_loss(moved_lesion, source_lesion),
             'deform': lambda: df_gradient_mean(df, roi),
