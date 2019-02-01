@@ -526,14 +526,14 @@ class BratsSurvivalNet(CustomModel):
 class MaskAtrophyNet(nn.Module):
     def __init__(
             self,
-            conv_filters=list([16, 32, 32, 32]),
-            deconv_filters=list([32, 32, 32, 32, 32, 16, 16]),
+            conv_filters=list([32, 64, 64, 64]),
+            deconv_filters=list([64, 64, 64, 64, 64, 32, 32]),
             device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
             loss_names=list([
                 ' xcor ',
                 # ' mse  ',
                 # 'mask d',
-                #  ' hist '
+                # ' hist ',
                 # 'deform',
                 # 'modulo'
             ])
@@ -544,14 +544,15 @@ class MaskAtrophyNet(nn.Module):
         self.loss_names = loss_names
         self.device = device
         self.conv = map(
-            lambda (f_in, f_out): nn.Conv3d(f_in, f_out, 3),
+            lambda (f_in, f_out): nn.Conv3d(f_in, f_out, 3, padding=1),
             zip([2] + conv_filters[:-1], conv_filters)
         )
         unet_filters = len(conv_filters)
         for c in self.conv:
             c.to(device)
+            nn.init.kaiming_normal_(c.weight)
         self.deconv = map(
-            lambda (f_in, f_out): nn.ConvTranspose3d(f_in, f_out, 3),
+            lambda (f_in, f_out): nn.ConvTranspose3d(f_in, f_out, 3, padding=1),
             zip(
                 [conv_filters[-1]] + deconv_filters[:unet_filters - 1],
                 deconv_filters[:unet_filters]
@@ -568,6 +569,7 @@ class MaskAtrophyNet(nn.Module):
             d.to(device)
         self.to_df = nn.Conv3d(deconv_filters[-1], 3, 3, padding=1)
         self.to_df.to(device)
+        nn.init.normal_(self.to_df.weight, 0.0, 1e-5)
 
         self.trans_im = SpatialTransformer()
         self.trans_im.to(device)
@@ -580,10 +582,10 @@ class MaskAtrophyNet(nn.Module):
         input_s = torch.cat([source, target], dim=1)
 
         for c in self.conv:
-            input_s = F.relu(c(input_s))
+            input_s = F.leaky_relu(c(input_s), 0.2)
 
         for d in self.deconv:
-            input_s = F.relu(d(input_s))
+            input_s = F.leaky_relu(d(input_s), 0.2)
 
         df = self.to_df(input_s)
 
@@ -850,11 +852,16 @@ class MaskAtrophyNet(nn.Module):
             roi,
     ):
         # Init
+        moved_lesion = moved[moved_mask > 0]
+        source_lesion = source[mask > 0]
+        moved_roi = moved[roi]
+        target_roi = target[roi]
+
         losses_dict = {
-            ' xcor ': lambda: normalized_xcor_loss(moved[roi], target[roi]),
+            ' xcor ': lambda: normalized_xcor_loss(moved_roi, target_roi),
             ' mse  ': lambda: torch.nn.MSELoss()(moved, target),
             'mask d': lambda: dice_loss(moved_mask, mask),
-            ' hist ': lambda: histogram_loss(moved[moved_mask], source[mask]),
+            ' hist ': lambda: histogram_loss(moved_lesion, source_lesion),
             'deform': lambda: df_gradient_mean(df, roi),
             'modulo': lambda: df_modulo(df, roi),
 
