@@ -42,26 +42,32 @@ def bidirectional_mahalanobis(var_x, var_y):
 
 def torch_hist(var_x, bins=100):
     min_x = torch.floor(torch.min(var_x)).data
-    max_x = torch.ceil(torch.max(var_x)).data +1
-    step = (max_x - min_x) / bins
-    steps = torch.arange(min_x, max_x, step).to(var_x.device)
-    h = map(
-        lambda (min_i, max_i): torch.sum((var_x >= min_i) & (var_x < max_i)),
-        zip(steps[:-1], steps[1:])
-    )
-
-    return torch.tensor(h).type(torch.float32).to(var_x.device)
+    max_x = torch.ceil(torch.max(var_x)).data
+    if max_x > min_x:
+        step = (max_x - min_x) / bins
+        steps = torch.arange(min_x, max_x + step / 10, step).to(var_x.device)
+        h = map(
+            lambda (min_i, max_i): torch.sum((var_x >= min_i) & (var_x < max_i)),
+            zip(steps[:-1], steps[1:])
+        )
+        return torch.tensor(h).type(torch.float32).to(var_x.device)
+    else:
+        return None
 
 
 def histogram_loss(var_x, var_y):
     # Histogram computation
+    loss = 1
     hist_x = torch_hist(var_x)
-    hist_x = hist_x / torch.sum(hist_x)
+    if hist_x is not None:
+        hist_x = hist_x / torch.sum(hist_x)
 
-    hist_y = torch_hist(var_y)
-    hist_y = hist_y / torch.sum(hist_y)
+        hist_y = torch_hist(var_y)
+        if hist_y is not None:
+            hist_y = hist_y / torch.sum(hist_y)
+            loss = torch.sum(torch.abs(hist_x - hist_y)) / 2
 
-    return torch.sum(torch.abs(hist_x - hist_y)) / 2
+    return loss
 
 
 def df_gradient_mean(df, mask):
@@ -93,5 +99,8 @@ def dice_loss(var_x, var_y):
     intersection = torch.sum(var_x & var_y)
     vol_x = torch.sum(var_x)
     vol_y = torch.sum(var_y)
-    dsc_value = 2.0 * intersection / (vol_x + vol_y)
+    if vol_y > 0:
+        dsc_value = 2.0 * intersection / (vol_x + vol_y)
+    else:
+        dsc_value = 1 if vol_x == 0 else 1 / vol_x
     return 1 - dsc_value
