@@ -83,6 +83,10 @@ class SpatialTransformer(nn.Module):
             torch.meshgrid(linvec)
         )
         loc = [mesh[d].cuda(df.device) + df[:, d, ...] for d in range(nb_dims)]
+        loc = map(
+            lambda (l, m): torch.clamp(l, 0, m),
+            zip(loc, max_loc)
+        )
 
         # pre ind2sub setup
         d_size = np.cumprod((1,) + vol.shape[2:-1])
@@ -118,6 +122,7 @@ class SpatialTransformer(nn.Module):
             # go through all the cube corners, indexed by a ND binary vector
             # e.g. [0, 0] means this "first" corner in a 2-D "cube"
             cube_pts = list(itertools.product([0, 1], repeat=nb_dims))
+            norm_factor = nb_dims * len(cube_pts) / 2.0
 
             def get_point_value(point):
                 subs = map(lambda (l, cd): l[cd], zip(locs, point))
@@ -131,7 +136,8 @@ class SpatialTransformer(nn.Module):
                 # if c[d] is 0 --> want weight = 1 - (pt - floor[pt]) = diff_loc1
                 # if c[d] is 1 --> want weight = pt - floor[pt] = diff_loc0
                 wts_lst = map(lambda (l, cd): l[cd], zip(weights_loc, point))
-                wt = reduce(mul, wts_lst)
+                # wt = reduce(mul, wts_lst)
+                wt = sum(wts_lst) / len(wts_lst)
                 wt = torch.reshape(wt, vol.shape)
                 return wt * vol_val
 
