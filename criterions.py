@@ -75,11 +75,15 @@ def df_gradient_mean(df, mask):
     grad_x_k = torch.reshape(grad_v, (1, 1, -1)).repeat((3, 3, 1))
     grad_y_k = torch.reshape(grad_v, (1, -1, 1)).repeat((3, 1, 3))
     grad_z_k = torch.reshape(grad_v, (-1, 1, 1)).repeat((1, 3, 3))
-    grad_k_tensor = torch.stack([grad_x_k, grad_y_k, grad_z_k], dim=0)
+    # grad_k_tensor = torch.stack([grad_x_k, grad_y_k, grad_z_k], dim=0)
 
-    gradient = F.conv3d(df, grad_k_tensor.repeat(3, 1, 1, 1, 1), padding=1)
+    grad_x = F.conv3d(df, grad_x_k.repeat(3, 3, 1, 1, 1), padding=1)
+    grad_y = F.conv3d(df, grad_y_k.repeat(3, 3, 1, 1, 1), padding=1)
+    grad_z = F.conv3d(df, grad_z_k.repeat(3, 3, 1, 1, 1), padding=1)
+    # gradient = F.conv3d(df, grad_k_tensor.repeat(3, 1, 1, 1, 1), padding=1)
+    gradient = torch.cat([grad_x, grad_y, grad_z], dim=1)
     gradient = torch.sum(gradient * gradient, dim=1, keepdim=True)
-    mean_grad = 1 - torch.mean(torch.exp(-gradient[mask]))
+    mean_grad = torch.mean(gradient[mask])
 
     return mean_grad
 
