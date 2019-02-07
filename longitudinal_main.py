@@ -1118,8 +1118,8 @@ def cnn_registration(
             batch_size=32,
             patch_size=32,
             overlap=24,
-            epochs=100,
-            patience=50
+            epochs=50,
+            patience=10
         )
 
         source_mov, mask_mov, df = reg_net.transform(
