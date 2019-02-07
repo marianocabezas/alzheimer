@@ -125,9 +125,9 @@ class SpatialTransformer(nn.Module):
             norm_factor = nb_dims * len(cube_pts) / 2.0
 
             def get_point_value(point):
-                subs = map(lambda (l, cd): l[cd], zip(locs, point))
+                subs = map(lambda (i, cd): locs[cd][i], enumerate(point))
 
-                loc_list_p = map(lambda (s, l): s * l, zip(subs, d_size))
+                loc_list_p = map(lambda (s, l): s * l, zip(subs[::-1], d_size))
                 idx_p = torch.sum(torch.stack(loc_list_p, dim=0), dim=0)
                 vol_val_flat = torch.take(vol, idx_p.type(torch.long))
                 vol_val = torch.reshape(vol_val_flat, vol.shape)
@@ -135,9 +135,10 @@ class SpatialTransformer(nn.Module):
                 # get the weight of this cube_pt based on the distance
                 # if c[d] is 0 --> want weight = 1 - (pt - floor[pt]) = diff_loc1
                 # if c[d] is 1 --> want weight = pt - floor[pt] = diff_loc0
-                wts_lst = map(lambda (l, cd): l[cd], zip(weights_loc, point))
+                wts_lst = map(lambda (i, cd): weights_loc[cd][i], enumerate(point))
                 # wt = reduce(mul, wts_lst)
-                wt = sum(wts_lst) / len(wts_lst)
+                # wt = sum(wts_lst) / len(wts_lst)
+                wt = sum(wts_lst) / norm_factor
                 wt = torch.reshape(wt, vol.shape)
                 return wt * vol_val
 
@@ -152,7 +153,7 @@ class SpatialTransformer(nn.Module):
             )
 
             # get values
-            loc_list = map(lambda (s, l): s * l, zip(roundloc, d_size))
+            loc_list = map(lambda (s, l): s * l, zip(roundloc[::-1], d_size))
             idx = torch.sum(torch.stack(loc_list, dim=0), dim=0)
             interp_vol_flat = torch.take(vol, idx.type(torch.long))
             interp_vol = torch.reshape(interp_vol_flat, vol.shape)
