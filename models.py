@@ -11,7 +11,7 @@ import numpy as np
 from layers import ScalingLayer, SpatialTransformer
 from criterions import normalized_xcor_loss, df_modulo, df_gradient_mean
 from criterions import dice_loss, histogram_loss
-from datasets import ImageCroppingDataset
+from datasets import ImageCroppingDataset, ImageListCroppingDataset
 
 
 def to_torch_var(
@@ -530,43 +530,65 @@ class MaskAtrophyNet(nn.Module):
             deconv_filters=list([64, 64, 64, 64, 64, 32, 32]),
             device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
             loss_names=list([
-                # ' xcor ',
-                ' mse  ',
+                ' xcor ',
+                # ' mse  ',
                 # 'mask d',
-                # ' hist ',
-                # 'deform',
+                ' hist ',
+                'deform',
                 # 'modulo'
             ])
     ):
-
         # Init
         super(MaskAtrophyNet, self).__init__()
         self.loss_names = loss_names
         self.device = device
+        # Down path of the unet
+        conv_in = [2] + conv_filters[:-1]
         self.conv = map(
-            lambda (f_in, f_out): nn.Conv3d(f_in, f_out, 3, padding=1),
-            zip([2] + conv_filters[:-1], conv_filters)
+            lambda (f_in, f_out): nn.Conv3d(
+                f_in, f_out, 3, padding=1, stride=2
+            ),
+            zip(conv_in, conv_filters)
         )
         unet_filters = len(conv_filters)
         for c in self.conv:
             c.to(device)
             nn.init.kaiming_normal_(c.weight)
-        self.deconv = map(
-            lambda (f_in, f_out): nn.ConvTranspose3d(f_in, f_out, 3, padding=1),
+
+        # Up path of the unet
+        conv_out = conv_filters[-1]
+        deconv_in = [conv_out] + map(
+            sum, zip(deconv_filters[:unet_filters - 1], conv_in[::-1])
+        )
+        self.deconv_u = map(
+            lambda (f_in, f_out): nn.ConvTranspose3d(
+                f_in, f_out, 3, padding=1, stride=2
+            ),
             zip(
-                [conv_filters[-1]] + deconv_filters[:unet_filters - 1],
+                deconv_in,
                 deconv_filters[:unet_filters]
             )
         )
-        self.deconv += map(
-            lambda (f_in, f_out): nn.ConvTranspose3d(f_in, f_out, 3, padding=1),
+        for d in self.deconv_u:
+            d.to(device)
+            nn.init.kaiming_normal_(d.weight)
+
+        # Extra DF path
+        deconv_out = 2 + deconv_filters[unet_filters - 1]
+        self.deconv = map(
+            lambda (f_in, f_out): nn.ConvTranspose3d(
+                f_in, f_out, 3, padding=1
+            ),
             zip(
-                deconv_filters[unet_filters - 1:-1],
+                [deconv_out] + deconv_filters[unet_filters:-1],
                 deconv_filters[unet_filters:]
             )
         )
         for d in self.deconv:
             d.to(device)
+            nn.init.kaiming_normal_(d.weight)
+
+        # Final DF computation
         self.to_df = nn.Conv3d(deconv_filters[-1], 3, 3, padding=1)
         self.to_df.to(device)
         nn.init.normal_(self.to_df.weight, 0.0, 1e-5)
@@ -581,8 +603,14 @@ class MaskAtrophyNet(nn.Module):
         source, target, mask = inputs
         input_s = torch.cat([source, target], dim=1)
 
+        down_inputs = list()
         for c in self.conv:
+            down_inputs.append(input_s)
             input_s = F.leaky_relu(c(input_s), 0.2)
+
+        for d, i in zip(self.deconv_u, down_inputs[::-1]):
+            up = F.leaky_relu(d(input_s, output_size=i.size()), 0.2)
+            input_s = torch.cat((up, i), dim=1)
 
         for d in self.deconv:
             input_s = F.leaky_relu(d(input_s), 0.2)
@@ -596,9 +624,11 @@ class MaskAtrophyNet(nn.Module):
 
     def register(
             self,
-            data,
+            source,
             target,
+            mask,
             brain_mask,
+            series=None,
             patch_size=None,
             overlap=None,
             batch_size=32,
@@ -631,9 +661,8 @@ class MaskAtrophyNet(nn.Module):
         # but it doesn't actually do any supervised training. Therefore, there
         # is no real validation.
         # Due to this, we modified the generic fit algorithm.
-        source, mask = data
         source_t = to_torch_var(source, requires_grad=True)
-        target_in_t = to_torch_var(source, requires_grad=True)
+        target_in_t = to_torch_var(target, requires_grad=True)
         brain_mask_t = to_torch_var(brain_mask)
         mask_t = to_torch_var(mask)
         target_t = to_torch_var(target)
@@ -641,14 +670,23 @@ class MaskAtrophyNet(nn.Module):
         if patch_size is not None:
             if overlap is None:
                 overlap = patch_size
-            cropping_dataset = ImageCroppingDataset(
-                np.squeeze(source),
-                np.squeeze(target),
-                np.squeeze(mask),
-                np.squeeze(brain_mask),
-                patch_size=patch_size,
-                overlap=overlap
-            )
+            if series is not None:
+                cropping_dataset = ImageListCroppingDataset(
+                    series,
+                    np.squeeze(mask),
+                    np.squeeze(brain_mask),
+                    patch_size=patch_size,
+                    overlap=overlap
+                )
+            else:
+                cropping_dataset = ImageCroppingDataset(
+                    np.squeeze(source),
+                    np.squeeze(target),
+                    np.squeeze(mask),
+                    np.squeeze(brain_mask),
+                    patch_size=patch_size,
+                    overlap=overlap
+                )
             dataloader = DataLoader(
                 cropping_dataset, batch_size, True, num_workers=num_workers
             )
