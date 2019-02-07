@@ -1007,8 +1007,6 @@ def cnn_registration(
         d_path=None,
         lesion_tags=list(['_bin', 'lesion', 'lesionMask']),
         folder='time6',
-        source='flair_time1-time6_corrected_matched.nii.gz',
-        target='flair_corrected.nii.gz',
         mask='union_brainmask.nii.gz',
         verbose=1,
 ):
@@ -1020,8 +1018,6 @@ def cnn_registration(
         it will be read from the command parameters.
         :param lesion_tags: Tags that may be contained on the lesion mask filename.
         :param folder: Folder that contains the images.
-        :param source: Source image name.
-        :param target: Target image name
         :param mask: Brainmask name.
         :param verbose: Verbosity level.
         :return: None.
@@ -1038,6 +1034,11 @@ def cnn_registration(
     print('\n%s[%s]%s CNN registration' % (
         c['c'], time_str, c['nc']
     ))
+    sources = map(
+        lambda t: 'flair_time%d-time6_corrected_matched.nii.gz' % t,
+        range(1, 6)
+    )
+    target = 'flair_corrected.nii.gz'
 
     global_start = time.time()
 
@@ -1055,8 +1056,12 @@ def cnn_registration(
             )
         # Load mask, source and target and expand the dimensions.
         patient_path = os.path.join(d_path, patient)
-        source_name = os.path.join(patient_path, folder, source)
+        image_names = map(
+            lambda source: os.path.join(patient_path, folder, source),
+            sources
+        )
         target_name = os.path.join(patient_path, folder, target)
+        image_names.append(target_name)
         brain_name = os.path.join(patient_path, folder, mask)
         mask_name = find_file('(' + '|'.join(lesion_tags) + ')', patient_path)
         if verbose > 1:
@@ -1072,38 +1077,92 @@ def cnn_registration(
         # Brain mask
         brain_mask = load_nii(brain_name).get_data()
         brain_bin = brain_mask > 0
+        brainmask_image = np.reshape(brain_mask, (1, 1) + brain_mask.shape)
 
-        # Baseline image
-        source_nii = load_nii(source_name)
+        # Lesion mask
+        mask_image = load_nii(mask_name).get_data()
+        mask_image = np.reshape(mask_image, (1, 1) + mask_image.shape)
+
+        # Baseline image (testing)
+        source_nii = load_nii(image_names[0])
         source_image = source_nii.get_data()
         source_mu = np.mean(source_image[brain_bin])
         source_sigma = np.std(source_image[brain_bin])
         source_image = np.reshape(source_image, (1, 1) + source_image.shape)
         norm_source = (source_image - source_mu) / source_sigma
 
-        # Follow-up image
+        # Follow-up image (testing)
         target_image = load_nii(target_name).get_data()
         target_mu = np.mean(target_image[brain_bin])
         target_sigma = np.std(target_image[brain_bin])
         target_image = np.reshape(target_image, (1, 1) + target_image.shape)
         norm_target = (target_image - target_mu) / target_sigma
 
-        # Lesion mask
-        mask_image = load_nii(mask_name).get_data()
-        mask_image = np.reshape(mask_image, (1, 1) + mask_image.shape)
+        # Images (training)
+        images = map(lambda name: load_nii(name).get_data(), image_names)
+        images_mu = map(lambda im: np.mean(im[brain_bin]), images)
+        images_sigma = map(lambda im: np.std(im[brain_bin]), images)
+        norm_images = map(
+            lambda (im, mu, sigma): (im - mu) / sigma,
+            zip(images, images_mu, images_sigma)
+        )
 
         # Create the network and run it.
         reg_net = MaskAtrophyNet().cuda()
         reg_net.register(
-            (norm_source, mask_image),
+            norm_source,
             norm_target,
-            np.reshape(brain_mask, (1, 1) + brain_mask.shape),
-            batch_size=64,
-            patch_size=16,
-            overlap=12,
+            mask_image,
+            brainmask_image,
+            series=norm_images,
+            batch_size=32,
+            patch_size=32,
+            overlap=24,
             epochs=100,
             patience=50
         )
+
+        source_mov, mask_mov, df = reg_net.transform(
+            norm_source, norm_target, mask_image
+        )
+        source_mov = source_mov[0] * source_sigma + source_mu
+        source_nii.get_data()[:] = source_mov * brain_mask
+        source_nii.to_filename(
+            os.path.join(patient_path, 'cnn_defo_tp.nii.gz')
+        )
+        mask_nii = nib.Nifti1Image(
+            mask_mov[0],
+            source_nii.get_qform(),
+            source_nii.get_header()
+        )
+        mask_nii.to_filename(
+            os.path.join(patient_path, 'cnn_defo_mask_tp.nii.gz')
+        )
+
+        df_mask = np.repeat(np.expand_dims(brain_mask, -1), 3, -1)
+        df_nii = nib.Nifti1Image(
+            np.moveaxis(df[0], 0, -1) * df_mask,
+            source_nii.get_qform(),
+            source_nii.get_header()
+        )
+        df_nii.to_filename(
+            os.path.join(patient_path, 'cnn_defo_df_tp.nii.gz')
+        )
+
+        # Create the network and run it.
+        reg_net = MaskAtrophyNet().cuda()
+        reg_net.register(
+            norm_source,
+            norm_target,
+            mask_image,
+            brainmask_image,
+            batch_size=8,
+            patch_size=32,
+            overlap=24,
+            epochs=100,
+            patience=50
+        )
+
         source_mov, mask_mov, df = reg_net.transform(
             norm_source, norm_target, mask_image
         )
@@ -1113,7 +1172,7 @@ def cnn_registration(
             os.path.join(patient_path, 'cnn_defo.nii.gz')
         )
         mask_nii = nib.Nifti1Image(
-            np.swapaxes(mask_mov[0], 0, -1),
+            mask_mov[0],
             source_nii.get_qform(),
             source_nii.get_header()
         )
