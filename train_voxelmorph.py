@@ -210,7 +210,6 @@ def cnn_registration(
     )
     brain_masks = map(
         lambda brain_mask: brain_mask.astype(np.uint8),
-        ),
         brain_bins
     )
 
