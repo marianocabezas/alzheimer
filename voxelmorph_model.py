@@ -294,18 +294,17 @@ class VoxelMorph(nn.Module):
             n_batches = len(dataloader.dataset) / dataloader.batch_size + 1
             loss_list = []
             losses_list = []
-            for batch_i, sample in enumerate(dataloader):
+            for batch_i, (b_inputs, b_gt) in enumerate(dataloader):
                 # We train the model and check the loss
-                b_inputs = map(lambda s: s.to(self.device), sample[0])
-                b_target = sample[1].to(self.device)
-                b_y_pred = self(b_inputs[:-1])
-                loss_in = b_inputs[:-1]
-                loss_in.append(b_target)
-                b_source, _, b_mask = b_inputs
-                b_moved, b_df = b_y_pred
+                b_source, b_target, b_mask = tuple(
+                    map(lambda s: s.to(self.device), b_inputs)
+                )
+                b_gt = b_gt.to(self.device)
+                b_moved, b_df = self(b_inputs[:-1])
+                b_source, b_target, b_mask = b_inputs
                 b_losses = self.longitudinal_loss(
                     b_moved,
-                    b_target,
+                    b_gt,
                     b_df,
                     b_mask
                 )
