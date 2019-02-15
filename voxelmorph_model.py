@@ -299,6 +299,7 @@ class VoxelMorph(nn.Module):
                 b_source, b_target, b_mask = tuple(
                     map(lambda s: s.to(self.device), b_inputs)
                 )
+                print(b_gt)
                 b_gt = b_gt.to(self.device)
                 b_moved, b_df = self(b_inputs[:-1])
                 b_source, b_target, b_mask = b_inputs
