@@ -209,9 +209,7 @@ def cnn_registration(
         zip(source_otsu, target_otsu, source_images, target_images)
     )
     brain_masks = map(
-        lambda brain_mask: np.reshape(
-            brain_mask.astype(np.uint8),
-            (1, 1) + brain_mask.shape
+        lambda brain_mask: brain_mask.astype(np.uint8),
         ),
         brain_bins
     )
@@ -226,7 +224,7 @@ def cnn_registration(
         zip(source_images, brain_bins)
     )
     norm_source = map(
-        lambda (source, mu, sigma): (source - mu) / sigma,
+        lambda (source, mu, sigma): ((source - mu) / sigma).astype(np.float32),
         zip(source_images, source_mus, source_sigmas)
     )
 
@@ -240,7 +238,7 @@ def cnn_registration(
         zip(target_images, brain_bins)
     )
     norm_target = map(
-        lambda (source, mu, sigma): (source - mu) / sigma,
+        lambda (source, mu, sigma): ((source - mu) / sigma).astype(np.float32),
         zip(target_images, target_mus, target_sigmas)
     )
 
