@@ -9,8 +9,9 @@ from torch.utils.data import DataLoader
 from torchvision import models
 import numpy as np
 from layers import ScalingLayer, SpatialTransformer
-from criterions import normalized_xcor_loss, df_modulo, df_gradient_mean
-from criterions import dice_loss, histogram_loss
+from criterions import normalized_xcor_loss, subtraction_loss
+from criterions import df_modulo, df_gradient_mean
+from criterions import dice_loss, histogram_loss, mahalanobis_loss
 from datasets import ImageCroppingDataset, ImageListCroppingDataset
 
 
@@ -530,10 +531,13 @@ class MaskAtrophyNet(nn.Module):
             deconv_filters=list([64, 64, 64, 64, 64, 32, 32]),
             device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
             loss_names=list([
+                # ' subt ',
                 ' xcor ',
+                'xcor_l',
                 # ' mse  ',
                 # 'mask d',
-                ' hist ',
+                # 'mahal ',
+                # ' hist ',
                 'deform',
                 # 'modulo'
             ])
@@ -891,16 +895,20 @@ class MaskAtrophyNet(nn.Module):
     ):
         # Init
         moved_lesion = moved[moved_mask > 0]
+        target_lesion = target[moved_mask > 0]
         source_lesion = source[mask > 0]
         moved_roi = moved[roi > 0]
         target_roi = target[roi > 0]
 
         losses_dict = {
+            ' subt ': lambda: subtraction_loss(moved_roi, target_roi),
             ' xcor ': lambda: normalized_xcor_loss(moved_roi, target_roi),
+            'xcor_l': lambda: normalized_xcor_loss(moved_lesion, target_lesion),
             ' mse  ': lambda: torch.nn.MSELoss()(moved_roi, target_roi),
             'mask d': lambda: dice_loss(moved_mask, mask),
+            'mahal ': lambda: mahalanobis_loss(moved_lesion, source_lesion),
             ' hist ': lambda: histogram_loss(moved_lesion, source_lesion),
-            'deform': lambda: df_gradient_mean(df, roi),
+            'deform': lambda: 0.05 * df_gradient_mean(df, roi),
             'modulo': lambda: df_modulo(df, roi),
 
         }

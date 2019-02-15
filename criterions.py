@@ -3,7 +3,7 @@ import torch.nn.functional as F
 
 
 def normalized_xcor(var_x, var_y):
-    if len(var_x) > 0 and len(var_y) > 0:
+    if len(var_x) > 1 and len(var_y) > 1:
         # Init
         var_x_flat = var_x.view(-1)
         var_y_flat = var_y.view(-1)
@@ -15,14 +15,21 @@ def normalized_xcor(var_x, var_y):
 
         return torch.sum(var_x_norm * var_y_norm) * var_x_den * var_y_den
     else:
-        return torch.zeros(1)
+        return torch.mean(torch.abs(var_x - var_y))
 
 
 def normalized_xcor_loss(var_x, var_y):
-    return 1 - normalized_xcor(var_x, var_y)
+    if len(var_x) > 0 and len(var_y) > 0:
+        return 1 - normalized_xcor(var_x, var_y)
+    else:
+        return torch.tensor(0)
 
 
-def bidirectional_mahalanobis(var_x, var_y):
+def subtraction_loss(var_x, var_y):
+    return torch.std(var_y - var_x)
+
+
+def mahalanobis_loss(var_x, var_y):
     # Init
     var_x_flat = var_x.view(-1)
     var_y_flat = var_y.view(-1)
