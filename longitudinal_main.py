@@ -18,6 +18,7 @@ import nibabel as nib
 from time import strftime
 from subprocess import call
 from scipy.ndimage.morphology import binary_erosion as erode
+from scipy.ndimage.morphology import binary_dilation as dilate
 from sklearn.metrics import mean_squared_error
 from data_manipulation.sitk import itkn4, itkhist_match, itksubtraction, itkdemons
 from data_manipulation.generate_features import get_mask_voxels, get_voxels
@@ -1081,6 +1082,7 @@ def cnn_registration(
 
         # Lesion mask
         mask_image = load_nii(mask_name).get_data()
+        mask_image = dilate(mask_image, iterations=2).astype(mask_image.dtype)
         mask_image = np.reshape(mask_image, (1, 1) + mask_image.shape)
 
         # Baseline image (testing)
@@ -1118,7 +1120,7 @@ def cnn_registration(
             batch_size=32,
             patch_size=32,
             overlap=24,
-            epochs=50,
+            epochs=20,
             patience=10
         )
 
@@ -1159,8 +1161,8 @@ def cnn_registration(
             batch_size=8,
             patch_size=32,
             overlap=24,
-            epochs=100,
-            patience=50
+            epochs=20,
+            patience=10
         )
 
         source_mov, mask_mov, df = reg_net.transform(
