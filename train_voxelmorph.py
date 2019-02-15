@@ -242,7 +242,9 @@ def cnn_registration(
     )
 
     # Create the network and run it.
-    reg_net = VoxelMorph().cuda()
+    reg_net = VoxelMorph(
+        device=torch.device('cuda:%d' % parse_args()['gpu_id'] if torch.cuda.is_available() else "cpu")
+    ).cuda()
     reg_net.register(
         norm_source,
         norm_target,
