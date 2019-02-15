@@ -124,3 +124,118 @@ class ImageListCroppingDataset(Dataset):
 
     def __len__(self):
         return len(self.patch_slices) * len(self.combos)
+
+
+class ImagesListCroppingDataset(Dataset):
+    def __init__(self, cases, lesions, masks, patch_size=32, overlap=32):
+        # Init
+        # Image and mask should be numpy arrays
+        shape_comparisons = map(
+            lambda case: map(
+                lambda (x, y): x.shape == y.shape,
+                zip(case[:-1], case[1:])
+            ),
+            cases
+        )
+        case_comparisons = map(
+            lambda shapes: reduce(and_, shapes),
+            shape_comparisons
+        )
+        assert reduce(and_, case_comparisons)
+
+        self.n_cases = len(cases)
+        self.cases = cases
+        case_idx = map(lambda case: range(len(case), cases))
+        timepoints_combo = map(
+            lambda timepoint_idx: map(
+                lambda i: map(
+                    lambda j: (i, j),
+                    timepoint_idx[i + 1:]
+                ),
+                timepoint_idx[:-1]
+            ),
+            case_idx
+        )
+        self.combos = map(
+            lambda combo: np.concatenate(combo, axis=0),
+            timepoints_combo
+        )
+        self.lesions = lesions
+        self.masks = masks
+
+        if type(patch_size) is not tuple:
+            patch_size = (patch_size,) * len(self.masks[0].shape)
+        patch_half = map(lambda p_length: p_length/2, patch_size)
+
+        steps = map(lambda p_length: max(p_length - overlap, 1), patch_size)
+
+        # Create bounding box and define
+        min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), masks)
+        min_bb = map(
+            lambda min_bb_i: map(
+                lambda (min_i, p_len): min_i + p_len,
+                zip(min_bb_i, patch_half)
+            ),
+            min_bb
+        )
+        max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), masks)
+        max_bb = map(
+            lambda max_bb_i: map(
+                lambda (max_i, p_len): max_i + p_len,
+                zip(max_bb_i, patch_half)
+            ),
+            max_bb
+        )
+
+        dim_ranges = map(
+            lambda (min_bb_i, max_bb_i): map(
+                lambda t: np.arange(*t), zip(min_bb_i, max_bb_i, steps)
+            ),
+            zip(min_bb, max_bb)
+        )
+
+        self.patch_slices = map(
+            lambda dim_range: map(
+                lambda voxel: tuple(map(
+                    lambda (idx, p_len): slice(idx - p_len, idx + p_len),
+                    zip(voxel, patch_half)
+                )),
+                itertools.product(*dim_range)
+            ),
+            dim_ranges
+        )
+
+        case_slices = map(
+            lambda (p, c): len(p) * len(c),
+            zip(self.patch_slices, self.combos)
+        )
+
+        self.max_slice = np.cumsum(case_slices)
+
+    def __getitem__(self, index):
+        # We select the case
+        case = np.min(np.where(self.max_slice > index))
+        case_timepoints = self.timepoints[case]
+        case_slices = self.patch_slices[case]
+        case_combos = self.combos[case]
+        case_lesion = self.lesions[case]
+        case_mask = self.masks[case]
+
+        # Now we just need to look for the desired slice
+        n_slices = len(case_slices)
+        combo_idx = index / n_slices
+        patch_idx = index % n_slices
+        source = case_timepoints[case_combos[combo_idx, 0]]
+        target = case_timepoints[case_combos[combo_idx, 1]]
+        patch_slice = case_slices[patch_idx]
+        inputs_p = (
+            np.expand_dims(source[patch_slice], 0),
+            np.expand_dims(target[patch_slice], 0),
+            np.expand_dims(case_lesion[patch_slice], 0),
+            np.expand_dims(case_mask[patch_slice], 0)
+        )
+        target_p = np.expand_dims(target[patch_slice], 0)
+        return inputs_p, target_p
+
+    def __len__(self):
+        return self.max_slice[-1]
