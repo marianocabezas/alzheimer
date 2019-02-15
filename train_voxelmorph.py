@@ -225,10 +225,6 @@ def cnn_registration(
         lambda (source, brain): np.std(source[brain]),
         zip(source_images, brain_bins)
     )
-    source_images = map(
-        lambda source: np.reshape(source, (1, 1) + source.shape),
-        source_images
-    )
     norm_source = map(
         lambda (source, mu, sigma): (source - mu) / sigma,
         zip(source_images, source_mus, source_sigmas)
@@ -242,10 +238,6 @@ def cnn_registration(
     target_sigmas = map(
         lambda (source, brain): np.std(source[brain]),
         zip(target_images, brain_bins)
-    )
-    target_images = map(
-        lambda source: np.reshape(source, (1, 1) + source.shape),
-        target_images
     )
     norm_target = map(
         lambda (source, mu, sigma): (source - mu) / sigma,
