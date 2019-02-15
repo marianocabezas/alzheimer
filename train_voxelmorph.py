@@ -24,7 +24,6 @@ def print_message(message):
     print(dashes)
 
 
-
 def parse_args():
     """
     Function to control the arguments of the python script when called from the

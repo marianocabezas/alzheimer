@@ -349,10 +349,9 @@ class VoxelMorph(nn.Module):
             self,
             source,
             target,
-            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
     ):
         # Init
-        self.to(device)
+        self.to(self.device)
         self.eval()
 
         source_tensor = to_torch_var(source)
@@ -381,12 +380,11 @@ class VoxelMorph(nn.Module):
             self,
             source,
             target,
-            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
             verbose=True
     ):
         # Init
         # Init
-        self.to(device)
+        self.to(self.device)
         self.eval()
 
         source_tensor = to_torch_var(source)
@@ -423,12 +421,11 @@ class VoxelMorph(nn.Module):
             source,
             target,
             mask,
-            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
             verbose=True
     ):
         # Init
         # Init
-        self.to(device)
+        self.to(self.device)
         self.eval()
 
         source_tensor = to_torch_var(source)

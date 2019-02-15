@@ -4,6 +4,7 @@ import os
 import argparse
 from nibabel import load as load_nii
 import numpy as np
+from skimage.filters import threshold_otsu
 from voxelmorph_model import VoxelMorph
 
 
@@ -166,6 +167,47 @@ def cnn_registration(
     # Create the network and run it.
     reg_net = VoxelMorph().cuda()
     reg_net.load_state_dict(os.path.join(d_path, patient, parse_args()['model_name']))
+
+    # Baseline image (testing)
+    source_nii = load_nii(
+        os.path.join(
+            d_path, patient, patient + '_MR1.nii'
+        )
+    )
+    source_image = source_nii.get_data()
+
+    # Follow-up image (testing)
+    target_image = load_nii(
+        os.path.join(
+            d_path, patient, patient + '_MR2.nii'
+        )
+    )
+
+    # Brain mask
+    source_otsu = threshold_otsu(target_image)
+    target_otsu = threshold_otsu(target_image)
+    brain_bin = np.logical_or(
+        source_image > source_otsu, target_image > target_otsu
+    )
+    brain_mask = np.reshape(
+        brain_bin.astype(np.int8),
+        (1, 1) + brain_bin.shape
+    )
+
+    # Normalised images
+    source_mu = np.mean(source_image[brain_bin])
+    source_sigma = np.std(source_image[brain_bin])
+    source_image = np.reshape(source_image, (1, 1) + source_image.shape)
+    norm_source = (source_image - source_mu) / source_sigma
+
+    target_mu = np.mean(target_image[brain_bin])
+    target_sigma = np.std(target_image[brain_bin])
+    target_image = np.reshape(target_image, (1, 1) + target_image.shape)
+    norm_target = (target_image - target_mu) / target_sigma
+
+    df = reg_net.get_deformation(norm_source, norm_target)
+    source_moved = reg_net.transform_image(norm_source, norm_target)
+    mask_moved = reg_net.transform_mask(norm_source, norm_target, brain_mask)
 
     # Finished
     if verbose > 0:
