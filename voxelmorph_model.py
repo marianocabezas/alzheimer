@@ -296,10 +296,10 @@ class VoxelMorph(nn.Module):
             losses_list = []
             for batch_i, (b_inputs, b_gt) in enumerate(dataloader):
                 # We train the model and check the loss
+                print(len(b_inputs))
                 b_source, b_target, b_mask = tuple(
                     map(lambda s: s.to(self.device), b_inputs)
                 )
-                print(len(b_gt))
                 b_gt = b_gt[0].to(self.device)
                 b_moved, b_df = self(b_inputs[:-1])
                 b_source, b_target, b_mask = b_inputs
