@@ -155,7 +155,7 @@ class VoxelMorph(nn.Module):
     def forward(self, inputs):
 
         source, target = inputs
-        input_s = torch.cat([source, target], dim=1)
+        input_s = torch.stack([source, target], dim=1)
 
         down_inputs = list()
         for c in self.conv:
@@ -296,7 +296,6 @@ class VoxelMorph(nn.Module):
             losses_list = []
             for batch_i, (b_inputs, b_gt) in enumerate(dataloader):
                 # We train the model and check the loss
-                print(len(b_inputs))
                 b_source, b_target, b_mask = tuple(
                     map(lambda s: s.to(self.device), b_inputs)
                 )
