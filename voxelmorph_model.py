@@ -13,7 +13,6 @@ from torch.utils.data.dataset import Dataset
 
 class ImageListDataset(Dataset):
     def __init__(self, sources, targets, masks):
-        assert sources.shape == targets.shape
         # Init
         # Image and mask should be numpy arrays
         self.sources = sources
