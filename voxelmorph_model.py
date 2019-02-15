@@ -155,7 +155,7 @@ class VoxelMorph(nn.Module):
     def forward(self, inputs):
 
         source, target = inputs
-        input_s = torch.stack([source, target], dim=1)
+        input_s = torch.stack([source, target], dim=1).to(self.device)
 
         down_inputs = list()
         for c in self.conv:
@@ -469,7 +469,6 @@ class VoxelMorph(nn.Module):
         losses_dict = {
             ' xcor ': lambda: normalized_xcor_loss(moved_roi, target_roi),
             'deform': lambda: self.lambda_value * df_gradient_mean(df, roi),
-
         }
 
         losses = tuple(map(lambda l: losses_dict[l](), self.loss_names))
