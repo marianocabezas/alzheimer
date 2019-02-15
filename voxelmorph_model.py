@@ -86,7 +86,7 @@ class VoxelMorph(nn.Module):
     def __init__(
             self,
             conv_filters=list([16, 32, 32, 32]),
-            deconv_filters=list([32, 32, 32, 32, 32, 16, 16]),
+            deconv_filters=list([32, 32, 32, 32, 16, 16]),
             device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
             loss_names=list([' xcor ', 'deform']),
             lambda_value=1,
