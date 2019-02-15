@@ -278,3 +278,6 @@ def cnn_registration(
     reg_net.save_model(
         os.path.join(d_path, patient, parse_args()['model_name'])
     )
+    
+if __name__ == "__main__":
+    cnn_registration()
