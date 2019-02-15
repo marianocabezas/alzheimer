@@ -185,7 +185,7 @@ def cnn_registration(
         image_names1
     )
     source_images = map(
-        lambda source_nii: source_nii.get_data(),
+        lambda source_nii: np.squeeze(source_nii.get_data()),
         source_niis
     )
 
@@ -195,7 +195,7 @@ def cnn_registration(
         image_names2
     )
     target_images = map(
-        lambda source_nii: source_nii.get_data(),
+        lambda source_nii: np.squeeze(source_nii.get_data()),
         target_niis
     )
 
