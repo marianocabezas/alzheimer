@@ -261,7 +261,7 @@ def cnn_registration(
         parse_args()['batch_size'],
         epochs=parse_args()['epochs'],
         patience=parse_args()['patience'],
-        device='cuda:' + parse_args()['gpu_id'],
+        device='cuda:%d' % parse_args()['gpu_id'],
     )
 
     # Finished
