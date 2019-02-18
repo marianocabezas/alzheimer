@@ -334,7 +334,7 @@ class VoxelMorph(nn.Module):
             target, brain_mask
         )
         dataloader_im = DataLoader(
-            dataset_im, batch_size, True, num_workers=num_workers
+            dataset_im, batch_size_im, True, num_workers=num_workers
         )
 
         dataset = ImagesListCroppingDataset(
@@ -342,7 +342,7 @@ class VoxelMorph(nn.Module):
             target, brain_mask
         )
         dataloader = DataLoader(
-            dataset, batch_size_im, True, num_workers=num_workers
+            dataset, batch_size, True, num_workers=num_workers
         )
 
         l_names = [' loss '] + self.loss_names
