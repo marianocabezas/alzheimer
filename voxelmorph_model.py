@@ -53,7 +53,7 @@ class ImagesListCroppingDataset(Dataset):
 
         self.n_cases = len(cases)
         self.cases = cases
-        case_idx = map(lambda case: range(len(case), cases))
+        case_idx = map(lambda case: range(len(case)), cases)
         timepoints_combo = map(
             lambda timepoint_idx: map(
                 lambda i: map(
