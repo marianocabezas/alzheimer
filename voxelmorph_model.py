@@ -298,7 +298,6 @@ class VoxelMorph(nn.Module):
                 # We train the model and check the loss
                 b_gt = b_gt[0].to(self.device)
                 b_moved, b_df = self((b_source, b_target))
-                b_source, b_target, b_mask = b_inputs
                 b_losses = self.longitudinal_loss(
                     b_moved,
                     b_gt,

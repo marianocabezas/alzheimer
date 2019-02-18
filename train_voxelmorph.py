@@ -6,6 +6,7 @@ from nibabel import load as load_nii
 import numpy as np
 from skimage.filters import threshold_otsu
 from voxelmorph_model import VoxelMorph
+import torch
 
 
 def print_message(message):
@@ -31,10 +32,10 @@ def parse_args():
     :return: Dictionary with the argument values
     """
     parser = argparse.ArgumentParser(
-        description='Run the longitudinal MS lesion segmentation docker.'
+        description='Train the longitudinal voxelmorph.'
     )
     parser.add_argument(
-        '-f', '--old',
+        '-f', '--path',
         dest='dataset_path',
         default='/home/owner/data/OASIS2Reoriented',
         help='Parameter to store the working directory.'
@@ -269,6 +270,7 @@ def cnn_registration(
     reg_net.save_model(
         os.path.join(d_path, patient, parse_args()['model_name'])
     )
-    
+
+
 if __name__ == "__main__":
     cnn_registration()
