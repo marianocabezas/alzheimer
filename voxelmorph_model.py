@@ -329,20 +329,20 @@ class VoxelMorph(nn.Module):
         # is no real validation.
         # Due to this, we modified the generic fit algorithm.
 
-        dataset = ImageListDataset(
-            source,
-            target, brain_mask
-        )
-        dataloader = DataLoader(
-            dataset, batch_size, True, num_workers=num_workers
-        )
-
-        dataset_im = ImagesListCroppingDataset(
+        dataset_im = ImageListDataset(
             source,
             target, brain_mask
         )
         dataloader_im = DataLoader(
-            dataset_im, batch_size_im, True, num_workers=num_workers
+            dataset_im, batch_size, True, num_workers=num_workers
+        )
+
+        dataset = ImagesListCroppingDataset(
+            source,
+            target, brain_mask
+        )
+        dataloader = DataLoader(
+            dataset, batch_size_im, True, num_workers=num_workers
         )
 
         l_names = [' loss '] + self.loss_names

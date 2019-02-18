@@ -1082,8 +1082,8 @@ def cnn_registration(
 
         # Lesion mask
         mask_image = load_nii(mask_name).get_data()
-        mask_image = dilate(mask_image, iterations=2).astype(mask_image.dtype)
-        mask_image = np.reshape(mask_image, (1, 1) + mask_image.shape)
+        mask_image_tr = dilate(mask_image, iterations=2).astype(mask_image.dtype)
+        mask_image_tr = np.reshape(mask_image, (1, 1) + mask_image.shape)
 
         # Baseline image (testing)
         source_nii = load_nii(image_names[0])
@@ -1114,14 +1114,14 @@ def cnn_registration(
         reg_net.register(
             norm_source,
             norm_target,
-            mask_image,
+            mask_image_tr,
             brainmask_image,
             series=norm_images,
             batch_size=32,
             patch_size=32,
             overlap=24,
-            epochs=20,
-            patience=10
+            epochs=50,
+            patience=25
         )
 
         source_mov, mask_mov, df = reg_net.transform(

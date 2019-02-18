@@ -26,7 +26,6 @@ class ScalingLayer(nn.Module):
         return x * self.weight + self.bias
 
 
-# TODO: Make it pytorch
 class SpatialTransformer(nn.Module):
     """
     N-D Spatial Transformer Tensorflow / Keras Layer
@@ -39,7 +38,6 @@ class SpatialTransformer(nn.Module):
     https://github.com/marianocabezas/voxelmorph/tree/master/ext/neuron in
     pytorch with some liberties taken. The goal is to adapt the code to
     some kind of hybrid method to both do dense registration and mask tracking.
-    TODO: Seriously understand the code and tweak it to our needs.
     """
 
     def __init__(
@@ -57,7 +55,7 @@ class SpatialTransformer(nn.Module):
         self.interp_method = interp_method
         self.device = device
 
-    def forward(self, input):
+    def forward(self, inputs):
         """
         Transform (interpolation N-D volumes (features) given shifts at each
         location in pytorch. Essentially interpolates volume vol at locations
@@ -71,7 +69,7 @@ class SpatialTransformer(nn.Module):
         """
 
         # parse shapes
-        vol, df = input
+        vol, df = inputs
         df_shape = df.shape[2:]
         nb_dims = len(df_shape)
         max_loc = map(lambda s: s - 1, vol.shape[2:])
