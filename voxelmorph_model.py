@@ -47,12 +47,12 @@ class ImageListDataset(Dataset):
         mask = self.masks[index][self.bb]
 
         inputs = (
-            np.expand_dims(source, axis=0),
-            np.expand_dims(target, axis=0),
+            source,
+            target,
             mask,
         )
 
-        return inputs, np.expand_dims(target, axis=0)
+        return inputs, target
 
     def __len__(self):
         return len(self.sources)
@@ -291,7 +291,9 @@ class VoxelMorph(nn.Module):
         df = self.to_df(input_s)
 
         print(source.shape, df.shape)
-        source_mov = self.trans_im([source, df])
+        source_mov = self.trans_im(
+            [source.unsqueeze(0), df]
+        )
 
         return source_mov, df
 
