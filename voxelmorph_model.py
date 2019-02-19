@@ -290,9 +290,8 @@ class VoxelMorph(nn.Module):
 
         df = self.to_df(input_s)
 
-        print(source.shape, df.shape)
         source_mov = self.trans_im(
-            [source.unsqueeze(0), df]
+            [source.unsqueeze(0).to(self.device), df]
         )
 
         return source_mov, df
