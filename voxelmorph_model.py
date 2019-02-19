@@ -289,6 +289,8 @@ class VoxelMorph(nn.Module):
             input_s = F.leaky_relu(d(input_s), 0.2)
 
         df = self.to_df(input_s)
+        
+        print(df.device, source.device)
 
         source_mov = self.trans_im(
             [source, df]
