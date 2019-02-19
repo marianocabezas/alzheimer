@@ -257,6 +257,7 @@ class VoxelMorph(nn.Module):
             t_in = time.time()
             loss_tr, mid_losses = self.step(
                 optimizer_alg,
+                e,
                 dataloader,
             )
 
