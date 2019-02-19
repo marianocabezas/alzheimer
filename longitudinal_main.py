@@ -1101,16 +1101,23 @@ def cnn_registration(
             )
         )
 
+    model_name = os.path.join(d_path, 'long_model.mdl')
+
     training_start = time.time()
     reg_net = MaskAtrophyNet().cuda()
-    reg_net.register(
-        norm_cases,
-        lesions,
-        masks,
-        batch_size=1,
-        epochs=50,
-        patience=25
-    )
+    try:
+        reg_net.load_model(model_name)
+    except IOError:
+        reg_net.register(
+            norm_cases,
+            lesions,
+            masks,
+            batch_size=1,
+            epochs=50,
+            patience=25
+        )
+
+    reg_net.save_model(model_name)
 
     if verbose > 0:
         time_str = time.strftime(
@@ -1159,7 +1166,7 @@ def cnn_registration(
 
         # Lesion mask
         lesion = load_nii(mask_name).get_data()
-        mask_image = np.reshape(mask, (1, 1) + lesion.shape)
+        mask_image = np.reshape(lesion, (1, 1) + lesion.shape)
 
         # Baseline image (testing)
         source_nii = load_nii(source_name)

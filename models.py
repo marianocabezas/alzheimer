@@ -685,6 +685,7 @@ class MaskAtrophyNet(nn.Module):
             masks,
             brain_masks,
             batch_size=1,
+            val_ratio =4,
             optimizer='adam',
             epochs=100,
             patience=10,
@@ -800,7 +801,6 @@ class MaskAtrophyNet(nn.Module):
             batch_size = dataloader.batch_size
             n_batches = int(np.round(1.0 * n_data / batch_size))
             loss_list = []
-            losses_list = []
             for (
                     batch_i,
                     ((b_source, b_target, b_lesion, b_mask), b_gt)
@@ -833,9 +833,6 @@ class MaskAtrophyNet(nn.Module):
                 loss_list.append(b_loss_value)
                 mean_loss = np.mean(loss_list)
 
-                b_mid_losses = map(lambda l: l.tolist(), b_losses)
-                losses_list.append(b_mid_losses)
-
                 # Print the intermediate results
                 whites = ' '.join([''] * 12)
                 percent = 20 * batch_i / n_batches
@@ -855,8 +852,37 @@ class MaskAtrophyNet(nn.Module):
                 batch_loss.backward()
                 optimizer_alg.step()
 
-            loss_value = np.mean(loss_list)
-            mid_losses = np.mean(zip(*losses_list), axis=0)
+            with torch.no_grad():
+                losses_list = []
+                for (source, target, lesion, mask), gt in dataloader:
+                    # We train the model and check the loss
+                    source = source.to(self.device)
+                    target = target.to(self.device)
+                    lesion = lesion.to(self.device)
+                    mask = mask.to(self.device)
+
+                    gt = gt.to(self.device)
+
+                    moved, moved_lesion, df = self(
+                        (source, target, lesion)
+                    )
+
+                    b_losses = self.longitudinal_loss(
+                        source,
+                        moved,
+                        lesion,
+                        moved_lesion,
+                        gt,
+                        df,
+                        mask
+                    )
+
+                    b_mid_losses = map(lambda l: l.tolist(), b_losses)
+                    losses_list.append(b_mid_losses)
+
+            mid_losses = np.mean(zip(*losses_list), axis=1)
+            print(mid_losses.shape)
+            loss_value = np.sum(mid_losses)
 
         return loss_value, mid_losses
 
@@ -926,3 +952,9 @@ class MaskAtrophyNet(nn.Module):
         losses = tuple(map(lambda l: losses_dict[l](), self.loss_names))
 
         return losses
+
+    def save_model(self, net_name):
+        torch.save(self.state_dict(), net_name)
+
+    def load_model(self, net_name):
+        self.load_state_dict(torch.load(net_name))
