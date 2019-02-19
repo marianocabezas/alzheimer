@@ -118,7 +118,7 @@ class ImagePairCroppingDataset(Dataset):
         slices = [0] + self.max_slice
         patch_idx = index - slices[case]
         patch_slice = case_slices[patch_idx]
-        print(patch_slice)
+        print(patch_slice, source[patch_slice].shape)
 
         inputs_p = (
             np.reshape(source[patch_slice], (1, 1) + self.patch_size),
