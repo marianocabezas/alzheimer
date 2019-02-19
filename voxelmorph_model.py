@@ -1,6 +1,4 @@
 from __future__ import print_function
-from operator import and_
-import itertools
 import time
 from copy import deepcopy
 import sys
@@ -208,8 +206,7 @@ class VoxelMorph(nn.Module):
             sources,
             targets,
             brain_masks,
-            batch_size=32,
-            batch_size_im=1,
+            batch_size=1,
             optimizer='adam',
             epochs=100,
             patience=10,
@@ -232,6 +229,8 @@ class VoxelMorph(nn.Module):
         best_loss_tr = np.inf
         no_improv_e = 0
         best_state = deepcopy(self.state_dict())
+        e = 0
+        best_e = 0
 
         t_start = time.time()
 
@@ -246,7 +245,7 @@ class VoxelMorph(nn.Module):
             brain_masks
         )
         dataloader = DataLoader(
-            dataset, batch_size_im, True, num_workers=num_workers
+            dataset, batch_size, True, num_workers=num_workers
         )
 
         l_names = [' loss '] + self.loss_names
@@ -306,7 +305,8 @@ class VoxelMorph(nn.Module):
         t_end = time.time() - t_start
         if verbose:
             print(
-                'Registration finished in %d epochs (%fs) with minimum loss = %f (epoch %d)' % (
+                'Registration finished in %d epochs (%fs)'
+                ' with minimum loss = %f (epoch %d)' % (
                     e + 1, t_end, best_loss_tr, best_e)
             )
 
@@ -324,7 +324,10 @@ class VoxelMorph(nn.Module):
             n_batches = len(dataloader.dataset) / dataloader.batch_size + 1
             loss_list = []
             losses_list = []
-            for batch_i, ((b_source, b_target, b_mask), b_gt) in enumerate(dataloader):
+            for (
+                    batch_i,
+                    ((b_source, b_target, b_mask), b_gt)
+            ) in enumerate(dataloader):
                 # We train the model and check the loss
                 b_gt = b_gt.to(self.device)
                 b_moved, b_df = self((b_source, b_target))

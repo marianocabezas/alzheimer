@@ -44,11 +44,15 @@ class ImageCroppingDataset(Dataset):
 
     def __getitem__(self, index):
         patch_slice = self.patch_slices[index]
+        source = np.expand_dims(self.source[patch_slice], 0)
+        target = np.expand_dims(self.target[patch_slice], 0)
+        lesion = np.expand_dims(self.lesion[patch_slice], 0)
+        mask = np.expand_dims(self.mask[patch_slice], 0)
         inputs = (
-            np.expand_dims(self.source[patch_slice], 0),
-            np.expand_dims(self.target[patch_slice], 0),
-            np.expand_dims(self.lesion[patch_slice], 0),
-            np.expand_dims(self.mask[patch_slice], 0)
+            source,
+            target,
+            lesion,
+            mask
         )
         target = np.expand_dims(self.target[patch_slice], 0)
         return inputs, target
@@ -241,3 +245,93 @@ class ImagesListCroppingDataset(Dataset):
 
     def __len__(self):
         return self.max_slice[-1]
+
+
+class ImageListDataset(Dataset):
+    def __init__(self, cases, lesions, masks):
+        # Init
+        # Image and mask should be numpy arrays
+        shape_comparisons = map(
+            lambda case: map(
+                lambda (x, y): x.shape == y.shape,
+                zip(case[:-1], case[1:])
+            ),
+            cases
+        )
+        case_comparisons = map(
+            lambda shapes: reduce(and_, shapes),
+            shape_comparisons
+        )
+        assert reduce(and_, case_comparisons)
+
+        self.cases = cases
+
+        case_idx = map(lambda case: range(len(case)), cases)
+        timepoints_combo = map(
+            lambda timepoint_idx: map(
+                lambda i: map(
+                    lambda j: (i, j),
+                    timepoint_idx[i + 1:]
+                ),
+                timepoint_idx[:-1]
+            ),
+            case_idx
+        )
+        self.combos = map(
+            lambda combo: np.concatenate(combo, axis=0),
+            timepoints_combo
+        )
+
+        self.lesions = lesions
+        self.masks = masks
+
+        min_bb = np.min(
+            map(
+                lambda mask: np.min(np.where(mask > 0), axis=-1),
+                masks
+            ),
+            axis=0
+        )
+        max_bb = np.max(
+            map(
+                lambda mask: np.max(np.where(mask > 0), axis=-1),
+                masks
+            ),
+            axis=0
+        )
+        self.bb = tuple(
+            map(
+                lambda (min_i, max_i): slice(min_i, max_i),
+                zip(min_bb, max_bb)
+            )
+        )
+
+        self.max_combo = np.cumsum([0] + map(len, self.combos))
+
+    def __getitem__(self, index):
+        # We select the case
+        case = np.max(np.where(self.max_combo <= index))
+        case_timepoints = self.cases[case]
+        case_combos = self.combos[case]
+        case_lesion = self.lesions[case]
+        case_mask = self.masks[case]
+
+        # Now we just need to look for the desired slice
+        combo_idx = index - self.max_combo[case]
+
+        source = case_timepoints[case_combos[combo_idx, 0]]
+        target = case_timepoints[case_combos[combo_idx, 1]]
+        source_bb = np.expand_dims(source[self.bb], axis=0)
+        target_bb = np.expand_dims(target[self.bb], axis=0)
+        lesion_bb = np.expand_dims(case_lesion[self.bb], axis=0)
+        mask_bb = np.expand_dims(case_mask[self.bb], axis=0)
+        inputs_bb = (
+            source_bb,
+            target_bb,
+            lesion_bb,
+            mask_bb
+        )
+        return inputs_bb, target_bb
+
+    def __len__(self):
+        return self.max_combo[-1]

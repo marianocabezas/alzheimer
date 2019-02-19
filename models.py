@@ -12,7 +12,7 @@ from layers import ScalingLayer, SpatialTransformer
 from criterions import normalized_xcor_loss, subtraction_loss
 from criterions import df_modulo, df_gradient_mean
 from criterions import dice_loss, histogram_loss, mahalanobis_loss
-from datasets import ImageCroppingDataset, ImageListCroppingDataset
+from datasets import ImageListDataset
 
 
 def to_torch_var(
@@ -28,7 +28,7 @@ class CustomModel(nn.Module):
     def __init__(self):
         super(CustomModel, self).__init__()
 
-    def forward(self, *input):
+    def forward(self, *inputs):
         pass
 
     def mini_batch_loop(self, x, y, n_batches, batch_size, epoch, criterion_alg, optimizer_alg=None):
@@ -58,10 +58,14 @@ class CustomModel(nn.Module):
 
             if optimizer_alg is not None:
                 percent = 20 * batch_i / n_batches
-                bar = '[' + ''.join(['.'] * percent) + '>' + ''.join(['-'] * (20 - percent)) + ']'
-                curr_values_s = ' train_loss %f (%f)' % (loss_value, np.mean(losses))
-                batch_s = '%sEpoch %03d (%02d/%02d) %s%s' % (
-                    ' '.join([''] * 12), epoch, batch_i, n_batches, bar, curr_values_s
+                progress_s = ''.join(['.'] * percent)
+                remainder_s = ''.join(['-'] * (20 - percent))
+                whites = ' '.join([''] * 12)
+                batch_s = '%sEpoch %03d (%02d/%02d) [%s>%s] loss %f (%f)' % (
+                    whites, epoch,
+                    batch_i, n_batches,
+                    progress_s, remainder_s,
+                    loss_value, np.asscalar(np.mean(losses))
                 )
                 print('\033[K', end='')
                 print(batch_s, end='\r')
@@ -91,7 +95,7 @@ class CustomModel(nn.Module):
             t_in = time.time()
 
             losses = list()
-            best_batch = 0
+            b_batch = 0
             base_state = deepcopy(self.state_dict())
             best_state = base_state
             base_optim = deepcopy(optimizer_alg.state_dict())
@@ -107,12 +111,26 @@ class CustomModel(nn.Module):
                     # I'll try to support both multi-input and multi-output approaches. That
                     # is why we have this "complicated" batch approach.
                     if isinstance(train_x, list):
-                        batch_x = map(lambda b: to_torch_var(b[batch_ini:batch_end], requires_grad=True), train_x)
+                        batch_x = map(
+                            lambda b: to_torch_var(
+                                b[batch_ini:batch_end],
+                                requires_grad=True
+                            ),
+                            train_x
+                        )
                     else:
-                        batch_x = to_torch_var(train_x[batch_ini:batch_end], requires_grad=True)
+                        batch_x = to_torch_var(
+                            train_x[batch_ini:batch_end],
+                            requires_grad=True
+                        )
 
                     if isinstance(train_y, list):
-                        batch_y = map(lambda b: to_torch_var(b[batch_ini:batch_end]), train_y)
+                        batch_y = map(
+                            lambda b: to_torch_var(
+                                b[batch_ini:batch_end]
+                            ),
+                            train_y
+                        )
                     else:
                         batch_y = to_torch_var(train_y[batch_ini:batch_end])
 
@@ -127,26 +145,38 @@ class CustomModel(nn.Module):
 
                     # Validation of that mini batch
                     with torch.no_grad():
-                        loss_value = self.mini_batch_loop(val_x, val_y, n_v_batches, batch_size, epoch, criterion_alg)
+                        loss_value = self.mini_batch_loop(
+                            val_x, val_y,
+                            n_v_batches, batch_size,
+                            epoch,
+                            criterion_alg
+                        )
 
                     if loss_value < best_loss_batch:
                         best_state = deepcopy(self.state_dict())
                         best_optim = deepcopy(optimizer_alg.state_dict())
                         best_loss_batch = loss_value
-                        best_batch = batch_i
+                        b_batch = batch_i
                     losses += ['%5.2f' % loss_value]
                 else:
                     loss_value = np.inf
                     losses += ['\033[30m  -  \033[0m']
 
                 percent = 20 * batch_i / n_t_batches
-                bar = '[' + ''.join(['.'] * percent) + '>' + ''.join(['-'] * (20 - percent)) + ']'
-                curr_values_s = ' train_loss %f (best %f)' % (loss_value, best_loss_batch)
-                batch_s = '%sStep %3d-%03d (%2d/%2d) %s%s' % (
-                    ' '.join([''] * 12), epoch, step, batch_i, n_t_batches, bar, curr_values_s
-                )
+                progress_s = ''.join(['.'] * percent)
+                remainder_s = ''.join(['-'] * (20 - percent))
+                whites = ' '.join([''] * 12)
+                batch_s = '%sStep %3d-%03d (%2d/%2d) [%s>%s] loss %f (best %f)'
                 print('\033[K', end='')
-                print(batch_s, end='\r')
+                print(
+                    batch_s % (
+                        whites, epoch, step,
+                        batch_i, n_t_batches,
+                        progress_s, remainder_s,
+                        loss_value, best_loss_batch
+                    ),
+                    end='\r'
+                )
                 sys.stdout.flush()
 
                 # Reload the network to its initial state
@@ -154,7 +184,7 @@ class CustomModel(nn.Module):
                 optimizer_alg.load_state_dict(base_optim)
 
             # Prepare for the next step
-            trained[best_batch] = True
+            trained[b_batch] = True
             self.load_state_dict(best_state)
             optimizer_alg.load_state_dict(best_optim)
 
@@ -166,18 +196,30 @@ class CustomModel(nn.Module):
             else:
                 color = '\033[31m'
 
+            n_s = ' %s |'
+            b_s = ' %s%s\033[0m |'
             losses_s = map(
-                lambda (i, l): ' %s |' % l if i != best_batch else ' %s%s\033[0m |' % (color, l),
+                lambda (i, l): n_s % l if i != b_batch else b_s % (color, l),
                 enumerate(losses)
             )
 
             print('\033[K', end='')
+            whites = ' '.join([''] * 12)
             if step == 0:
-                losses_h = ''.join(map(lambda i: ' b  %2d |' % i, range(n_t_batches)))
-                print('%s---------%s--------' % (' '.join([''] * 12), ''.join(['--------'] * n_t_batches)))
-                print('%sEpo-num |%s  time  ' % (' '.join([''] * 12), losses_h))
-                print('%s--------|%s--------' % (' '.join([''] * 12), ''.join(['-------|'] * n_t_batches)))
-            print('%s%3d-%03d |%s %.2fs' % (' '.join([''] * 12), epoch, step, ''.join(losses_s), t_out))
+                hdr_dashes = ''.join(['--------'] * n_t_batches)
+                bdy_dashes = ''.join(['-------|'] * n_t_batches)
+                losses_h = ''.join(
+                    map(
+                        lambda i: ' b  %2d |' % i,
+                        range(n_t_batches)
+                    )
+                )
+                print('%s---------%s--------' % (whites, hdr_dashes))
+                print('%sEpo-num |%s  time  ' % (whites, losses_h))
+                print('%s--------|%s--------' % (whites, bdy_dashes))
+            print('%s%3d-%03d |%s %.2fs' % (
+                whites, epoch, step, ''.join(losses_s), t_out
+            ))
 
             final_loss = best_loss_batch
 
@@ -193,13 +235,17 @@ class CustomModel(nn.Module):
             epochs=100,
             patience=10,
             batch_size=32,
-            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
+            device=torch.device(
+                "cuda:1" if torch.cuda.is_available() else "cpu"
+            ),
             verbose=True
     ):
         # Init
         self.to(device)
         self.train()
 
+        best_e = 0
+        e = 0
         best_loss_tr = np.inf
         best_loss_val = np.inf
         no_improv_e = 0
@@ -317,6 +363,7 @@ class CustomModel(nn.Module):
         self.train()
 
         best_e = 0
+        e = 0
         best_loss_tr = np.inf
         no_improv_e = 0
         best_state = deepcopy(self.state_dict())
@@ -397,7 +444,8 @@ class CustomModel(nn.Module):
         t_end = time.time() - t_start
         print(
             'Training finished in %d epochs (%fs) with minimum loss = %f (epoch %d)' % (
-            e + 1, t_end, best_loss_tr, best_e)
+                e + 1, t_end, best_loss_tr, best_e
+            )
         )
 
     def predict(
@@ -621,21 +669,22 @@ class MaskAtrophyNet(nn.Module):
 
         df = self.to_df(input_s)
 
-        source_mov = self.trans_im([source, df])
-        mask_mov = self.trans_mask([mask, df])
+        source_mov = self.trans_im(
+            [source, df]
+        )
+
+        mask_mov = self.trans_mask(
+            [mask, df]
+        )
 
         return source_mov, mask_mov, df
 
     def register(
             self,
-            source,
-            target,
-            mask,
-            brain_mask,
-            series=None,
-            patch_size=None,
-            overlap=None,
-            batch_size=32,
+            cases,
+            masks,
+            brain_masks,
+            batch_size=1,
             optimizer='adam',
             epochs=100,
             patience=10,
@@ -665,48 +714,23 @@ class MaskAtrophyNet(nn.Module):
         # but it doesn't actually do any supervised training. Therefore, there
         # is no real validation.
         # Due to this, we modified the generic fit algorithm.
-        source_t = to_torch_var(source, requires_grad=True)
-        target_in_t = to_torch_var(target, requires_grad=True)
-        brain_mask_t = to_torch_var(brain_mask)
-        mask_t = to_torch_var(mask)
-        target_t = to_torch_var(target)
 
-        if patch_size is not None:
-            if overlap is None:
-                overlap = patch_size
-            if series is not None:
-                cropping_dataset = ImageListCroppingDataset(
-                    series,
-                    np.squeeze(mask),
-                    np.squeeze(brain_mask),
-                    patch_size=patch_size,
-                    overlap=overlap
-                )
-            else:
-                cropping_dataset = ImageCroppingDataset(
-                    np.squeeze(source),
-                    np.squeeze(target),
-                    np.squeeze(mask),
-                    np.squeeze(brain_mask),
-                    patch_size=patch_size,
-                    overlap=overlap
-                )
-            dataloader = DataLoader(
-                cropping_dataset, batch_size, True, num_workers=num_workers
-            )
-        else:
-            dataloader = None
+        dataset = ImageListDataset(
+            cases, masks, brain_masks
+        )
+        dataloader = DataLoader(
+            dataset, batch_size, True, num_workers=num_workers
+        )
 
         l_names = [' loss '] + self.loss_names
         best_losses = [np.inf] * (len(l_names) - 1)
+        best_e = 0
+        e = 0
 
         for e in range(epochs):
             # Main epoch loop
             t_in = time.time()
             loss_tr, mid_losses = self.step(
-                (source_t, target_in_t, mask_t),
-                target_t,
-                brain_mask_t,
                 optimizer_alg,
                 e,
                 dataloader
@@ -763,92 +787,76 @@ class MaskAtrophyNet(nn.Module):
 
     def step(
             self,
-            inputs,
-            target,
-            mask,
             optimizer_alg,
             epoch,
-            dataloader = None,
+            dataloader,
     ):
         # Again. This is supposed to be a step on the registration process,
         # there's no need for splitting data. We just compute the deformation,
         # then compute the global loss (and intermidiate ones to show) and do
         # back propagation.
         with torch.autograd.set_detect_anomaly(True):
-            if dataloader is not None:
-                n_batches = len(dataloader.dataset) / dataloader.batch_size + 1
-                loss_list = []
-                for batch_i, sample in enumerate(dataloader):
-                    # We train the model and check the loss
-                    b_inputs = map(lambda s: s.to(self.device), sample[0])
-                    b_target = sample[1].to(self.device)
-                    b_y_pred = self(b_inputs[:-1])
-                    loss_in = b_inputs[:-1]
-                    loss_in.append(b_target)
-                    b_source, _, b_lesion_mask, b_mask = b_inputs
-                    b_moved, b_moved_lesion_mask, b_df = b_y_pred
-                    b_losses = self.longitudinal_loss(
-                        b_source,
-                        b_moved,
-                        b_lesion_mask,
-                        b_moved_lesion_mask,
-                        b_target,
-                        b_df,
-                        b_mask
-                    )
+            n_data = len(dataloader.dataset)
+            batch_size = dataloader.batch_size
+            n_batches = int(np.round(1.0 * n_data / batch_size))
+            loss_list = []
+            losses_list = []
+            for (
+                    batch_i,
+                    ((b_source, b_target, b_lesion, b_mask), b_gt)
+            ) in enumerate(dataloader):
+                # We train the model and check the loss
+                b_source = b_source.to(self.device)
+                b_target = b_target.to(self.device)
+                b_lesion = b_lesion.to(self.device)
+                b_mask = b_mask.to(self.device)
 
-                    # Final loss value computation per batch
-                    batch_loss = sum(b_losses).to(target.device)
-                    b_loss_value = batch_loss.tolist()
-                    loss_list.append(b_loss_value)
-                    mean_loss = np.mean(loss_list)
+                b_gt = b_gt.to(self.device)
 
-                    # Print the intermediate results
-                    whites = ' '.join([''] * 12)
-                    percent = 20 * batch_i / n_batches
-                    progress_s = ''.join(['-'] * percent)
-                    remaining_s = ''.join([' '] * (20 - percent))
-                    bar = '[' + progress_s + '>' + remaining_s + ']'
-                    curr_values_s = ' loss %f (%f)' % (b_loss_value, mean_loss)
-                    batch_s = '%sEpoch %03d (%02d/%02d) %s%s' % (
-                        whites, epoch, batch_i, n_batches, bar, curr_values_s
-                    )
-                    print('\033[K', end='')
-                    print(batch_s, end='\r')
-                    sys.stdout.flush()
+                b_moved, b_moved_lesion, b_df = self(
+                    (b_source, b_target, b_lesion)
+                )
 
-                    # Backpropagation
-                    optimizer_alg.zero_grad()
-                    batch_loss.backward()
-                    optimizer_alg.step()
+                b_losses = self.longitudinal_loss(
+                    b_source,
+                    b_moved,
+                    b_lesion,
+                    b_moved_lesion,
+                    b_gt,
+                    b_df,
+                    b_mask
+                )
 
-                # We compute the "validation loss" with the whole image
-                with torch.no_grad():
-                    y_pred = self(inputs)
-            else:
-                y_pred = self(inputs)
+                # Final loss value computation per batch
+                batch_loss = sum(b_losses).to(b_target.device)
+                b_loss_value = batch_loss.tolist()
+                loss_list.append(b_loss_value)
+                mean_loss = np.mean(loss_list)
 
-            source, _, lesion_mask = inputs
-            moved, moved_lesion_mask, df = y_pred
+                b_mid_losses = map(lambda l: l.tolist(), b_losses)
+                losses_list.append(b_mid_losses)
 
-            losses = self.longitudinal_loss(
-                source,
-                moved,
-                lesion_mask,
-                moved_lesion_mask,
-                target,
-                df,
-                mask
-            )
-            loss = sum(losses).to(target.device)
+                # Print the intermediate results
+                whites = ' '.join([''] * 12)
+                percent = 20 * batch_i / n_batches
+                progress_s = ''.join(['-'] * percent)
+                remainder_s = ''.join([' '] * (20 - percent))
+                batch_s = '%sEpoch %03d (%02d/%02d) [%s>%s] loss %f (%f)' % (
+                    whites, epoch, batch_i, n_batches,
+                    progress_s, remainder_s,
+                    b_loss_value, mean_loss
+                )
+                print('\033[K', end='')
+                print(batch_s, end='\r')
+                sys.stdout.flush()
 
-            loss_value = loss.tolist()
-            mid_losses = map(lambda l: l.tolist(), losses)
-
-            if dataloader is None:
+                # Backpropagation
                 optimizer_alg.zero_grad()
-                loss.backward()
+                batch_loss.backward()
                 optimizer_alg.step()
+
+            loss_value = np.mean(loss_list)
+            mid_losses = np.mean(zip(*losses_list), axis=0)
 
         return loss_value, mid_losses
 
@@ -857,7 +865,9 @@ class MaskAtrophyNet(nn.Module):
             source,
             target,
             mask,
-            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
+            device=torch.device(
+                "cuda:1" if torch.cuda.is_available() else "cpu"
+            ),
             verbose=True
     ):
         # Init
@@ -908,7 +918,7 @@ class MaskAtrophyNet(nn.Module):
             'mask d': lambda: dice_loss(moved_mask, mask),
             'mahal ': lambda: mahalanobis_loss(moved_lesion, source_lesion),
             ' hist ': lambda: histogram_loss(moved_lesion, source_lesion),
-            'deform': lambda: 0.05 * df_gradient_mean(df, roi),
+            'deform': lambda: df_gradient_mean(df, roi),
             'modulo': lambda: df_modulo(df, roi),
 
         }

@@ -65,14 +65,8 @@ def parse_args():
         help='GPU id number'
     )
     parser.add_argument(
-        '-b', '--batch_size',
+        '-B', '--batch_size',
         dest='batch_size',
-        type=int, default=32,
-        help='Batch size'
-    )
-    parser.add_argument(
-        '-B', '--batch_size-im',
-        dest='batch_size_im',
         type=int, default=1,
         help='Batch size for validation'
     )
@@ -258,7 +252,6 @@ def cnn_registration(
         norm_target,
         brain_masks,
         batch_size=parse_args()['batch_size'],
-        batch_size_im=parse_args()['batch_size_im'],
         epochs=parse_args()['epochs'],
         patience=parse_args()['patience'],
         device='cuda:%d' % parse_args()['gpu_id'],
