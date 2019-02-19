@@ -121,11 +121,11 @@ class ImagePairCroppingDataset(Dataset):
         print(patch_slice, source[patch_slice].shape)
 
         inputs_p = (
-            np.reshape(source[patch_slice], (1, 1) + self.patch_size),
-            np.reshape(target[patch_slice], (1, 1) + self.patch_size),
-            np.reshape(case_mask[patch_slice], (1, 1) + self.patch_size),
+            source[patch_slice],
+            target[patch_slice],
+            case_mask[patch_slice],
         )
-        target_p = np.reshape(target[patch_slice], (1, 1) + self.patch_size)
+        target_p = target[patch_slice]
         return inputs_p, target_p
 
     def __len__(self):
