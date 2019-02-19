@@ -473,7 +473,7 @@ class VoxelMorph(nn.Module):
             losses_list = []
             for batch_i, ((b_source, b_target, b_mask), b_gt) in enumerate(dataloader_val):
                 # We train the model and check the loss
-                b_gt = b_gt[0].to(self.device)
+                b_gt = b_gt.to(self.device)
                 b_moved, b_df = self((b_source, b_target))
                 b_losses = self.longitudinal_loss(
                     b_moved,
@@ -620,7 +620,6 @@ class VoxelMorph(nn.Module):
             roi,
     ):
         # Init
-        print(moved.shape, (roi > 0).shape, target.shape)
         moved_roi = moved[roi > 0]
         target_roi = target[roi > 0]
 
