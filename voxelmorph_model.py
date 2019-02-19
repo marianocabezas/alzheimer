@@ -20,18 +20,38 @@ class ImageListDataset(Dataset):
         self.sources = sources
         self.targets = targets
         self.masks = masks
+        min_bb = np.min(
+            map(
+                lambda mask: np.min(np.where(mask > 0), axis=-1),
+                masks
+            ),
+            axis=0
+        )
+        max_bb = np.max(
+            map(
+                lambda mask: np.max(np.where(mask > 0), axis=-1),
+                masks
+            ),
+            axis=0
+        )
+        self.bb = tuple(
+            map(
+                lambda (min_i, max_i): slice(min_i, max_i),
+                zip(min_bb, max_bb)
+            )
+        )
 
     def __getitem__(self, index):
-        source = self.sources[index]
-        target = self.targets[index]
-        mask = self.masks[index]
-        im_shape = source.shape
+        source = self.sources[index][self.bb]
+        target = self.targets[index][self.bb]
+        mask = self.masks[index][self.bb]
+
         inputs = (
-            np.reshape(source, (1, 1) + im_shape),
-            np.reshape(target, (1, 1) + im_shape),
-            np.reshape(mask, (1, 1) + im_shape),
+            source,
+            target,
+            mask,
         )
-        target = np.reshape(target, (1, 1) + im_shape)
+
         return inputs, target
 
     def __len__(self):
@@ -118,7 +138,6 @@ class ImagePairCroppingDataset(Dataset):
         slices = [0] + self.max_slice
         patch_idx = index - slices[case]
         patch_slice = case_slices[patch_idx]
-        print(patch_slice, source[patch_slice].shape)
 
         inputs_p = (
             source[patch_slice],
@@ -404,12 +423,55 @@ class VoxelMorph(nn.Module):
         # then compute the global loss (and intermediate ones to show) and do
         # back propagation.
         with torch.autograd.set_detect_anomaly(True):
-            n_batches = len(dataloader_tr.dataset) / dataloader_tr.batch_size + 1
+            # n_batches = len(dataloader_tr.dataset) / dataloader_tr.batch_size + 1
+            # loss_list = []
+            # losses_list = []
+            # for batch_i, ((b_source, b_target, b_mask), b_gt) in enumerate(dataloader_tr):
+            #     # We train the model and check the loss
+            #     b_gt = b_gt.to(self.device)
+            #     b_moved, b_df = self((b_source, b_target))
+            #     b_losses = self.longitudinal_loss(
+            #         b_moved,
+            #         b_gt,
+            #         b_df,
+            #         b_mask
+            #     )
+            #
+            #     # Final loss value computation per batch
+            #     batch_loss = sum(b_losses).to(self.device)
+            #     b_loss_value = batch_loss.tolist()
+            #     loss_list.append(b_loss_value)
+            #     mean_loss = np.asscalar(np.mean(loss_list))
+            #
+            #     b_mid_losses = map(lambda l: l.tolist(), b_losses)
+            #     losses_list.append(b_mid_losses)
+            #
+            #     # Print the intermediate results
+            #     whites = ' '.join([''] * 12)
+            #     percent = 20 * batch_i / n_batches
+            #     progress_s = ''.join(['-'] * percent)
+            #     remaining_s = ''.join([' '] * (20 - percent))
+            #     bar = '[' + progress_s + '>' + remaining_s + ']'
+            #     curr_values_s = ' loss %f (%f)' % (b_loss_value, mean_loss)
+            #     batch_s = '%sEpoch %03d (%02d/%02d) %s%s' % (
+            #         whites, epoch, batch_i, n_batches, bar, curr_values_s
+            #     )
+            #     print('\033[K', end='')
+            #     print(batch_s, end='\r')
+            #     sys.stdout.flush()
+            #
+            #     # Backpropagation
+            #     optimizer_alg.zero_grad()
+            #     batch_loss.backward()
+            #     optimizer_alg.step()
+            #
+            # # We compute the "validation loss" with the whole image
+            # with torch.no_grad():
             loss_list = []
             losses_list = []
-            for batch_i, ((b_source, b_target, b_mask), b_gt) in enumerate(dataloader_tr):
+            for batch_i, ((b_source, b_target, b_mask), b_gt) in enumerate(dataloader_val):
                 # We train the model and check the loss
-                b_gt = b_gt.to(self.device)
+                b_gt = b_gt[0].to(self.device)
                 b_moved, b_df = self((b_source, b_target))
                 b_losses = self.longitudinal_loss(
                     b_moved,
@@ -422,52 +484,14 @@ class VoxelMorph(nn.Module):
                 batch_loss = sum(b_losses).to(self.device)
                 b_loss_value = batch_loss.tolist()
                 loss_list.append(b_loss_value)
-                mean_loss = np.asscalar(np.mean(loss_list))
 
                 b_mid_losses = map(lambda l: l.tolist(), b_losses)
                 losses_list.append(b_mid_losses)
-
-                # Print the intermediate results
-                whites = ' '.join([''] * 12)
-                percent = 20 * batch_i / n_batches
-                progress_s = ''.join(['-'] * percent)
-                remaining_s = ''.join([' '] * (20 - percent))
-                bar = '[' + progress_s + '>' + remaining_s + ']'
-                curr_values_s = ' loss %f (%f)' % (b_loss_value, mean_loss)
-                batch_s = '%sEpoch %03d (%02d/%02d) %s%s' % (
-                    whites, epoch, batch_i, n_batches, bar, curr_values_s
-                )
-                print('\033[K', end='')
-                print(batch_s, end='\r')
-                sys.stdout.flush()
 
                 # Backpropagation
                 optimizer_alg.zero_grad()
                 batch_loss.backward()
                 optimizer_alg.step()
-
-            # We compute the "validation loss" with the whole image
-            with torch.no_grad():
-                loss_list = []
-                losses_list = []
-                for batch_i, ((b_source, b_target, b_mask), b_gt) in enumerate(dataloader_val):
-                    # We train the model and check the loss
-                    b_gt = b_gt[0].to(self.device)
-                    b_moved, b_df = self((b_source, b_target))
-                    b_losses = self.longitudinal_loss(
-                        b_moved,
-                        b_gt,
-                        b_df,
-                        b_mask
-                    )
-
-                    # Final loss value computation per batch
-                    batch_loss = sum(b_losses).to(self.device)
-                    b_loss_value = batch_loss.tolist()
-                    loss_list.append(b_loss_value)
-
-                    b_mid_losses = map(lambda l: l.tolist(), b_losses)
-                    losses_list.append(b_mid_losses)
 
             loss_value = np.mean(loss_list)
             mid_losses = np.mean(zip(*losses_list))
