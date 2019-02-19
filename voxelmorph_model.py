@@ -22,12 +22,16 @@ class ImageListDataset(Dataset):
         self.masks = masks
 
     def __getitem__(self, index):
+        source = self.sources[index]
+        target = self.targets[index]
+        mask = self.masks[index]
+        im_shape = source.shape
         inputs = (
-            self.sources[index],
-            self.targets[index],
-            self.masks[index]
+            np.reshape(source, (1, 1) + im_shape),
+            np.reshape(target, (1, 1) + im_shape),
+            np.reshape(mask, (1, 1) + im_shape),
         )
-        target = self.targets[index],
+        target = np.reshape(target, (1, 1) + im_shape)
         return inputs, target
 
     def __len__(self):
@@ -57,6 +61,7 @@ class ImagePairCroppingDataset(Dataset):
 
         if type(patch_size) is not tuple:
             patch_size = (patch_size,) * len(self.masks[0].shape)
+        self.patch_size = patch_size
         patch_half = map(lambda p_length: p_length/2, patch_size)
 
         steps = map(lambda p_length: max(p_length - overlap, 1), patch_size)
@@ -113,12 +118,13 @@ class ImagePairCroppingDataset(Dataset):
         slices = [0] + self.max_slice
         patch_idx = index - slices[case]
         patch_slice = case_slices[patch_idx]
+
         inputs_p = (
-            source[patch_slice],
-            target[patch_slice],
-            case_mask[patch_slice]
+            np.reshape(source[patch_slice], (1, 1) + self.patch_size),
+            np.reshape(target[patch_slice], (1, 1) + self.patch_size),
+            np.reshape(case_mask[patch_slice], (1, 1) + self.patch_size),
         )
-        target_p = target[patch_slice]
+        target_p = np.reshape(target[patch_slice], (1, 1) + self.patch_size)
         return inputs_p, target_p
 
     def __len__(self):
