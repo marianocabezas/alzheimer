@@ -42,9 +42,9 @@ class ImageListDataset(Dataset):
         )
 
     def __getitem__(self, index):
-        source = self.sources[index][self.bb]
-        target = self.targets[index][self.bb]
-        mask = self.masks[index][self.bb]
+        source = np.expand_dims(self.sources[index][self.bb], axis=0)
+        target = np.expand_dims(self.targets[index][self.bb], axis=0)
+        mask = np.expand_dims(self.masks[index][self.bb], axis=0)
 
         inputs = (
             source,
@@ -274,7 +274,7 @@ class VoxelMorph(nn.Module):
     def forward(self, inputs):
 
         source, target = inputs
-        input_s = torch.stack([source, target], dim=1).to(self.device)
+        input_s = torch.cat([source, target], dim=1).to(self.device)
 
         down_inputs = list()
         for c in self.conv:
@@ -291,7 +291,7 @@ class VoxelMorph(nn.Module):
         df = self.to_df(input_s)
 
         source_mov = self.trans_im(
-            [source.unsqueeze(0).to(self.device), df]
+            [source, df]
         )
 
         return source_mov, df
