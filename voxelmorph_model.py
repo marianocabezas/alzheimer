@@ -58,99 +58,6 @@ class ImageListDataset(Dataset):
         return len(self.sources)
 
 
-class ImagePairCroppingDataset(Dataset):
-    def __init__(
-            self,
-            sources,
-            targets,
-            masks,
-            patch_size=32,
-            overlap=32
-    ):
-        # Init
-        # Image and mask should be numpy arrays
-        shape_comparisons = map(
-            lambda (x, y): x.shape == y.shape,
-            zip(sources, targets)
-        )
-        assert reduce(and_, shape_comparisons)
-
-        self.sources = sources
-        self.targets = targets
-        self.masks = masks
-
-        if type(patch_size) is not tuple:
-            patch_size = (patch_size,) * len(self.masks[0].shape)
-        self.patch_size = patch_size
-        patch_half = map(lambda p_length: p_length/2, patch_size)
-
-        steps = map(lambda p_length: max(p_length - overlap, 1), patch_size)
-
-        # Create bounding box and define
-        min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), masks)
-        min_bb = map(
-            lambda min_bb_i: map(
-                lambda (min_i, p_len): min_i + p_len,
-                zip(min_bb_i, patch_half)
-            ),
-            min_bb
-        )
-        max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), masks)
-        max_bb = map(
-            lambda max_bb_i: map(
-                lambda (max_i, p_len): max_i - p_len,
-                zip(max_bb_i, patch_half)
-            ),
-            max_bb
-        )
-
-        dim_ranges = map(
-            lambda (min_bb_i, max_bb_i): map(
-                lambda t: np.arange(*t), zip(min_bb_i, max_bb_i, steps)
-            ),
-            zip(min_bb, max_bb)
-        )
-
-        self.patch_slices = map(
-            lambda dim_range: map(
-                lambda voxel: tuple(map(
-                    lambda (idx, p_len): slice(idx - p_len, idx + p_len),
-                    zip(voxel, patch_half)
-                )),
-                itertools.product(*dim_range)
-            ),
-            dim_ranges
-        )
-
-        case_slices = map(len, self.patch_slices)
-
-        self.max_slice = np.cumsum(case_slices)
-
-    def __getitem__(self, index):
-        # We select the case
-        case = np.min(np.where(self.max_slice > index))
-        source = self.sources[case]
-        target = self.targets[case]
-        case_slices = self.patch_slices[case]
-        case_mask = self.masks[case]
-
-        # Now we just need to look for the desired slice
-        slices = [0] + self.max_slice
-        patch_idx = index - slices[case]
-        patch_slice = case_slices[patch_idx]
-
-        inputs_p = (
-            source[patch_slice],
-            target[patch_slice],
-            case_mask[patch_slice],
-        )
-        target_p = target[patch_slice]
-        return inputs_p, target_p
-
-    def __len__(self):
-        return self.max_slice[-1]
-
-
 def to_torch_var(
         np_array,
         device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
@@ -333,22 +240,13 @@ class VoxelMorph(nn.Module):
         # is no real validation.
         # Due to this, we modified the generic fit algorithm.
 
-        dataset_im = ImageListDataset(
-            sources,
-            targets,
-            brain_masks
-        )
-        dataloader_im = DataLoader(
-            dataset_im, batch_size_im, True, num_workers=num_workers
-        )
-
-        dataset = ImagePairCroppingDataset(
+        dataset = ImageListDataset(
             sources,
             targets,
             brain_masks
         )
         dataloader = DataLoader(
-            dataset, batch_size, True, num_workers=num_workers
+            dataset, batch_size_im, True, num_workers=num_workers
         )
 
         l_names = [' loss '] + self.loss_names
@@ -359,9 +257,7 @@ class VoxelMorph(nn.Module):
             t_in = time.time()
             loss_tr, mid_losses = self.step(
                 optimizer_alg,
-                e,
                 dataloader,
-                dataloader_im
             )
 
             losses_color = map(
@@ -417,61 +313,17 @@ class VoxelMorph(nn.Module):
             self,
             optimizer_alg,
             epoch,
-            dataloader_tr,
-            dataloader_val
+            dataloader
     ):
         # Again. This is supposed to be a step on the registration process,
         # there's no need for splitting data. We just compute the deformation,
         # then compute the global loss (and intermediate ones to show) and do
         # back propagation.
         with torch.autograd.set_detect_anomaly(True):
-            # n_batches = len(dataloader_tr.dataset) / dataloader_tr.batch_size + 1
-            # loss_list = []
-            # losses_list = []
-            # for batch_i, ((b_source, b_target, b_mask), b_gt) in enumerate(dataloader_tr):
-            #     # We train the model and check the loss
-            #     b_gt = b_gt.to(self.device)
-            #     b_moved, b_df = self((b_source, b_target))
-            #     b_losses = self.longitudinal_loss(
-            #         b_moved,
-            #         b_gt,
-            #         b_df,
-            #         b_mask
-            #     )
-            #
-            #     # Final loss value computation per batch
-            #     batch_loss = sum(b_losses).to(self.device)
-            #     b_loss_value = batch_loss.tolist()
-            #     loss_list.append(b_loss_value)
-            #     mean_loss = np.asscalar(np.mean(loss_list))
-            #
-            #     b_mid_losses = map(lambda l: l.tolist(), b_losses)
-            #     losses_list.append(b_mid_losses)
-            #
-            #     # Print the intermediate results
-            #     whites = ' '.join([''] * 12)
-            #     percent = 20 * batch_i / n_batches
-            #     progress_s = ''.join(['-'] * percent)
-            #     remaining_s = ''.join([' '] * (20 - percent))
-            #     bar = '[' + progress_s + '>' + remaining_s + ']'
-            #     curr_values_s = ' loss %f (%f)' % (b_loss_value, mean_loss)
-            #     batch_s = '%sEpoch %03d (%02d/%02d) %s%s' % (
-            #         whites, epoch, batch_i, n_batches, bar, curr_values_s
-            #     )
-            #     print('\033[K', end='')
-            #     print(batch_s, end='\r')
-            #     sys.stdout.flush()
-            #
-            #     # Backpropagation
-            #     optimizer_alg.zero_grad()
-            #     batch_loss.backward()
-            #     optimizer_alg.step()
-            #
-            # # We compute the "validation loss" with the whole image
-            # with torch.no_grad():
+            n_batches = len(dataloader.dataset) / dataloader.batch_size + 1
             loss_list = []
             losses_list = []
-            for batch_i, ((b_source, b_target, b_mask), b_gt) in enumerate(dataloader_val):
+            for batch_i, ((b_source, b_target, b_mask), b_gt) in enumerate(dataloader):
                 # We train the model and check the loss
                 b_gt = b_gt.to(self.device)
                 b_moved, b_df = self((b_source, b_target))
@@ -489,6 +341,20 @@ class VoxelMorph(nn.Module):
 
                 b_mid_losses = map(lambda l: l.tolist(), b_losses)
                 losses_list.append(b_mid_losses)
+
+                # Print the intermediate results
+                whites = ' '.join([''] * 12)
+                percent = 20 * batch_i / n_batches
+                progress_s = ''.join(['-'] * percent)
+                remaining_s = ''.join([' '] * (20 - percent))
+                bar = '[' + progress_s + '>' + remaining_s + ']'
+                curr_values_s = ' loss %f (%f)' % (b_loss_value, mean_loss)
+                batch_s = '%sEpoch %03d (%02d/%02d) %s%s' % (
+                    whites, epoch, batch_i, n_batches, bar, curr_values_s
+                )
+                print('\033[K', end='')
+                print(batch_s, end='\r')
+                sys.stdout.flush()
 
                 # Backpropagation
                 optimizer_alg.zero_grad()
