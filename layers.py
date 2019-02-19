@@ -1,4 +1,3 @@
-from operator import mul
 import torch
 import itertools
 import numpy as np

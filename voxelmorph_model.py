@@ -52,7 +52,7 @@ class ImagePairCroppingDataset(Dataset):
         assert reduce(and_, shape_comparisons)
 
         self.sources = sources
-        self.masks = masks
+        self.targets = targets
         self.masks = masks
 
         if type(patch_size) is not tuple:
