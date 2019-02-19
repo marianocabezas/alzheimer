@@ -34,42 +34,25 @@ class ImageListDataset(Dataset):
         return len(self.sources)
 
 
-class ImagesListCroppingDataset(Dataset):
-    def __init__(self, cases, lesions, masks, patch_size=32, overlap=32):
+class ImagePairCroppingDataset(Dataset):
+    def __init__(
+            self,
+            sources,
+            targets,
+            masks,
+            patch_size=32,
+            overlap=32
+    ):
         # Init
         # Image and mask should be numpy arrays
         shape_comparisons = map(
-            lambda case: map(
-                lambda (x, y): x.shape == y.shape,
-                zip(case[:-1], case[1:])
-            ),
-            cases
+            lambda (x, y): x.shape == y.shape,
+            zip(sources, targets)
         )
-        case_comparisons = map(
-            lambda shapes: reduce(and_, shapes),
-            shape_comparisons
-        )
-        assert reduce(and_, case_comparisons)
+        assert reduce(and_, shape_comparisons)
 
-        self.n_cases = len(cases)
-        self.cases = cases
-        case_idx = map(lambda case: range(len(case)), cases)
-        timepoints_combo = map(
-            lambda timepoint_idx: map(
-                lambda i: map(
-                    lambda j: (i, j),
-                    timepoint_idx[i + 1:]
-                ),
-                timepoint_idx[:-1]
-            ),
-            case_idx
-        )
-        self.combos = map(
-            lambda combo: np.concatenate(combo, axis=0),
-            timepoints_combo
-        )
-        print(self.combos)
-        self.lesions = lesions
+        self.sources = sources
+        self.masks = masks
         self.masks = masks
 
         if type(patch_size) is not tuple:
@@ -114,35 +97,25 @@ class ImagesListCroppingDataset(Dataset):
             dim_ranges
         )
 
-        case_slices = map(
-            lambda (p, c): len(p) * len(c),
-            zip(self.patch_slices, self.combos)
-        )
+        case_slices = map(len, self.patch_slices)
 
         self.max_slice = np.cumsum(case_slices)
 
     def __getitem__(self, index):
         # We select the case
         case = np.min(np.where(self.max_slice > index))
-        case_timepoints = self.timepoints[case]
+        source = self.sources[case]
+        target = self.targets[case]
         case_slices = self.patch_slices[case]
-        case_combos = self.combos[case]
-        case_lesion = self.lesions[case]
         case_mask = self.masks[case]
 
         # Now we just need to look for the desired slice
         slices = [0] + self.max_slice
-        index_corr = index - slices[case]
-        n_slices = len(case_slices)
-        combo_idx = index_corr / n_slices
-        patch_idx = index_corr % n_slices
-        source = case_timepoints[case_combos[combo_idx, 0]]
-        target = case_timepoints[case_combos[combo_idx, 1]]
+        patch_idx = index - slices[case]
         patch_slice = case_slices[patch_idx]
         inputs_p = (
             source[patch_slice],
             target[patch_slice],
-            case_lesion[patch_slice],
             case_mask[patch_slice]
         )
         target_p = target[patch_slice]
@@ -297,9 +270,9 @@ class VoxelMorph(nn.Module):
 
     def register(
             self,
-            source,
-            target,
-            brain_mask,
+            sources,
+            targets,
+            brain_masks,
             batch_size=32,
             batch_size_im=1,
             optimizer='adam',
@@ -333,16 +306,18 @@ class VoxelMorph(nn.Module):
         # Due to this, we modified the generic fit algorithm.
 
         dataset_im = ImageListDataset(
-            source,
-            target, brain_mask
+            sources,
+            targets,
+            brain_masks
         )
         dataloader_im = DataLoader(
             dataset_im, batch_size_im, True, num_workers=num_workers
         )
 
-        dataset = ImagesListCroppingDataset(
-            source,
-            target, brain_mask
+        dataset = ImagePairCroppingDataset(
+            sources,
+            targets,
+            brain_masks
         )
         dataloader = DataLoader(
             dataset, batch_size, True, num_workers=num_workers
@@ -427,7 +402,7 @@ class VoxelMorph(nn.Module):
             losses_list = []
             for batch_i, ((b_source, b_target, b_mask), b_gt) in enumerate(dataloader_tr):
                 # We train the model and check the loss
-                b_gt = b_gt[0].to(self.device)
+                b_gt = b_gt.to(self.device)
                 b_moved, b_df = self((b_source, b_target))
                 b_losses = self.longitudinal_loss(
                     b_moved,
@@ -440,7 +415,7 @@ class VoxelMorph(nn.Module):
                 batch_loss = sum(b_losses).to(self.device)
                 b_loss_value = batch_loss.tolist()
                 loss_list.append(b_loss_value)
-                mean_loss = np.mean(loss_list)
+                mean_loss = np.asscalar(np.mean(loss_list))
 
                 b_mid_losses = map(lambda l: l.tolist(), b_losses)
                 losses_list.append(b_mid_losses)
