@@ -79,7 +79,7 @@ class SpatialTransformer(nn.Module):
             lambda m_i: m_i.type(dtype=torch.float32),
             torch.meshgrid(linvec)
         )
-        loc = [mesh[d].cuda(df.device) + df[:, d, ...] for d in range(nb_dims)]
+        loc = [mesh[d].to(df.device) + df[:, d, ...] for d in range(nb_dims)]
         loc = map(
             lambda (l, m): torch.clamp(l, 0, m),
             zip(loc, max_loc)
@@ -104,8 +104,8 @@ class SpatialTransformer(nn.Module):
                 zip(loc0, max_loc)
             )
             locs = [
-                map(lambda f: f.type(dtype=torch.int32), loc0lst),
-                map(lambda f: f.type(dtype=torch.int32), loc1)
+                map(lambda f: f.type(dtype=torch.int16), loc0lst),
+                map(lambda f: f.type(dtype=torch.int16), loc1)
             ]
 
             # compute the difference between the upper value and the original value
