@@ -339,6 +339,7 @@ class VoxelMorph(nn.Module):
                 batch_loss = sum(b_losses).to(self.device)
                 b_loss_value = batch_loss.tolist()
                 loss_list.append(b_loss_value)
+                mean_loss = np.asscalar(np.mean(loss_list))
 
                 b_mid_losses = map(lambda l: l.tolist(), b_losses)
                 losses_list.append(b_mid_losses)
