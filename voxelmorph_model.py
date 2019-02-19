@@ -620,7 +620,7 @@ class VoxelMorph(nn.Module):
             roi,
     ):
         # Init
-        print(moved.shape, (roi > 0).shape)
+        print(moved.shape == (roi > 0).shape)
         moved_roi = moved[roi > 0]
         target_roi = target[roi > 0]
 
