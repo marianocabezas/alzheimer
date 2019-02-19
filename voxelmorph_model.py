@@ -78,7 +78,7 @@ class ImagePairCroppingDataset(Dataset):
         max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), masks)
         max_bb = map(
             lambda max_bb_i: map(
-                lambda (max_i, p_len): max_i + p_len,
+                lambda (max_i, p_len): max_i - p_len,
                 zip(max_bb_i, patch_half)
             ),
             max_bb
