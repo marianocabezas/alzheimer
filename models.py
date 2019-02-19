@@ -881,7 +881,6 @@ class MaskAtrophyNet(nn.Module):
                     losses_list.append(b_mid_losses)
 
             mid_losses = np.mean(zip(*losses_list), axis=1)
-            print(mid_losses.shape)
             loss_value = np.sum(mid_losses)
 
         return loss_value, mid_losses

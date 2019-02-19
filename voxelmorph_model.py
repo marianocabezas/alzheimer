@@ -366,8 +366,8 @@ class VoxelMorph(nn.Module):
                 batch_loss.backward()
                 optimizer_alg.step()
 
-            loss_value = np.mean(loss_list)
             mid_losses = np.mean(zip(*losses_list), axis=1)
+            loss_value = np.sum(mid_losses)
 
         return loss_value, mid_losses
 
