@@ -145,7 +145,7 @@ class ImagesListCroppingDataset(Dataset):
 
         self.n_cases = len(cases)
         self.cases = cases
-        case_idx = map(lambda case: range(len(case), cases))
+        case_idx = map(lambda case: range(len(case)), cases)
         timepoints_combo = map(
             lambda timepoint_idx: map(
                 lambda i: map(
@@ -222,19 +222,21 @@ class ImagesListCroppingDataset(Dataset):
         case_mask = self.masks[case]
 
         # Now we just need to look for the desired slice
+        slices = [0] + self.max_slice
+        index_corr = index - slices[case]
         n_slices = len(case_slices)
-        combo_idx = index / n_slices
-        patch_idx = index % n_slices
+        combo_idx = index_corr / n_slices
+        patch_idx = index_corr % n_slices
         source = case_timepoints[case_combos[combo_idx, 0]]
         target = case_timepoints[case_combos[combo_idx, 1]]
         patch_slice = case_slices[patch_idx]
         inputs_p = (
-            np.expand_dims(source[patch_slice], 0),
-            np.expand_dims(target[patch_slice], 0),
-            np.expand_dims(case_lesion[patch_slice], 0),
-            np.expand_dims(case_mask[patch_slice], 0)
+            source[patch_slice],
+            target[patch_slice],
+            case_lesion[patch_slice],
+            case_mask[patch_slice]
         )
-        target_p = np.expand_dims(target[patch_slice], 0)
+        target_p = target[patch_slice]
         return inputs_p, target_p
 
     def __len__(self):

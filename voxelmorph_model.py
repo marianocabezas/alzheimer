@@ -68,6 +68,7 @@ class ImagesListCroppingDataset(Dataset):
             lambda combo: np.concatenate(combo, axis=0),
             timepoints_combo
         )
+        print(self.combos)
         self.lesions = lesions
         self.masks = masks
 
