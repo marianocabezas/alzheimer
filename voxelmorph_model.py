@@ -47,12 +47,12 @@ class ImageListDataset(Dataset):
         mask = self.masks[index][self.bb]
 
         inputs = (
-            source,
-            target,
+            np.expand_dims(source, axis=0),
+            np.expand_dims(target, axis=0),
             mask,
         )
 
-        return inputs, target
+        return inputs, np.expand_dims(target, axis=0)
 
     def __len__(self):
         return len(self.sources)
