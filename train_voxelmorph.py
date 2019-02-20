@@ -49,7 +49,7 @@ def parse_args():
     parser.add_argument(
         '-l', '--lambda',
         dest='lambda',
-        type=int, default=1,
+        type=float, default=1,
         help='Parameter to store the working directory.'
     )
     parser.add_argument(
