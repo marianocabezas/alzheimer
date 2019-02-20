@@ -81,16 +81,16 @@ def parse_args():
     )
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
-        '-f', '--old',
+        '-p', '--path',
         dest='dataset_path',
         default='/home/mariano/DATA/Australia60m/Workstation',
         help='Parameter to store the working directory.'
     )
-    group.add_argument(
-        '-t', '--tools',
-        dest='tools_path',
-        default='/home/mariano/alzheimer/',
-        help='Parameter to store the tools directory.'
+    parser.add_argument(
+        '-l', '--lambda',
+        dest='lambda',
+        type=float, default=1,
+        help='Parameter to store the working directory.'
     )
     return vars(parser.parse_args())
 
@@ -1101,7 +1101,8 @@ def cnn_registration(
             )
         )
 
-    model_name = os.path.join(d_path, 'long_model.mdl')
+    lambda_v = parse_args()['lambda']
+    model_name = os.path.join(d_path, 'long_model_lambda%d.mdl' % lambda_v)
 
     training_start = time.time()
     reg_net = MaskAtrophyNet().cuda()

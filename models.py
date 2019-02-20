@@ -578,6 +578,7 @@ class MaskAtrophyNet(nn.Module):
             conv_filters=list([32, 64, 64, 64]),
             deconv_filters=list([64, 64, 64, 64, 64, 32, 32]),
             device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
+            lambda_d=1,
             loss_names=list([
                 # ' subt ',
                 ' xcor ',
@@ -592,6 +593,7 @@ class MaskAtrophyNet(nn.Module):
     ):
         # Init
         super(MaskAtrophyNet, self).__init__()
+        self.lambda_d = lambda_d
         self.loss_names = loss_names
         self.device = device
         # Down path of the unet
@@ -943,12 +945,54 @@ class MaskAtrophyNet(nn.Module):
             'mask d': lambda: dice_loss(moved_mask, mask),
             'mahal ': lambda: mahalanobis_loss(moved_lesion, source_lesion),
             ' hist ': lambda: histogram_loss(moved_lesion, source_lesion),
-            'deform': lambda: df_gradient_mean(df, roi),
+            'deform': lambda: self.lambda_d * df_gradient_mean(df, roi),
             'modulo': lambda: df_modulo(df, roi),
 
         }
 
-        losses = tuple(map(lambda l: losses_dict[l](), self.loss_names))
+        functions = {
+            ' subt ': subtraction_loss,
+            ' xcor ': normalized_xcor_loss,
+            'xcor_l': normalized_xcor_loss,
+            ' mse  ': torch.nn.MSELoss(),
+            'mask d': dice_loss,
+            'mahal ': mahalanobis_loss,
+            ' hist ': histogram_loss,
+            'deform': df_gradient_mean,
+            'modulo': df_modulo,
+
+        }
+
+        inputs = {
+            ' subt ': (moved_roi, target_roi),
+            ' xcor ': (moved_roi, target_roi),
+            'xcor_l': (moved_lesion, target_lesion),
+            ' mse  ': (moved_roi, target_roi),
+            'mask d': (moved_mask, mask),
+            'mahal ': (moved_lesion, source_lesion),
+            ' hist ': (moved_lesion, source_lesion),
+            'deform': (df, roi),
+            'modulo': (df, roi),
+        }
+
+        weights = {
+            ' subt ': 1.0,
+            ' xcor ': 1.0,
+            'xcor_l': 1.0,
+            ' mse  ': 1.0,
+            'mask d': 1.0,
+            'mahal ': 1.0,
+            ' hist ': 1.0,
+            'deform': self.lambda_d,
+            'modulo': 1.0,
+        }
+
+        losses = tuple(
+            map(
+                lambda l: weights[l] * functions[l](*inputs[l]),
+                self.loss_names
+            )
+        )
 
         return losses
 

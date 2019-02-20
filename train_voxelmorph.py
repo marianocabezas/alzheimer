@@ -243,10 +243,13 @@ def cnn_registration(
         zip(target_images, target_mus, target_sigmas)
     )
 
+    gpu = parse_args()['gpu_id']
+    lambda_value = parse_args()['lambda']
+    cuda = torch.cuda.is_available()
+    device = torch.device('cuda:%d' % gpu if cuda else 'cpu')
+
     # Create the network and run it.
-    reg_net = VoxelMorph(
-        device=torch.device('cuda:%d' % parse_args()['gpu_id'] if torch.cuda.is_available() else "cpu")
-    ).cuda()
+    reg_net = VoxelMorph(device=device, lambda_value=lambda_value)
     reg_net.register(
         norm_source,
         norm_target,
