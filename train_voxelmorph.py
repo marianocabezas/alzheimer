@@ -35,9 +35,9 @@ def parse_args():
         description='Train the longitudinal voxelmorph.'
     )
     parser.add_argument(
-        '-f', '--path',
+        '-p', '--path',
         dest='dataset_path',
-        default='/home/owner/data/OASIS2Reoriented',
+        default=os.getcwd(),
         help='Parameter to store the working directory.'
     )
     parser.add_argument(
