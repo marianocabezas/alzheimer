@@ -1105,7 +1105,9 @@ def cnn_registration(
     model_name = os.path.join(d_path, 'long_model_lambda%d.mdl' % lambda_v)
 
     training_start = time.time()
-    reg_net = MaskAtrophyNet().cuda()
+    reg_net = MaskAtrophyNet(
+        lambda_d=lambda_v
+    )
     try:
         reg_net.load_model(model_name)
     except IOError:
