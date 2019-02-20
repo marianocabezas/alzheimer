@@ -14,7 +14,7 @@ def normalized_xcor(var_x, var_y):
         inv_var_x_den = torch.rsqrt(torch.sum(var_x_norm * var_x_norm))
         inv_var_y_den = torch.rsqrt(torch.sum(var_y_norm * var_y_norm))
 
-        return  var_xy_norm * inv_var_x_den * inv_var_y_den
+        return var_xy_norm * inv_var_x_den * inv_var_y_den
     else:
         return torch.mean(torch.abs(var_x - var_y))
 
@@ -26,8 +26,8 @@ def normalized_xcor_loss(var_x, var_y):
         return torch.tensor(0)
 
 
-def subtraction_loss(var_x, var_y):
-    return torch.std(var_y - var_x)
+def subtraction_loss(var_x, var_y, mask):
+    return im_gradient_mean(var_y - var_x, mask)
 
 
 def mahalanobis_loss(var_x, var_y):
@@ -83,12 +83,40 @@ def df_gradient_mean(df, mask):
     grad_x_k = torch.reshape(grad_v, (1, 1, -1)).repeat((3, 3, 1))
     grad_y_k = torch.reshape(grad_v, (1, -1, 1)).repeat((3, 1, 3))
     grad_z_k = torch.reshape(grad_v, (-1, 1, 1)).repeat((1, 3, 3))
-    # grad_k_tensor = torch.stack([grad_x_k, grad_y_k, grad_z_k], dim=0)
 
     grad_x = F.conv3d(df, grad_x_k.repeat(3, 3, 1, 1, 1), padding=1)
     grad_y = F.conv3d(df, grad_y_k.repeat(3, 3, 1, 1, 1), padding=1)
     grad_z = F.conv3d(df, grad_z_k.repeat(3, 3, 1, 1, 1), padding=1)
-    # gradient = F.conv3d(df, grad_k_tensor.repeat(3, 1, 1, 1, 1), padding=1)
+
+    gradient = torch.cat([grad_x, grad_y, grad_z], dim=1)
+    gradient = torch.sum(gradient * gradient, dim=1, keepdim=True)
+    mean_grad = torch.mean(gradient[mask])
+
+    return mean_grad
+
+
+def im_gradient_mean(im, mask):
+    n_images = im.shape[1]
+    grad_v = torch.tensor([-1, 0, 1], dtype=torch.float32).to(im.device)
+    grad_x_k = torch.reshape(grad_v, (1, 1, -1)).repeat((3, 3, 1))
+    grad_y_k = torch.reshape(grad_v, (1, -1, 1)).repeat((3, 1, 3))
+    grad_z_k = torch.reshape(grad_v, (-1, 1, 1)).repeat((1, 3, 3))
+
+    grad_x = F.conv3d(
+        im,
+        grad_x_k.repeat(n_images, n_images, 1, 1, 1),
+        padding=1
+    )
+    grad_y = F.conv3d(
+        im,
+        grad_y_k.repeat(n_images, n_images, 1, 1, 1),
+        padding=1
+    )
+    grad_z = F.conv3d(
+        im,
+        grad_z_k.repeat(n_images, n_images, 1, 1, 1),
+        padding=1
+    )
     gradient = torch.cat([grad_x, grad_y, grad_z], dim=1)
     gradient = torch.sum(gradient * gradient, dim=1, keepdim=True)
     mean_grad = torch.mean(gradient[mask])
