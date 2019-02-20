@@ -1102,7 +1102,7 @@ def cnn_registration(
         )
 
     lambda_v = parse_args()['lambda']
-    model_name = os.path.join(d_path, 'long_model_lambda%d.mdl' % lambda_v)
+    model_name = os.path.join(d_path, 'long_model_lambda%f.mdl' % lambda_v)
 
     training_start = time.time()
     reg_net = MaskAtrophyNet(
@@ -1116,8 +1116,8 @@ def cnn_registration(
             lesions,
             masks,
             batch_size=1,
-            epochs=50,
-            patience=25
+            epochs=1,
+            patience=1
         )
 
     reg_net.save_model(model_name)

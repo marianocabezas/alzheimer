@@ -86,7 +86,7 @@ class SpatialTransformer(nn.Module):
         )
 
         # pre ind2sub setup
-        d_size = np.cumprod((1,) + vol.shape[-1:2:-1])
+        d_size = np.cumprod((1,) + vol.shape[2:-1])[::-1]
 
         # interpolate
         if self.interp_method == 'linear':
@@ -145,14 +145,14 @@ class SpatialTransformer(nn.Module):
         elif self.interp_method == 'nearest':
             # clip values
             roundloc = map(
-                lambda (l, m): torch.clamp(l, 0, m),
+                lambda (l, m): torch.clamp(l, 0, m).type(dtype=torch.int16),
                 zip(map(lambda l: torch.round(l), loc), max_loc)
             )
 
             # get values
             loc_list = map(lambda (s, l): s * l, zip(roundloc, d_size))
             idx = torch.sum(torch.stack(loc_list, dim=0), dim=0)
-            interp_vol_flat = torch.take(vol, idx.type(torch.long))
+            interp_vol_flat = torch.take(vol, idx)
             interp_vol = torch.reshape(interp_vol_flat, vol.shape)
 
         return interp_vol
