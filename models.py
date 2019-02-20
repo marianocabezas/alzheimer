@@ -580,14 +580,14 @@ class MaskAtrophyNet(nn.Module):
             device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
             lambda_d=1,
             loss_names=list([
-                # ' subt ',
-                ' xcor ',
-                'xcor_l',
+                ' subt ',
+                # ' xcor ',
+                # 'xcor_l',
                 # ' mse  ',
                 # 'mask d',
                 # 'mahal ',
-                # ' hist ',
-                'deform',
+                ' hist ',
+                # 'deform',
                 # 'modulo'
             ])
     ):
@@ -937,19 +937,6 @@ class MaskAtrophyNet(nn.Module):
         moved_roi = moved[roi > 0]
         target_roi = target[roi > 0]
 
-        losses_dict = {
-            ' subt ': lambda: subtraction_loss(moved_roi, target_roi),
-            ' xcor ': lambda: normalized_xcor_loss(moved_roi, target_roi),
-            'xcor_l': lambda: normalized_xcor_loss(moved_lesion, target_lesion),
-            ' mse  ': lambda: torch.nn.MSELoss()(moved_roi, target_roi),
-            'mask d': lambda: dice_loss(moved_mask, mask),
-            'mahal ': lambda: mahalanobis_loss(moved_lesion, source_lesion),
-            ' hist ': lambda: histogram_loss(moved_lesion, source_lesion),
-            'deform': lambda: self.lambda_d * df_gradient_mean(df, roi),
-            'modulo': lambda: df_modulo(df, roi),
-
-        }
-
         functions = {
             ' subt ': subtraction_loss,
             ' xcor ': normalized_xcor_loss,
@@ -964,7 +951,7 @@ class MaskAtrophyNet(nn.Module):
         }
 
         inputs = {
-            ' subt ': (moved_roi, target_roi),
+            ' subt ': (moved, target, roi),
             ' xcor ': (moved_roi, target_roi),
             'xcor_l': (moved_lesion, target_lesion),
             ' mse  ': (moved_roi, target_roi),
