@@ -8,8 +8,8 @@ def normalized_xcor(var_x, var_y):
         var_x_flat = var_x.view(-1)
         var_y_flat = var_y.view(-1)
         # Computation
-        var_x_norm = var_x - torch.mean(var_x_flat)
-        var_y_norm = var_y - torch.mean(var_y_flat)
+        var_x_norm = torch.abs(var_x - torch.mean(var_x_flat))
+        var_y_norm = torch.abs(var_y - torch.mean(var_y_flat))
         var_x_den = torch.rsqrt(torch.sum(var_x_norm * var_x_norm))
         var_y_den = torch.rsqrt(torch.sum(var_y_norm * var_y_norm))
 
