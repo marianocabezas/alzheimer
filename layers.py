@@ -86,7 +86,7 @@ class SpatialTransformer(nn.Module):
         )
 
         # pre ind2sub setup
-        d_size = np.cumprod((1,) + vol.shape[2:-1])[::-1]
+        d_size = np.cumprod((1,) + vol.shape[-1:2:-1])[::-1]
 
         # interpolate
         if self.interp_method == 'linear':
@@ -104,8 +104,8 @@ class SpatialTransformer(nn.Module):
                 zip(loc0, max_loc)
             )
             locs = [
-                map(lambda f: f.type(dtype=torch.int16), loc0lst),
-                map(lambda f: f.type(dtype=torch.int16), loc1)
+                map(lambda f: f.type(torch.long), loc0lst),
+                map(lambda f: f.type(torch.long), loc1)
             ]
 
             # compute the difference between the upper value and the original value
@@ -125,10 +125,10 @@ class SpatialTransformer(nn.Module):
                 subs = map(lambda (i, cd): locs[cd][i], enumerate(point))
 
                 loc_list_p = map(lambda (s, l): s * l, zip(subs, d_size))
+                loc_stack = torch.stack(loc_list_p, dim=0)
                 idx_p = torch.sum(torch.stack(loc_list_p, dim=0), dim=0)
                 vol_val_flat = torch.take(vol, idx_p.type(torch.long))
                 vol_val = torch.reshape(vol_val_flat, vol.shape)
-
                 # get the weight of this cube_pt based on the distance
                 # if c[d] is 0 --> want weight = 1 - (pt - floor[pt]) = diff_loc1
                 # if c[d] is 1 --> want weight = pt - floor[pt] = diff_loc0
@@ -145,12 +145,13 @@ class SpatialTransformer(nn.Module):
         elif self.interp_method == 'nearest':
             # clip values
             roundloc = map(
-                lambda (l, m): torch.clamp(l, 0, m).type(dtype=torch.int16),
+                lambda (l, m): torch.clamp(l, 0, m).type(torch.long),
                 zip(map(lambda l: torch.round(l), loc), max_loc)
             )
 
             # get values
             loc_list = map(lambda (s, l): s * l, zip(roundloc, d_size))
+            loc_stack = torch.stack(loc_list, dim=0)
             idx = torch.sum(torch.stack(loc_list, dim=0), dim=0)
             interp_vol_flat = torch.take(vol, idx)
             interp_vol = torch.reshape(interp_vol_flat, vol.shape)

@@ -1116,8 +1116,8 @@ def cnn_registration(
             lesions,
             masks,
             batch_size=1,
-            epochs=1,
-            patience=1
+            epochs=50,
+            patience=25
         )
 
     reg_net.save_model(model_name)
