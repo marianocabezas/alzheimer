@@ -86,7 +86,7 @@ class SpatialTransformer(nn.Module):
         )
 
         # pre ind2sub setup
-        d_size = np.cumprod((1,) + vol.shape[2:-1])
+        d_size = np.cumprod((1,) + vol.shape[-1:2:-1])
 
         # interpolate
         if self.interp_method == 'linear':
