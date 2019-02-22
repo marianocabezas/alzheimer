@@ -35,7 +35,7 @@ def parse_args():
         description='Train the longitudinal voxelmorph.'
     )
     parser.add_argument(
-        '-p', '--path',
+        '-f', '--files-path',
         dest='dataset_path',
         default=os.getcwd(),
         help='Parameter to store the working directory.'
