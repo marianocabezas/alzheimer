@@ -433,7 +433,7 @@ class VoxelMorph(nn.Module):
 
             df = self.to_df(input_s)
 
-            source_mov = self.trans_im([source, df])
+            source_mov = self.trans_im([source_tensor, df])
 
         if verbose:
             print(
