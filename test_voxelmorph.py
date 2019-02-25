@@ -47,12 +47,6 @@ def parse_args():
         help='Name of the file to store the model weights.'
     )
     parser.add_argument(
-        '-l', '--lambda',
-        dest='lambda',
-        type=int, default=1,
-        help='Parameter to store the working directory.'
-    )
-    parser.add_argument(
         '-i', '--posIDX',
         dest='index',
         type=int, default=0,
@@ -63,23 +57,6 @@ def parse_args():
         dest='gpu_id',
         type=int, default=0,
         help='GPU id number'
-    )
-    parser.add_argument(
-        '-b', '--batch_size',
-        dest='batch_size',
-        type=int, default=4,
-        help='Batch size')
-    parser.add_argument(
-        '-e', '--epochs',
-        dest='epochs',
-        type=int,  default=150000,
-        help='Number of epochs'
-    )
-    parser.add_argument(
-        '-p', '--patience',
-        dest='patience',
-        type=int, default=5000,
-        help='Patience for early stopping'
     )
     return vars(parser.parse_args())
 
