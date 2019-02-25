@@ -161,7 +161,7 @@ def cnn_registration(
         os.path.join(
             d_path, patient, patient + '_MR2.nii'
         )
-    )
+    ).get_data()
 
     # Brain mask
     source_otsu = threshold_otsu(target_image)
