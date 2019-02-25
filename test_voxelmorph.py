@@ -154,14 +154,16 @@ def cnn_registration(
             d_path, patient, patient + '_MR1.nii'
         )
     )
-    source_image = source_nii.get_data()
+    source_image = np.squeeze(source_nii.get_data())
 
     # Follow-up image (testing)
-    target_image = load_nii(
-        os.path.join(
-            d_path, patient, patient + '_MR2.nii'
-        )
-    ).get_data()
+    target_image = np.squeeze(
+        load_nii(
+            os.path.join(
+                d_path, patient, patient + '_MR2.nii'
+            )
+        ).get_data()
+    )
 
     # Brain mask
     source_otsu = threshold_otsu(target_image)

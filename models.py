@@ -581,13 +581,14 @@ class MaskAtrophyNet(nn.Module):
             lambda_d=1,
             loss_names=list([
                 ' subt ',
+                'subt_l',
                 # ' xcor ',
                 # 'xcor_l',
                 # ' mse  ',
                 # 'mask d',
                 # 'mahal ',
                 ' hist ',
-                # 'deform',
+                'deform',
                 # 'modulo'
             ])
     ):
@@ -740,10 +741,13 @@ class MaskAtrophyNet(nn.Module):
             )
 
             losses_color = map(
-                lambda (pl, l): '\033[36m%.4f\033[0m' if l < pl else '%.4f',
+                lambda (pl, l): '\033[36m%s\033[0m' if l < pl else '%s',
                 zip(best_losses, mid_losses)
             )
-            losses_s = map(lambda (c, l): c % l, zip(losses_color, mid_losses))
+            losses_s = map(
+                lambda (c, l): c % '{:8.4f}'.format(l),
+                zip(losses_color, mid_losses)
+            )
             best_losses = map(
                 lambda (pl, l): l if l < pl else pl,
                 zip(best_losses, mid_losses)
@@ -751,16 +755,16 @@ class MaskAtrophyNet(nn.Module):
 
             # Patience check
             improvement = loss_tr < best_loss_tr
+            loss_s = '{:8.4f}'.format(loss_tr)
             if improvement:
                 best_loss_tr = loss_tr
                 epoch_s = '\033[32mEpoch %03d\033[0m' % e
-                loss_s = '\033[32m%.4f\033[0m' % loss_tr
+                loss_s = '\033[32m%s\033[0m' % loss_s
                 best_e = e
                 best_state = deepcopy(self.state_dict())
                 no_improv_e = 0
             else:
                 epoch_s = 'Epoch %03d' % e
-                loss_s = '%.4f' % loss_tr
                 no_improv_e += 1
 
             t_out = time.time() - t_in
@@ -770,10 +774,10 @@ class MaskAtrophyNet(nn.Module):
                 print('\033[K', end='')
                 whites = ' '.join([''] * 12)
                 if e == 0:
-                    l_bars = '-|-'.join(['-' * 6] * len(l_names))
-                    l_hdr = ' | '.join(l_names)
-                    print('%sEpoch num | %s |' % (whites, l_hdr))
-                    print('%s----------|-%s-|' % (whites, l_bars))
+                    l_bars = '--|--'.join(['-' * 6] * len(l_names))
+                    l_hdr = '  |  '.join(l_names)
+                    print('%sEpoch num |  %s  |' % (whites, l_hdr))
+                    print('%s----------|--%s--|' % (whites, l_bars))
                 final_s = whites + ' | '.join([epoch_s, loss_s] + losses_s + [t_s])
                 print(final_s)
 
@@ -939,6 +943,7 @@ class MaskAtrophyNet(nn.Module):
 
         functions = {
             ' subt ': subtraction_loss,
+            'subt_l': subtraction_loss,
             ' xcor ': normalized_xcor_loss,
             'xcor_l': normalized_xcor_loss,
             ' mse  ': torch.nn.MSELoss(),
@@ -951,7 +956,8 @@ class MaskAtrophyNet(nn.Module):
         }
 
         inputs = {
-            ' subt ': (moved, target, roi),
+            ' subt ': (moved, target, roi > 0),
+            'subt_l': (moved, target, moved_mask > 0),
             ' xcor ': (moved_roi, target_roi),
             'xcor_l': (moved_lesion, target_lesion),
             ' mse  ': (moved_roi, target_roi),
@@ -964,6 +970,7 @@ class MaskAtrophyNet(nn.Module):
 
         weights = {
             ' subt ': 1.0,
+            'subt_l': 1.0,
             ' xcor ': 1.0,
             'xcor_l': 1.0,
             ' mse  ': 1.0,

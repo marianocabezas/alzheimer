@@ -81,7 +81,7 @@ def parse_args():
     )
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
-        '-p', '--path',
+        '-d', '--dataset-path',
         dest='dataset_path',
         default='/home/mariano/DATA/Australia60m/Workstation',
         help='Parameter to store the working directory.'
@@ -91,6 +91,24 @@ def parse_args():
         dest='lambda',
         type=float, default=1,
         help='Parameter to store the working directory.'
+    )
+    parser.add_argument(
+        '-e', '--epochs',
+        dest='epochs',
+        type=int,  default=100,
+        help='Number of epochs'
+    )
+    parser.add_argument(
+        '-p', '--patience',
+        dest='patience',
+        type=int, default=50,
+        help='Patience for early stopping'
+    )
+    parser.add_argument(
+        '-r', '--dilate-radius',
+        dest='dilate',
+        type=int, default=2,
+        help='Number of dilate repetitions (equivalent to radius)'
     )
     return vars(parser.parse_args())
 
@@ -1078,7 +1096,7 @@ def cnn_registration(
         patient_paths
     )
     lesions = map(
-        lambda name: get_mask(name, 2),
+        lambda name: get_mask(name, parse_args()['dilate']),
         lesion_names
     )
 
@@ -1101,8 +1119,13 @@ def cnn_registration(
             )
         )
 
+    epochs = parse_args()['epochs']
+    patience = parse_args()['patience']
     lambda_v = parse_args()['lambda']
-    model_name = os.path.join(d_path, 'long_model_lambda%f.mdl' % lambda_v)
+    model_name = os.path.join(
+        d_path,
+        'long_model_l%.2fe%dp%d.mdl' % (lambda_v, epochs, patience)
+    )
 
     training_start = time.time()
     reg_net = MaskAtrophyNet(
@@ -1116,8 +1139,8 @@ def cnn_registration(
             lesions,
             masks,
             batch_size=1,
-            epochs=50,
-            patience=25
+            epochs=epochs,
+            patience=patience
         )
 
     reg_net.save_model(model_name)
