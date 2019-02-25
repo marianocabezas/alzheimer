@@ -155,6 +155,7 @@ def cnn_registration(
         )
     )
     source_image = np.squeeze(source_nii.get_data())
+    source_shape = source_nii.get_data().shape
 
     # Follow-up image (testing)
     target_image = np.squeeze(
@@ -192,12 +193,15 @@ def cnn_registration(
     mask_moved = reg_net.transform_mask(norm_source, norm_target, brain_mask)
 
     source_mov = source_moved[0] * source_sigma + source_mu
-    source_nii.get_data()[:] = source_mov * brain_mask
+    source_nii.get_data()[:] = np.reshape(
+        source_mov * brain_mask,
+        source_shape
+    )
     source_nii.to_filename(
         os.path.join(d_path, patient, 'voxelmorph_moved.nii.gz')
     )
     mask_nii = nib.Nifti1Image(
-        mask_moved[0],
+        np.reshape(mask_moved[0], source_shape),
         source_nii.get_qform(),
         source_nii.get_header()
     )
@@ -207,7 +211,10 @@ def cnn_registration(
 
     df_mask = np.repeat(np.expand_dims(brain_mask, -1), 3, -1)
     df_nii = nib.Nifti1Image(
-        np.moveaxis(df[0], 0, -1) * df_mask,
+        np.reshape(
+            np.moveaxis(df[0], 0, -1) * df_mask,
+            source_shape + [-1]
+        ),
         source_nii.get_qform(),
         source_nii.get_header()
     )
