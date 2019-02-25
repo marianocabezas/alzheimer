@@ -144,7 +144,9 @@ def cnn_registration(
 
     # Create the network and run it.
     reg_net = VoxelMorph().cuda()
-    reg_net.load_state_dict(os.path.join(d_path, patient, parse_args()['model_name']))
+    reg_net.load_model(
+        os.path.join(d_path, patient, parse_args()['model_name'])
+    )
 
     # Baseline image (testing)
     source_nii = load_nii(

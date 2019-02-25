@@ -505,3 +505,8 @@ class VoxelMorph(nn.Module):
 
     def save_model(self, net_name):
         torch.save(self.state_dict(), net_name)
+
+    def load_model(self, net_name):
+        self.load_state_dict(
+            torch.load(net_name)
+        )
