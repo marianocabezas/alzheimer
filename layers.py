@@ -79,7 +79,10 @@ class SpatialTransformer(nn.Module):
             lambda m_i: m_i.type(dtype=torch.float32),
             torch.meshgrid(linvec)
         )
-        loc = [mesh[d].to(df.device) + df[:, d, ...] for d in range(nb_dims)]
+        loc = [
+            mesh[d].to(df.device) + df[:, d, ...]
+            for d in range(nb_dims)
+        ]
         loc = map(
             lambda (l, m): torch.clamp(l, 0, m),
             zip(loc, max_loc)
@@ -125,7 +128,6 @@ class SpatialTransformer(nn.Module):
                 subs = map(lambda (i, cd): locs[cd][i], enumerate(point))
 
                 loc_list_p = map(lambda (s, l): s * l, zip(subs, d_size))
-                loc_stack = torch.stack(loc_list_p, dim=0)
                 idx_p = torch.sum(torch.stack(loc_list_p, dim=0), dim=0)
                 vol_val_flat = torch.take(vol, idx_p.type(torch.long))
                 vol_val = torch.reshape(vol_val_flat, vol.shape)
@@ -151,7 +153,6 @@ class SpatialTransformer(nn.Module):
 
             # get values
             loc_list = map(lambda (s, l): s * l, zip(roundloc, d_size))
-            loc_stack = torch.stack(loc_list, dim=0)
             idx = torch.sum(torch.stack(loc_list, dim=0), dim=0)
             interp_vol_flat = torch.take(vol, idx)
             interp_vol = torch.reshape(interp_vol_flat, vol.shape)

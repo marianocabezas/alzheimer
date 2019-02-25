@@ -17,10 +17,13 @@ from datasets import ImageListDataset
 
 def to_torch_var(
         np_array,
-        device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
+        device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
         requires_grad=False
 ):
-    var = torch.autograd.Variable(torch.from_numpy(np_array), requires_grad=requires_grad)
+    var = torch.autograd.Variable(
+        torch.from_numpy(np_array),
+        requires_grad=requires_grad
+    )
     return var.to(device)
 
 
@@ -50,7 +53,9 @@ class CustomModel(nn.Module):
                 batch_y = to_torch_var(y[batch_ini:batch_end])
 
             # We train the model and check the loss
+            # torch.cuda.synchronize()
             y_pred = self(batch_x)
+            # torch.cuda.synchronize()
             batch_loss = criterion_alg(y_pred, batch_y)
 
             loss_value = batch_loss.tolist()
@@ -135,7 +140,9 @@ class CustomModel(nn.Module):
                         batch_y = to_torch_var(train_y[batch_ini:batch_end])
 
                     # We train the model and check the loss
+                    # torch.cuda.synchronize()
                     y_pred = self(batch_x)
+                    # torch.cuda.synchronize()
                     batch_loss = criterion_alg(y_pred, batch_y)
 
                     # Backpropagation
@@ -236,7 +243,7 @@ class CustomModel(nn.Module):
             patience=10,
             batch_size=32,
             device=torch.device(
-                "cuda:1" if torch.cuda.is_available() else "cpu"
+                "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
             verbose=True
     ):
@@ -356,7 +363,7 @@ class CustomModel(nn.Module):
             epochs=100,
             patience=10,
             batch_size=32,
-            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+            device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     ):
         # Init
         self.to(device)
@@ -452,7 +459,7 @@ class CustomModel(nn.Module):
             self,
             data,
             batch_size=32,
-            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
+            device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             verbose=True
     ):
         # Init
@@ -485,7 +492,9 @@ class CustomModel(nn.Module):
                     batch_x = to_torch_var(data[batch_i * batch_size:(batch_i + 1) * batch_size])
 
                 # We test the model with the current batch
+                # torch.cuda.synchronize()
                 y_pred += self(batch_x).tolist()
+                # torch.cuda.synchronize()
 
         if verbose:
             print('\033[K%sTesting finished succesfully' % ' '.join([''] * 12))
@@ -501,7 +510,7 @@ class BratsSurvivalNet(CustomModel):
             n_features=4,
             dense_size=256,
             dropout=0.1,
-            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+            device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     ):
 
         # Init
@@ -577,7 +586,7 @@ class MaskAtrophyNet(nn.Module):
             self,
             conv_filters=list([32, 64, 64, 64]),
             deconv_filters=list([64, 64, 64, 64, 64, 32, 32]),
-            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
+            device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             lambda_d=1,
             loss_names=list([
                 ' subt ',
@@ -588,7 +597,7 @@ class MaskAtrophyNet(nn.Module):
                 # 'mask d',
                 # 'mahal ',
                 ' hist ',
-                'deform',
+                # 'deform',
                 # 'modulo'
             ])
     ):
@@ -654,7 +663,6 @@ class MaskAtrophyNet(nn.Module):
         self.trans_mask.to(device)
 
     def forward(self, inputs):
-
         source, target, mask = inputs
         input_s = torch.cat([source, target], dim=1)
 
@@ -679,7 +687,6 @@ class MaskAtrophyNet(nn.Module):
         mask_mov = self.trans_mask(
             [mask, df]
         )
-
         return source_mov, mask_mov, df
 
     def register(
@@ -688,16 +695,13 @@ class MaskAtrophyNet(nn.Module):
             masks,
             brain_masks,
             batch_size=1,
-            val_ratio =4,
             optimizer='adam',
             epochs=100,
             patience=10,
-            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
             num_workers=10,
             verbose=True
     ):
         # Init
-        self.to(device)
         self.train()
 
         # Optimizer init
@@ -819,6 +823,7 @@ class MaskAtrophyNet(nn.Module):
 
                 b_gt = b_gt.to(self.device)
 
+                torch.cuda.synchronize()
                 b_moved, b_moved_lesion, b_df = self(
                     (b_source, b_target, b_lesion)
                 )
@@ -857,6 +862,8 @@ class MaskAtrophyNet(nn.Module):
                 optimizer_alg.zero_grad()
                 batch_loss.backward()
                 optimizer_alg.step()
+                torch.cuda.synchronize()
+                torch.cuda.empty_cache()
 
             with torch.no_grad():
                 losses_list = []
@@ -869,6 +876,7 @@ class MaskAtrophyNet(nn.Module):
 
                     gt = gt.to(self.device)
 
+                    torch.cuda.synchronize()
                     moved, moved_lesion, df = self(
                         (source, target, lesion)
                     )
@@ -882,6 +890,8 @@ class MaskAtrophyNet(nn.Module):
                         df,
                         mask
                     )
+                    torch.cuda.synchronize()
+                    torch.cuda.empty_cache()
 
                     b_mid_losses = map(lambda l: l.tolist(), b_losses)
                     losses_list.append(b_mid_losses)
@@ -896,13 +906,9 @@ class MaskAtrophyNet(nn.Module):
             source,
             target,
             mask,
-            device=torch.device(
-                "cuda:1" if torch.cuda.is_available() else "cpu"
-            ),
             verbose=True
     ):
         # Init
-        self.to(device)
         self.eval()
 
         source_tensor = to_torch_var(source)
@@ -910,9 +916,11 @@ class MaskAtrophyNet(nn.Module):
         mask_tensor = to_torch_var(mask)
 
         with torch.no_grad():
+            # torch.cuda.synchronize()
             source_mov, mask_mov, df = self(
                 (source_tensor, target_tensor, mask_tensor)
             )
+            # torch.cuda.synchronize()
         if verbose:
             print(
                 '\033[K%sTransformation finished' % ' '.join([''] * 12)

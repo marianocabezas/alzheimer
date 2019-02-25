@@ -53,9 +53,13 @@ def torch_hist(var_x, bins=100):
     max_x = torch.ceil(torch.max(var_x)).data
     if max_x > min_x:
         step = (max_x - min_x) / bins
-        steps = torch.arange(min_x, max_x + step / 10, step).to(var_x.device)
+        steps = torch.arange(
+            min_x, max_x + step / 10, step
+        ).to(var_x.device)
         h = map(
-            lambda (min_i, max_i): torch.sum((var_x >= min_i) & (var_x < max_i)),
+            lambda (min_i, max_i): torch.sum(
+                (var_x >= min_i) & (var_x < max_i)
+            ),
             zip(steps[:-1], steps[1:])
         )
         return torch.tensor(h).type(torch.float32).to(var_x.device)

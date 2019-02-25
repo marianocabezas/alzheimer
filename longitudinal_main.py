@@ -5,6 +5,7 @@ The main file running inside the docker (the starting point)
 from __future__ import print_function
 from scipy import ndimage as nd
 import numpy as np
+import torch
 import argparse
 import os
 import sys
@@ -25,6 +26,7 @@ from data_manipulation.generate_features import get_mask_voxels, get_voxels
 from data_manipulation.information_theory import bidirectional_mahalanobis, normalized_mutual_information
 from models import MaskAtrophyNet
 
+# torch.backends.cudnn.benchmark = True
 
 """
 Utility functions
@@ -109,6 +111,12 @@ def parse_args():
         dest='dilate',
         type=int, default=2,
         help='Number of dilate repetitions (equivalent to radius)'
+    )
+    parser.add_argument(
+        '-g', '--gpu',
+        dest='gpu_id',
+        type=int, default=0,
+        help='GPU id number'
     )
     return vars(parser.parse_args())
 
@@ -292,7 +300,6 @@ def improve_mask(image, mask, expansion=1, verbose=1):
         lambda (min_i, max_i): slice(min_i, max_i),
         zip(bounding_box_min, bounding_box_max)
     )
-
 
     mask_int = image[mask.astype(bool)]
     bb_int = image[bounding_box]
@@ -1022,26 +1029,26 @@ def subtraction_registration(
         )
 
 
-def get_mask(mask_name, dilate=0):
+def get_mask(mask_name, dilate=0, dtype=np.uint8):
     # Lesion mask
     mask_image = load_nii(mask_name).get_data()
     if dilate > 0:
         mask_image = imdilate(
             mask_image,
             iterations=dilate
-        ).astype(mask_image.dtype)
+        ).astype(dtype)
 
     return mask_image
 
 
-def get_normalised_image(image_name, mask):
+def get_normalised_image(image_name, mask, dtype=np.float32):
     mask_bin = mask > 0
     image = load_nii(image_name).get_data()
     image_mu = np.mean(image[mask_bin])
     image_sigma = np.std(image[mask_bin])
     norm_image = (image - image_mu) / image_sigma
 
-    return norm_image
+    return norm_image.astype(dtype)
 
 
 def cnn_registration(
@@ -1070,6 +1077,10 @@ def cnn_registration(
     if d_path is None:
         d_path = parse_args()['dataset_path']
     patients = get_dirs(d_path)
+    gpu = parse_args()['gpu_id']
+    cuda = torch.cuda.is_available()
+    device = torch.device('cuda:%d' % gpu if cuda else 'cpu')
+    torch.backends.cudnn.benchmark = True
 
     time_str = strftime("%H:%M:%S")
     print('\n%s[%s]%s CNN registration' % (
@@ -1118,6 +1129,8 @@ def cnn_registration(
                 c['g'], c['nc']
             )
         )
+        print('  cuda version = ', torch.version.cuda)
+        print('  cudnn version = ', torch.backends.cudnn.version())
 
     epochs = parse_args()['epochs']
     patience = parse_args()['patience']
@@ -1129,7 +1142,8 @@ def cnn_registration(
 
     training_start = time.time()
     reg_net = MaskAtrophyNet(
-        lambda_d=lambda_v
+        lambda_d=lambda_v,
+        device=device
     )
     try:
         reg_net.load_model(model_name)
