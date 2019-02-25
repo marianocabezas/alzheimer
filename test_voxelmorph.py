@@ -213,7 +213,7 @@ def cnn_registration(
     df_nii = nib.Nifti1Image(
         np.reshape(
             np.moveaxis(df[0], 0, -1) * df_mask,
-            source_shape + [-1]
+            source_shape + (-1,)
         ),
         source_nii.get_qform(),
         source_nii.get_header()
