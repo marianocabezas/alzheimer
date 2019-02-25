@@ -221,3 +221,7 @@ def cnn_registration(
             '%sAll patients finished %s(total time %s)%s' %
             (c['r'], c['b'], time_str, c['nc'])
         )
+
+
+if __name__ == "__main__":
+    cnn_registration()
