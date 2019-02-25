@@ -456,6 +456,7 @@ class VoxelMorph(nn.Module):
 
         source_tensor = to_torch_var(source)
         target_tensor = to_torch_var(target)
+        mask_tensor = to_torch_var(mask)
 
         with torch.no_grad():
             input_s = torch.cat([source_tensor, target_tensor], dim=1)
@@ -474,7 +475,7 @@ class VoxelMorph(nn.Module):
 
             df = self.to_df(input_s)
 
-            mask_mov = self.trans_mask([mask, df])
+            mask_mov = self.trans_mask([mask_tensor, df])
 
         if verbose:
             print(
