@@ -194,7 +194,7 @@ def cnn_registration(
 
     source_mov = source_moved[0] * source_sigma + source_mu
     source_nii.get_data()[:] = np.reshape(
-        source_mov * brain_mask,
+        source_mov,
         source_shape
     )
     source_nii.to_filename(
