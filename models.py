@@ -1,4 +1,5 @@
 from __future__ import print_function
+from itertools import izip_longest
 import time
 import sys
 from copy import deepcopy
@@ -11,20 +12,24 @@ import numpy as np
 from layers import ScalingLayer, SpatialTransformer
 from criterions import normalized_xcor_loss, subtraction_loss
 from criterions import df_modulo, df_gradient_mean
-from criterions import dice_loss, histogram_loss, mahalanobis_loss
-from datasets import ImageListDataset
+from criterions import histogram_loss, mahalanobis_loss
+from criterions import dsc_bin_loss
+from datasets import ImageListDataset, ImagePairListCroppingDataset
 
 
 def to_torch_var(
         np_array,
         device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
-        requires_grad=False
+        requires_grad=False,
+        dtype=torch.float32
 ):
-    var = torch.autograd.Variable(
-        torch.from_numpy(np_array),
-        requires_grad=requires_grad
+    var = torch.tensor(
+        np_array,
+        requires_grad=requires_grad,
+        device=device,
+        dtype=dtype
     )
-    return var.to(device)
+    return var
 
 
 class CustomModel(nn.Module):
@@ -62,7 +67,7 @@ class CustomModel(nn.Module):
             losses += [loss_value]
 
             if optimizer_alg is not None:
-                percent = 20 * batch_i / n_batches
+                percent = 20 * (batch_i + 1) / n_batches
                 progress_s = ''.join(['.'] * percent)
                 remainder_s = ''.join(['-'] * (20 - percent))
                 whites = ' '.join([''] * 12)
@@ -169,7 +174,7 @@ class CustomModel(nn.Module):
                     loss_value = np.inf
                     losses += ['\033[30m  -  \033[0m']
 
-                percent = 20 * batch_i / n_t_batches
+                percent = 20 * (batch_i + 1) / n_t_batches
                 progress_s = ''.join(['.'] * percent)
                 remainder_s = ''.join(['-'] * (20 - percent))
                 whites = ' '.join([''] * 12)
@@ -473,7 +478,7 @@ class CustomModel(nn.Module):
             for batch_i in range(n_batches):
                 # Print stuff
                 if verbose:
-                    percent = 20 * batch_i / n_batches
+                    percent = 20 * (batch_i + 1) / n_batches
                     bar = '[' + ''.join(['.'] * percent) + '>' + ''.join(['-'] * (20 - percent)) + ']'
                     print(
                         '\033[K%sTesting batch (%02d/%02d) %s' % (' '.join([''] * 12), batch_i, n_batches, bar),
@@ -588,13 +593,13 @@ class MaskAtrophyNet(nn.Module):
             deconv_filters=list([64, 64, 64, 64, 64, 32, 32]),
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             lambda_d=1,
+            leakyness=0.2,
             loss_names=list([
                 ' subt ',
                 'subt_l',
                 # ' xcor ',
                 # 'xcor_l',
                 # ' mse  ',
-                # 'mask d',
                 # 'mahal ',
                 ' hist ',
                 # 'deform',
@@ -602,10 +607,13 @@ class MaskAtrophyNet(nn.Module):
             ])
     ):
         # Init
+        self.epoch = 0
+        self.optimizer_alg = None
         super(MaskAtrophyNet, self).__init__()
         self.lambda_d = lambda_d
         self.loss_names = loss_names
         self.device = device
+        self.leakyness = leakyness
         # Down path of the unet
         conv_in = [2] + conv_filters[:-1]
         self.conv = map(
@@ -669,14 +677,14 @@ class MaskAtrophyNet(nn.Module):
         down_inputs = list()
         for c in self.conv:
             down_inputs.append(input_s)
-            input_s = F.leaky_relu(c(input_s), 0.2)
+            input_s = F.leaky_relu(c(input_s), self.leakyness)
 
         for d, i in zip(self.deconv_u, down_inputs[::-1]):
-            up = F.leaky_relu(d(input_s, output_size=i.size()), 0.2)
+            up = F.leaky_relu(d(input_s, output_size=i.size()), self.leakyness)
             input_s = torch.cat((up, i), dim=1)
 
         for d in self.deconv:
-            input_s = F.leaky_relu(d(input_s), 0.2)
+            input_s = F.leaky_relu(d(input_s), self.leakyness)
 
         df = self.to_df(input_s)
 
@@ -709,7 +717,7 @@ class MaskAtrophyNet(nn.Module):
             'adam': torch.optim.Adam,
         }
         model_params = filter(lambda p: p.requires_grad, self.parameters())
-        optimizer_alg = optimizer_dict[optimizer](model_params)
+        self.optimizer_alg = optimizer_dict[optimizer](model_params)
 
         # Pre-loop init
         best_loss_tr = np.inf
@@ -733,16 +741,14 @@ class MaskAtrophyNet(nn.Module):
         l_names = [' loss '] + self.loss_names
         best_losses = [np.inf] * (len(l_names) - 1)
         best_e = 0
-        e = 0
 
-        for e in range(epochs):
+        for self.epoch in range(epochs):
             # Main epoch loop
             t_in = time.time()
-            loss_tr, mid_losses = self.step(
-                optimizer_alg,
-                e,
-                dataloader
-            )
+            with torch.autograd.set_detect_anomaly(True):
+                self.step_train(dataloader)
+
+                loss_tr, mid_losses = self.step_validate(dataloader)
 
             losses_color = map(
                 lambda (pl, l): '\033[36m%s\033[0m' if l < pl else '%s',
@@ -762,13 +768,13 @@ class MaskAtrophyNet(nn.Module):
             loss_s = '{:8.4f}'.format(loss_tr)
             if improvement:
                 best_loss_tr = loss_tr
-                epoch_s = '\033[32mEpoch %03d\033[0m' % e
+                epoch_s = '\033[32mEpoch %03d\033[0m' % self.epoch
                 loss_s = '\033[32m%s\033[0m' % loss_s
-                best_e = e
+                best_e = self.epoch
                 best_state = deepcopy(self.state_dict())
                 no_improv_e = 0
             else:
-                epoch_s = 'Epoch %03d' % e
+                epoch_s = 'Epoch %03d' % self.epoch
                 no_improv_e += 1
 
             t_out = time.time() - t_in
@@ -777,7 +783,7 @@ class MaskAtrophyNet(nn.Module):
             if verbose:
                 print('\033[K', end='')
                 whites = ' '.join([''] * 12)
-                if e == 0:
+                if self.epoch == 0:
                     l_bars = '--|--'.join(['-' * 6] * len(l_names))
                     l_hdr = '  |  '.join(l_names)
                     print('%sEpoch num |  %s  |' % (whites, l_hdr))
@@ -788,118 +794,112 @@ class MaskAtrophyNet(nn.Module):
             if no_improv_e == patience:
                 break
 
+        self.epoch = best_e
         self.load_state_dict(best_state)
         t_end = time.time() - t_start
         if verbose:
             print(
                 'Registration finished in %d epochs (%fs) with minimum loss = %f (epoch %d)' % (
-                    e + 1, t_end, best_loss_tr, best_e)
+                    self.epoch + 1, t_end, best_loss_tr, best_e)
             )
+
+    def step_train(self, dataloader, optimizer_alg=None):
+        if optimizer_alg is not None:
+            self.optimizer_alg = optimizer_alg
+        n_batches = len(dataloader)
+        loss_list = []
+        for (batch_i, (inputs, output)) in enumerate(dataloader):
+            b_losses = self.step(inputs, output)
+
+            # Final loss value computation per batch
+            b_loss_value = sum(b_losses).tolist()
+            loss_list.append(b_loss_value)
+            mean_loss = np.mean(loss_list)
+
+            batch_loss = sum(b_losses).to(output.device)
+            self.optimizer_alg.zero_grad()
+            batch_loss.backward()
+            self.optimizer_alg.step()
+
+            # Print the intermediate results
+            self.print_progress(batch_i, n_batches, b_loss_value, mean_loss)
+
+    def step_validate(self, dataloader):
+        with torch.no_grad():
+            losses_list = []
+            n_batches = len(dataloader)
+            for (batch_i, (inputs, output)) in enumerate(dataloader):
+                b_losses = self.step(inputs, output)
+
+                b_mid_losses = map(lambda l: l.tolist(), b_losses)
+                losses_list.append(b_mid_losses)
+
+                # Print the intermediate results
+                self.print_progress(
+                    batch_i, n_batches,
+                    sum(b_mid_losses),
+                    np.sum(np.mean(zip(*losses_list), axis=1)),
+                    False
+                )
+
+        mid_losses = np.mean(zip(*losses_list), axis=1)
+        loss_value = np.sum(mid_losses)
+
+        return loss_value, mid_losses
 
     def step(
             self,
-            optimizer_alg,
-            epoch,
-            dataloader,
+            inputs,
+            output
     ):
         # Again. This is supposed to be a step on the registration process,
         # there's no need for splitting data. We just compute the deformation,
-        # then compute the global loss (and intermidiate ones to show) and do
+        # then compute the global loss (and intermediate ones to show) and do
         # back propagation.
-        with torch.autograd.set_detect_anomaly(True):
-            n_data = len(dataloader.dataset)
-            batch_size = dataloader.batch_size
-            n_batches = int(np.round(1.0 * n_data / batch_size))
-            loss_list = []
-            for (
-                    batch_i,
-                    ((b_source, b_target, b_lesion, b_mask), b_gt)
-            ) in enumerate(dataloader):
-                # We train the model and check the loss
-                b_source = b_source.to(self.device)
-                b_target = b_target.to(self.device)
-                b_lesion = b_lesion.to(self.device)
-                b_mask = b_mask.to(self.device)
+        # We train the model and check the loss
+        b_source, b_target, b_lesion, b_mask = inputs
+        b_source = b_source.to(self.device)
+        b_target = b_target.to(self.device)
+        b_lesion = b_lesion.to(self.device)
+        b_mask = b_mask.to(self.device)
 
-                b_gt = b_gt.to(self.device)
+        b_gt = output.to(self.device)
 
-                torch.cuda.synchronize()
-                b_moved, b_moved_lesion, b_df = self(
-                    (b_source, b_target, b_lesion)
-                )
+        torch.cuda.synchronize()
+        b_moved, b_moved_lesion, b_df = self(
+            (b_source, b_target, b_lesion)
+        )
 
-                b_losses = self.longitudinal_loss(
-                    b_source,
-                    b_moved,
-                    b_lesion,
-                    b_moved_lesion,
-                    b_gt,
-                    b_df,
-                    b_mask
-                )
+        b_losses = self.longitudinal_loss(
+            b_source,
+            b_moved,
+            b_lesion,
+            b_moved_lesion,
+            b_gt,
+            b_df,
+            b_mask
+        )
 
-                # Final loss value computation per batch
-                batch_loss = sum(b_losses).to(b_target.device)
-                b_loss_value = batch_loss.tolist()
-                loss_list.append(b_loss_value)
-                mean_loss = np.mean(loss_list)
+        torch.cuda.synchronize()
+        torch.cuda.empty_cache()
 
-                # Print the intermediate results
-                whites = ' '.join([''] * 12)
-                percent = 20 * batch_i / n_batches
-                progress_s = ''.join(['-'] * percent)
-                remainder_s = ''.join([' '] * (20 - percent))
-                batch_s = '%sEpoch %03d (%02d/%02d) [%s>%s] loss %f (%f)' % (
-                    whites, epoch, batch_i, n_batches,
-                    progress_s, remainder_s,
-                    b_loss_value, mean_loss
-                )
-                print('\033[K', end='')
-                print(batch_s, end='\r')
-                sys.stdout.flush()
+        return b_losses
 
-                # Backpropagation
-                optimizer_alg.zero_grad()
-                batch_loss.backward()
-                optimizer_alg.step()
-                torch.cuda.synchronize()
-                torch.cuda.empty_cache()
-
-            with torch.no_grad():
-                losses_list = []
-                for (source, target, lesion, mask), gt in dataloader:
-                    # We train the model and check the loss
-                    source = source.to(self.device)
-                    target = target.to(self.device)
-                    lesion = lesion.to(self.device)
-                    mask = mask.to(self.device)
-
-                    gt = gt.to(self.device)
-
-                    torch.cuda.synchronize()
-                    moved, moved_lesion, df = self(
-                        (source, target, lesion)
-                    )
-
-                    b_losses = self.longitudinal_loss(
-                        source,
-                        moved,
-                        lesion,
-                        moved_lesion,
-                        gt,
-                        df,
-                        mask
-                    )
-                    torch.cuda.synchronize()
-                    torch.cuda.empty_cache()
-
-                    b_mid_losses = map(lambda l: l.tolist(), b_losses)
-                    losses_list.append(b_mid_losses)
-
-            mid_losses = np.mean(zip(*losses_list), axis=1)
-            loss_value = np.sum(mid_losses)
-
-        return loss_value, mid_losses
+    def print_progress(self, batch_i, n_batches, b_loss, mean_loss, train=True):
+        init_c = '\033[0m' if train else '\033[94m'
+        whites = ' '.join([''] * 12)
+        percent = 20 * (batch_i + 1) / n_batches
+        progress_s = ''.join(['-'] * percent)
+        remainder_s = ''.join([' '] * (20 - percent))
+        loss_name = 'train_loss' if train else 'val_loss'
+        batch_s = '%s%sEpoch %03d (%03d/%03d) [%s>%s] %s %f (%f)%s' % (
+            init_c, whites, self.epoch, batch_i + 1, n_batches,
+            progress_s, remainder_s,
+            loss_name, b_loss, mean_loss, '\033[0m'
+        )
+        print('\033[K', end='')
+        print(batch_s, end='\r')
+        sys.stdout.flush()
 
     def transform(
             self,
@@ -916,11 +916,12 @@ class MaskAtrophyNet(nn.Module):
         mask_tensor = to_torch_var(mask)
 
         with torch.no_grad():
-            # torch.cuda.synchronize()
+            torch.cuda.synchronize()
             source_mov, mask_mov, df = self(
                 (source_tensor, target_tensor, mask_tensor)
             )
-            # torch.cuda.synchronize()
+            torch.cuda.synchronize()
+            torch.cuda.empty_cache()
         if verbose:
             print(
                 '\033[K%sTransformation finished' % ' '.join([''] * 12)
@@ -955,7 +956,6 @@ class MaskAtrophyNet(nn.Module):
             ' xcor ': normalized_xcor_loss,
             'xcor_l': normalized_xcor_loss,
             ' mse  ': torch.nn.MSELoss(),
-            'mask d': dice_loss,
             'mahal ': mahalanobis_loss,
             ' hist ': histogram_loss,
             'deform': df_gradient_mean,
@@ -969,7 +969,6 @@ class MaskAtrophyNet(nn.Module):
             ' xcor ': (moved_roi, target_roi),
             'xcor_l': (moved_lesion, target_lesion),
             ' mse  ': (moved_roi, target_roi),
-            'mask d': (moved_mask, mask),
             'mahal ': (moved_lesion, source_lesion),
             ' hist ': (moved_lesion, source_lesion),
             'deform': (df, roi),
@@ -982,7 +981,6 @@ class MaskAtrophyNet(nn.Module):
             ' xcor ': 1.0,
             'xcor_l': 1.0,
             ' mse  ': 1.0,
-            'mask d': 1.0,
             'mahal ': 1.0,
             ' hist ': 1.0,
             'deform': self.lambda_d,
@@ -997,6 +995,442 @@ class MaskAtrophyNet(nn.Module):
         )
 
         return losses
+
+    def save_model(self, net_name):
+        torch.save(self.state_dict(), net_name)
+
+    def load_model(self, net_name):
+        self.load_state_dict(torch.load(net_name))
+
+
+class LongitudinalNet(nn.Module):
+    def __init__(
+            self,
+            conv_filters_s=list([32, 64, 64, 64]),
+            conv_filters_r=list([32, 64, 64, 64]),
+            deconv_filters_r=list([64, 64, 64, 64, 64, 32, 32]),
+            device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
+            lambda_d=1,
+            leakyness=0.2,
+            loss_names=list([
+                ' subt ',
+                'subt_l',
+                # ' xcor ',
+                # 'xcor_l',
+                # ' mse  ',
+                # 'mahal ',
+                ' hist ',
+                # 'deform',
+                # 'modulo'
+            ])
+    ):
+        super(LongitudinalNet, self).__init__()
+        # Init
+        self.epoch = 0
+        self.optimizer_alg = None
+        self.atrophy = MaskAtrophyNet(
+            conv_filters=conv_filters_r,
+            deconv_filters=deconv_filters_r,
+            device=device,
+            lambda_d=lambda_d,
+            leakyness=leakyness,
+            loss_names=loss_names
+        )
+        self.device = device
+
+        # Down path of the unet
+        conv_in = [5] + conv_filters_s[:-1]
+        self.down = map(
+            lambda (f_in, f_out): nn.Conv3d(
+                f_in, f_out, 3, stride=2
+            ),
+            zip(conv_in, conv_filters_s)
+        )
+        for c in self.down:
+            c.to(device)
+
+        # Up path of the unet
+        deconv_in = [conv_filters_s[-1]] + map(
+            sum, zip(conv_filters_s[-2::-1], conv_filters_s[:0:-1])
+        )
+        self.up = map(
+            lambda (f_in, f_out): nn.ConvTranspose3d(
+                f_in, f_out, 3, stride=2
+            ),
+            zip(
+                deconv_in,
+                conv_filters_s[::-1]
+            )
+        )
+        for d in self.up:
+            d.to(device)
+
+        self.seg = nn.Conv3d(conv_filters_s[0] + 5, 1, 1)
+        self.seg.to(device)
+
+    def forward(self, inputs):
+        # Init
+        n_inputs = len(inputs)
+
+        # 2 inputs means registration + segmentation
+        # 4 inputs means registration
+        if n_inputs == 2:
+            source, target = inputs
+            mask = None
+        else:
+            source, target, mask = inputs
+
+        # This is exactly like the MaskAtrophy net
+        input_r = torch.cat([source, target], dim=1)
+
+        down_inputs = list()
+        for c in self.atrophy.conv:
+            down_inputs.append(input_r)
+            input_r = F.leaky_relu(
+                c(input_r),
+                self.atrophy.leakyness
+            )
+
+        for d, i in zip(self.atrophy.deconv_u, down_inputs[::-1]):
+            up = F.leaky_relu(
+                d(input_r, output_size=i.size()),
+                self.atrophy.leakyness
+            )
+            input_r = torch.cat((up, i), dim=1)
+
+        for d in self.atrophy.deconv:
+            input_r = F.leaky_relu(
+                d(input_r),
+                self.atrophy.leakyness
+            )
+
+        df = self.atrophy.to_df(input_r)
+
+        source_mov = self.atrophy.trans_im(
+            [source, df]
+        )
+
+        if n_inputs > 2:
+            if mask is not None:
+                # We just register the mask and we are done here!
+                mask_mov = self.atrophy.trans_mask(
+                    [mask, df]
+                )
+            else:
+                mask_mov = None
+            return source_mov, mask_mov, df
+        else:
+            # Now we actually need to give a segmentation result.
+            input_s = torch.cat([source, target, df], dim=1)
+            down_inputs = list()
+            for c in self.down:
+                down_inputs.append(input_s)
+                input_s = F.relu(c(input_s))
+
+            for d, i in zip(self.up, down_inputs[::-1]):
+                up = F.relu(d(input_s, output_size=i.size()))
+                input_s = torch.cat((up, i), dim=1)
+
+            seg = torch.sigmoid(self.seg(input_s))
+
+            return seg
+
+    def transform(
+            self,
+            source,
+            target,
+            mask=None,
+            verbose=True
+    ):
+        # Init
+        # Init
+        self.eval()
+
+        source_tensor = to_torch_var(source)
+        target_tensor = to_torch_var(target)
+        if mask is not None:
+            mask_tensor = to_torch_var(mask, dtype=torch.int32)
+        else:
+            mask_tensor = None
+
+        with torch.no_grad():
+            torch.cuda.synchronize()
+            source_mov, mask_mov, df = self(
+                (source_tensor, target_tensor, mask_tensor)
+            )
+            torch.cuda.synchronize()
+            torch.cuda.empty_cache()
+
+        if verbose:
+            print(
+                '\033[K%sTransformation finished' % ' '.join([''] * 12)
+            )
+
+        source_mov = map(np.squeeze, source_mov.cpu().numpy())
+        df = map(np.squeeze, df.cpu().numpy())
+        if mask_mov is not None:
+            mask_mov = map(np.squeeze, mask_mov.cpu().numpy())
+            return source_mov, mask_mov, df
+        else:
+            return source_mov, df
+
+    def new_lesions(
+            self,
+            source,
+            target,
+            verbose=True
+    ):
+        # Init
+        # Init
+        self.eval()
+
+        source_tensor = to_torch_var(source)
+        target_tensor = to_torch_var(target)
+
+        with torch.no_grad():
+            torch.cuda.synchronize()
+            seg = self((source_tensor, target_tensor))
+            torch.cuda.synchronize()
+            torch.cuda.empty_cache()
+
+        if verbose:
+            print(
+                '\033[K%sTransformation finished' % ' '.join([''] * 12)
+            )
+
+        return map(np.squeeze, seg.cpu().numpy())
+
+    def fit(
+            self,
+            source,
+            target,
+            new_lesion,
+            cases,
+            masks,
+            brain_masks,
+            seg_batch_size=32,
+            reg_batch_size=1,
+            optimizer='adam',
+            epochs=100,
+            patience=10,
+            num_workers=10,
+            verbose=True
+    ):
+        # Init
+        self.train()
+
+        # Optimizer init
+        optimizer_dict = {
+            'adam': torch.optim.Adam,
+        }
+        model_params = filter(lambda p: p.requires_grad, self.parameters())
+        self.optimizer_alg = optimizer_dict[optimizer](model_params)
+
+        # Pre-loop init
+        best_loss_tr = np.inf
+        no_improv_e = 0
+        best_state = deepcopy(self.state_dict())
+
+        t_start = time.time()
+
+        # This is actually a registration approach. It uses the nn framework
+        # but it doesn't actually do any supervised training. Therefore, there
+        # is no real validation.
+        # Due to this, we modified the generic fit algorithm.
+        seg_dataset = ImagePairListCroppingDataset(
+            source, target, new_lesion, overlap=24
+        )
+        seg_dataloader = DataLoader(
+            seg_dataset, seg_batch_size, True, num_workers=num_workers
+        )
+
+        reg_dataset = ImageListDataset(
+            cases, masks, brain_masks
+        )
+        reg_dataloader = DataLoader(
+            reg_dataset, reg_batch_size, True, num_workers=num_workers
+        )
+
+        l_names = [' loss '] + self.atrophy.loss_names + ['  dsc ']
+        best_losses = [np.inf] * (len(l_names))
+        best_e = 0
+        e = 0
+
+        for self.epoch in range(epochs):
+            # Main epoch loop
+            t_in = time.time()
+            self.step_train(
+                seg_dataloader,
+                reg_dataloader
+            )
+            loss_seg, loss_reg, mid_reg_losses = self.step_validate(
+                seg_dataloader,
+                reg_dataloader
+            )
+
+            losses_color = map(
+                lambda (pl, l): '\033[36m%s\033[0m' if l < pl else '%s',
+                zip(best_losses, mid_reg_losses)
+            )
+            losses_s = map(
+                lambda (c, l): c % '{:8.4f}'.format(l),
+                zip(losses_color, mid_reg_losses)
+            )
+            best_losses = map(
+                lambda (pl, l): l if l < pl else pl,
+                zip(best_losses, mid_reg_losses)
+            )
+
+            # Patience check
+            loss_value = loss_seg + loss_reg
+            improvement = loss_value < best_loss_tr
+            loss_s = '{:8.4f}'.format(loss_value)
+            if improvement:
+                best_loss_tr = loss_value
+                epoch_s = '\033[32mEpoch %03d\033[0m' % self.epoch
+                loss_s = '\033[32m%s\033[0m' % loss_s
+                best_e = self.epoch
+                best_state = deepcopy(self.state_dict())
+                no_improv_e = 0
+            else:
+                epoch_s = 'Epoch %03d' % self.epoch
+                no_improv_e += 1
+
+            t_out = time.time() - t_in
+            t_s = '%.2fs' % t_out
+
+            if verbose:
+                print('\033[K', end='')
+                whites = ' '.join([''] * 12)
+                if self.epoch == 0:
+                    l_bars = '--|--'.join(['-' * 6] * len(l_names))
+                    l_hdr = '  |  '.join(l_names)
+                    print('%sEpoch num |  %s  |' % (whites, l_hdr))
+                    print('%s----------|--%s--|' % (whites, l_bars))
+                final_s = whites + ' | '.join([epoch_s, loss_s] + losses_s + [t_s])
+                print(final_s)
+
+            if no_improv_e == patience:
+                break
+
+        self.epoch = best_e
+        self.load_state_dict(best_state)
+        t_end = time.time() - t_start
+        if verbose:
+            print(
+                'Registration finished in %d epochs (%fs) with minimum loss = %f (epoch %d)' % (
+                    e + 1, t_end, best_loss_tr, best_e)
+            )
+
+    def step_train(
+            self,
+            dataloader_seg,
+            dataloader_reg,
+    ):
+        # This step should combine both registration and segmentation.
+        # The goal is to affect the deformation with two datasets and different
+        # goals and loss functions.
+        with torch.autograd.set_detect_anomaly(True):
+            # Registration update
+            self.atrophy.step_train(
+                dataloader_reg,
+                optimizer_alg=self.optimizer_alg
+            )
+
+            # Segmentation update
+            n_batches_seg = len(dataloader_seg)
+            n_batches_reg = len(dataloader_reg)
+            n_batches = max(n_batches_reg, n_batches_seg)
+            loss_list = []
+            dataloaders = izip_longest(dataloader_reg, dataloader_seg)
+            for batch_i, (data_reg, data_seg) in enumerate(dataloaders):
+                losses = []
+                if data_reg is not None:
+                    b_reg_losses = self.atrophy.step(data_reg[0], data_reg[1])
+                    losses.append(sum(b_reg_losses))
+                if data_seg is not None:
+                    b_seg_loss = self.step(data_seg[0], data_seg[1])
+                    losses.append(b_seg_loss)
+
+                b_loss = sum(losses).backward()
+
+                self.optimizer_alg.zero_grad()
+                self.optimizer_alg.step()
+
+                b_loss_value = b_loss.tolist()
+
+                loss_list.append(b_loss_value)
+                mean_loss = np.mean(loss_list)
+
+                # Print the intermediate results
+                self.print_progress(batch_i, n_batches, b_loss_value, mean_loss)
+
+    def step_validate(
+            self,
+            dataloader_seg,
+            dataloader_reg,
+    ):
+
+        loss_reg_value, mid_reg_losses = self.atrophy.step_validate(
+            dataloader_reg
+        )
+
+        with torch.no_grad():
+            n_batches = len(dataloader_seg)
+            losses_list = []
+            for batch_i, (inputs, output) in enumerate(dataloader_seg):
+                b_loss = self.step(inputs, output)
+
+                losses_list.append(b_loss.tolist())
+
+                self.print_progress(
+                    batch_i, n_batches,
+                    b_loss.tolist(),
+                    np.mean(losses_list),
+                    False
+                )
+
+        loss_seg_value = np.mean(losses_list)
+        mid_reg_losses = mid_reg_losses.tolist()
+        mid_reg_losses.append(loss_seg_value)
+
+        return loss_seg_value, loss_reg_value, mid_reg_losses
+
+    def step(
+            self,
+            inputs,
+            output
+    ):
+        # We train the model and check the loss
+        b_source = inputs[0].to(self.device)
+        b_target = inputs[1].to(self.device)
+        b_lesion = output.to(self.device)
+
+        torch.cuda.synchronize()
+        b_pred_lesion = self(
+            (b_source, b_target)
+        )
+        b_loss = dsc_bin_loss(b_pred_lesion, b_lesion)
+        torch.cuda.synchronize()
+        torch.cuda.empty_cache()
+
+        return b_loss
+
+    def print_progress(self, batch_i, n_batches, b_loss, mean_loss, train=True):
+        init_c = '\033[0m' if train else '\033[38;5;238m'
+        whites = ' '.join([''] * 12)
+        percent = 20 * (batch_i + 1) / n_batches
+        progress_s = ''.join(['-'] * percent)
+        remainder_s = ''.join([' '] * (20 - percent))
+        loss_name = 'train_loss' if train else 'val_loss'
+        batch_s = '%s%sEpoch %03d (%03d/%03d) [%s][%s>%s] %s %f (%f)%s' % (
+            init_c, whites, self.epoch, batch_i + 1, n_batches,
+            ''.join(['-'] * 21), progress_s, remainder_s,
+            loss_name, b_loss, mean_loss, '\033[0m'
+        )
+        print('\033[K', end='')
+        print(batch_s, end='\r')
+        sys.stdout.flush()
 
     def save_model(self, net_name):
         torch.save(self.state_dict(), net_name)
