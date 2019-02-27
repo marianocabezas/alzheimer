@@ -82,6 +82,16 @@ def histogram_loss(var_x, var_y):
     return loss
 
 
+def dsc_bin_loss(var_x, var_y):
+    var_y = var_y.type_as(var_x)
+    intersection = torch.sum(var_x * var_y)
+    sum_x = torch.sum(var_x)
+    sum_y = torch.sum(var_y)
+    sum_vals = sum_x + sum_y
+    dsc_value = (2 * intersection / sum_vals) if sum_vals > 0 else 1.0
+    return 1.0 - dsc_value
+
+
 def df_gradient_mean(df, mask):
     grad_v = torch.tensor([-1, 0, 1], dtype=torch.float32).to(df.device)
     grad_x_k = torch.reshape(grad_v, (1, 1, -1)).repeat((3, 3, 1))
@@ -133,18 +143,3 @@ def df_modulo(df, mask):
     mean_grad = torch.mean(torch.exp(-modulo[mask]))
 
     return mean_grad
-
-
-def dice_loss(var_x, var_y):
-    # Init
-    var_x = var_x > 0
-    var_y = var_y > 0
-
-    intersection = torch.sum(var_x & var_y)
-    vol_x = torch.sum(var_x)
-    vol_y = torch.sum(var_y)
-    if vol_y > 0:
-        dsc_value = 2.0 * intersection / (vol_x + vol_y)
-    else:
-        dsc_value = 1 if vol_x == 0 else 1 / vol_x
-    return 1 - dsc_value
