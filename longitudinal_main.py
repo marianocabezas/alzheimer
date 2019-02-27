@@ -24,7 +24,7 @@ from sklearn.metrics import mean_squared_error
 from data_manipulation.sitk import itkn4, itkhist_match, itksubtraction, itkdemons
 from data_manipulation.generate_features import get_mask_voxels, get_voxels
 from data_manipulation.information_theory import bidirectional_mahalanobis, normalized_mutual_information
-from models import MaskAtrophyNet
+from models import LongitudinalNet
 
 # torch.backends.cudnn.benchmark = True
 
@@ -86,6 +86,12 @@ def parse_args():
         '-d', '--dataset-path',
         dest='dataset_path',
         default='/home/mariano/DATA/Australia60m/Workstation',
+        help='Parameter to store the working directory.'
+    )
+    group.add_argument(
+        '-D', '--seg-dataset-path',
+        dest='seg_dataset_path',
+        default='/home/mariano/DATA/VH',
         help='Parameter to store the working directory.'
     )
     parser.add_argument(
@@ -1031,7 +1037,7 @@ def subtraction_registration(
 
 def get_mask(mask_name, dilate=0, dtype=np.uint8):
     # Lesion mask
-    mask_image = load_nii(mask_name).get_data()
+    mask_image = load_nii(mask_name).get_data().astype(dtype)
     if dilate > 0:
         mask_image = imdilate(
             mask_image,
@@ -1056,17 +1062,30 @@ def cnn_registration(
         lesion_tags=list(['_bin', 'lesion', 'lesionMask']),
         folder='time6',
         mask='union_brainmask.nii.gz',
+        source_name='flair_moved.nii.gz',
+        target_name='flair_processed.nii.gz',
+        brain_name='brainmask.nii.gz',
+        lesion_name='gt_mask.nii',
         verbose=1,
 ):
     """
         Function that applies a CNN-based registration approach. The goal of
         this network is to find the atrophy deformation, and how it affects the
         lesion mask, manually segmented on the baseline image.
-        :param d_path: Path where the whole database is stored. If not specified,
-        it will be read from the command parameters.
-        :param lesion_tags: Tags that may be contained on the lesion mask filename.
+        :param d_path: Path where the whole database is stored. If not
+         specified,it will be read from the command parameters.
+        :param lesion_tags: Tags that may be contained on the lesion mask
+         filename.
         :param folder: Folder that contains the images.
         :param mask: Brainmask name.
+        :param source_name: Name of the source image from the segmentation
+         dataset.
+        :param target_name: Name of the target image from the segmentation
+         dataset.
+        :param brain_name: Name of the brainmask image from the segmentation
+         dataset.
+        :param lesion_name: Name of the lesionmask image from the segmentation
+         dataset.
         :param verbose: Verbosity level.
         :return: None.
         """
@@ -1121,41 +1140,84 @@ def cnn_registration(
         zip(patient_paths, masks)
     )
 
+    vhpath = parse_args()['seg_dataset_path']
+    vhpatients = get_dirs(vhpath)
+    vhpatient_paths = map(lambda p: os.path.join(vhpath, p), vhpatients)
+    vhbrain_names = map(
+        lambda p_path: os.path.join(p_path, brain_name),
+        vhpatient_paths
+    )
+    brains = map(get_mask, vhbrain_names)
+    vhlesion_names = map(
+        lambda p_path: os.path.join(p_path, lesion_name),
+        vhpatient_paths
+    )
+    vhlesions = map(get_mask, vhlesion_names)
+    norm_source = map(
+        lambda (p, mask_i): get_normalised_image(
+            os.path.join(p, source_name), mask_i
+        ),
+        zip(vhpatient_paths, brains)
+    )
+    norm_target = map(
+        lambda (p, mask_i): get_normalised_image(
+            os.path.join(p, target_name), mask_i
+        ),
+        zip(vhpatient_paths, brains)
+    )
+
     if verbose > 0:
         print(
-            '%s[%s]%s Training CNN with all timepoints%s' %
+            '%s[%s]%s Training CNN with all timepoints + segmentation%s' %
             (
                 c['c'], strftime("%H:%M:%S"),
                 c['g'], c['nc']
             )
         )
-        print('  cuda version = ', torch.version.cuda)
-        print('  cudnn version = ', torch.backends.cudnn.version())
 
     epochs = parse_args()['epochs']
     patience = parse_args()['patience']
     lambda_v = parse_args()['lambda']
     model_name = os.path.join(
         d_path,
-        'long_model_l%.2fe%dp%d.mdl' % (lambda_v, epochs, patience)
+        'mixedlong_model_l%.2fe%dp%d.mdl' % (lambda_v, epochs, patience)
     )
 
     training_start = time.time()
-    reg_net = MaskAtrophyNet(
+
+    reg_net = LongitudinalNet(
         lambda_d=lambda_v,
         device=device
     )
     try:
         reg_net.load_model(model_name)
     except IOError:
-        reg_net.register(
+        reg_net.fit(
+            norm_source,
+            norm_target,
+            vhlesions,
             norm_cases,
             lesions,
             masks,
-            batch_size=1,
             epochs=epochs,
             patience=patience
         )
+
+    # reg_net = MaskAtrophyNet(
+    #     lambda_d=lambda_v,
+    #     device=device
+    # )
+    # try:
+    #     reg_net.load_model(model_name)
+    # except IOError:
+    #     reg_net.register(
+    #         norm_cases,
+    #         lesions,
+    #         masks,
+    #         batch_size=1,
+    #         epochs=epochs,
+    #         patience=patience
+    #     )
 
     reg_net.save_model(model_name)
 
