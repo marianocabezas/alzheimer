@@ -101,6 +101,21 @@ def parse_args():
         help='Parameter to store the working directory.'
     )
     parser.add_argument(
+        '-L', '--losses-list',
+        dest='loss_idx',
+        nargs='+', type=int, default=[0, 1],
+        help='List of loss indices. '
+             '0: Global subtraction gradient\n'
+             '1: Lesion subtraction gradient\n'
+             '2: Global cross-correlation\n'
+             '3: Lesion cross-correlation\n'
+             '4: Global mean squared error\n'
+             '5: Lesion mahalanobis distance between timepoints\n'
+             '6: Lesion histogram difference\n'
+             '7: Deformation regularization\n'
+             '8: Modulo maximisation'
+    )
+    parser.add_argument(
         '-e', '--epochs',
         dest='epochs',
         type=int,  default=100,
@@ -1175,17 +1190,21 @@ def cnn_registration(
             )
         )
 
+    loss_idx = parse_args()['loss_idx']
     epochs = parse_args()['epochs']
     patience = parse_args()['patience']
     lambda_v = parse_args()['lambda']
     model_name = os.path.join(
         d_path,
-        'mixedlong_model_l%.2fe%dp%d.mdl' % (lambda_v, epochs, patience)
+        'mixedlong_model_loss%s_l%.2fe%dp%d.mdl' % (
+            '.'.join(map(str, loss_idx)), lambda_v, epochs, patience
+        )
     )
 
     training_start = time.time()
 
     reg_net = LongitudinalNet(
+        loss_idx=loss_idx,
         lambda_d=lambda_v,
         device=device
     )
@@ -1202,22 +1221,6 @@ def cnn_registration(
             epochs=epochs,
             patience=patience
         )
-
-    # reg_net = MaskAtrophyNet(
-    #     lambda_d=lambda_v,
-    #     device=device
-    # )
-    # try:
-    #     reg_net.load_model(model_name)
-    # except IOError:
-    #     reg_net.register(
-    #         norm_cases,
-    #         lesions,
-    #         masks,
-    #         batch_size=1,
-    #         epochs=epochs,
-    #         patience=patience
-    #     )
 
     reg_net.save_model(model_name)
 
