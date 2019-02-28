@@ -2,6 +2,39 @@ import torch
 import itertools
 import numpy as np
 from torch import nn
+from torch.nn import functional as F
+
+
+class SmoothingLayer(nn.Module):
+    def __init__(
+            self,
+            length=5,
+            sigma=1,
+    ):
+        super(SmoothingLayer, self).__init__()
+        self.sigma = sigma
+        self.length = length
+
+    def forward(self, x):
+        dims = len(x.shape) - 2
+        assert dims <= 3, 'Too many dimensions for convolution'
+
+        kernel_shape = (self.length,) * dims
+        lims = map(lambda s: (s - 1.) / 2, kernel_shape)
+        grid = np.ogrid[tuple(map(lambda l: slice(-l, l+1), lims))]
+        k = np.exp(
+            -sum(map(lambda g: g*g, grid)) / 2. * self.sigma * self.sigma
+        )
+
+        kernel = torch.tensor(
+            np.reshape(k, (1,) * 2 + kernel_shape),
+            dtype=x.dtype,
+            device=x.device,
+        ).repeat((x.shape[1],) * 2 + (1,) * dims)
+
+        convs = [F.conv1d, F.conv2d, F.conv3d]
+
+        return convs[dims - 1](x, kernel, padding=self.length / 2)
 
 
 class ScalingLayer(nn.Module):
@@ -9,15 +42,25 @@ class ScalingLayer(nn.Module):
             self,
             shape_in,
             dtype=torch.float,
-            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+            device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     ):
         super(ScalingLayer, self).__init__()
         self.weight = nn.Parameter(
-            torch.unsqueeze(torch.rand(shape_in, device=device, dtype=dtype, requires_grad=True), dim=0)
+            torch.unsqueeze(
+                torch.rand(
+                    shape_in, device=device, dtype=dtype, requires_grad=True
+                ),
+                dim=0
+            )
         )
         self.weight.to(device)
         self.bias = nn.Parameter(
-            torch.unsqueeze(torch.randn(shape_in, device=device, dtype=dtype, requires_grad=True), dim=0)
+            torch.unsqueeze(
+                torch.randn(
+                    shape_in, device=device, dtype=dtype, requires_grad=True
+                ),
+                dim=0
+            )
         )
         self.bias.to(device)
 
@@ -42,7 +85,7 @@ class SpatialTransformer(nn.Module):
     def __init__(
             self,
             interp_method='linear',
-            device=torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
+            device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             **kwargs
     ):
         """

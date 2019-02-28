@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision import models
 import numpy as np
-from layers import ScalingLayer, SpatialTransformer
+from layers import ScalingLayer, SpatialTransformer, SmoothingLayer
 from criterions import normalized_xcor_loss, subtraction_loss
 from criterions import df_modulo, df_gradient_mean
 from criterions import histogram_loss, mahalanobis_loss
@@ -594,24 +594,26 @@ class MaskAtrophyNet(nn.Module):
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             lambda_d=1,
             leakyness=0.2,
-            loss_names=list([
-                ' subt ',
-                'subt_l',
-                # ' xcor ',
-                # 'xcor_l',
-                # ' mse  ',
-                # 'mahal ',
-                ' hist ',
-                # 'deform',
-                # 'modulo'
-            ])
+            loss_idx=list([0, 1, 6])
     ):
         # Init
+        loss_names = list([
+                ' subt ',
+                'subt_l',
+                ' xcor ',
+                'xcor_l',
+                ' mse  ',
+                'mahal ',
+                ' hist ',
+                'deform',
+                'modulo'
+            ])
+
         self.epoch = 0
         self.optimizer_alg = None
         super(MaskAtrophyNet, self).__init__()
         self.lambda_d = lambda_d
-        self.loss_names = loss_names
+        self.loss_names = map(lambda idx: loss_names[idx], loss_idx)
         self.device = device
         self.leakyness = leakyness
         # Down path of the unet
@@ -665,6 +667,9 @@ class MaskAtrophyNet(nn.Module):
         self.to_df.to(device)
         nn.init.normal_(self.to_df.weight, 0.0, 1e-5)
 
+        self.smooth = SmoothingLayer()
+        self.smooth.to(device)
+
         self.trans_im = SpatialTransformer()
         self.trans_im.to(device)
         self.trans_mask = SpatialTransformer('nearest')
@@ -688,14 +693,16 @@ class MaskAtrophyNet(nn.Module):
 
         df = self.to_df(input_s)
 
+        df_smooth = self.smooth(df)
+
         source_mov = self.trans_im(
-            [source, df]
+            [source, df_smooth]
         )
 
         mask_mov = self.trans_mask(
-            [mask, df]
+            [mask, df_smooth]
         )
-        return source_mov, mask_mov, df
+        return source_mov, mask_mov, df_smooth
 
     def register(
             self,
@@ -816,11 +823,6 @@ class MaskAtrophyNet(nn.Module):
             loss_list.append(b_loss_value)
             mean_loss = np.mean(loss_list)
 
-            batch_loss = sum(b_losses).to(output.device)
-            self.optimizer_alg.zero_grad()
-            batch_loss.backward()
-            self.optimizer_alg.step()
-
             # Print the intermediate results
             self.print_progress(batch_i, n_batches, b_loss_value, mean_loss)
 
@@ -829,7 +831,7 @@ class MaskAtrophyNet(nn.Module):
             losses_list = []
             n_batches = len(dataloader)
             for (batch_i, (inputs, output)) in enumerate(dataloader):
-                b_losses = self.step(inputs, output)
+                b_losses = self.step(inputs, output, False)
 
                 b_mid_losses = map(lambda l: l.tolist(), b_losses)
                 losses_list.append(b_mid_losses)
@@ -850,7 +852,8 @@ class MaskAtrophyNet(nn.Module):
     def step(
             self,
             inputs,
-            output
+            output,
+            train=True
     ):
         # Again. This is supposed to be a step on the registration process,
         # there's no need for splitting data. We just compute the deformation,
@@ -880,13 +883,18 @@ class MaskAtrophyNet(nn.Module):
             b_mask
         )
 
+        if train:
+            self.optimizer_alg.zero_grad()
+            sum(b_losses).to(output.device).backward()
+            self.optimizer_alg.step()
+
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
 
         return b_losses
 
     def print_progress(self, batch_i, n_batches, b_loss, mean_loss, train=True):
-        init_c = '\033[0m' if train else '\033[94m'
+        init_c = '\033[0m' if train else '\033[38;5;238m'
         whites = ' '.join([''] * 12)
         percent = 20 * (batch_i + 1) / n_batches
         progress_s = ''.join(['-'] * percent)
@@ -1012,17 +1020,7 @@ class LongitudinalNet(nn.Module):
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             lambda_d=1,
             leakyness=0.2,
-            loss_names=list([
-                ' subt ',
-                'subt_l',
-                # ' xcor ',
-                # 'xcor_l',
-                # ' mse  ',
-                # 'mahal ',
-                ' hist ',
-                # 'deform',
-                # 'modulo'
-            ])
+            loss_idx=list([0, 1, 7])
     ):
         super(LongitudinalNet, self).__init__()
         # Init
@@ -1034,7 +1032,7 @@ class LongitudinalNet(nn.Module):
             device=device,
             lambda_d=lambda_d,
             leakyness=leakyness,
-            loss_names=loss_names
+            loss_idx=loss_idx
         )
         self.device = device
 
@@ -1257,6 +1255,7 @@ class LongitudinalNet(nn.Module):
         e = 0
 
         for self.epoch in range(epochs):
+            self.atrophy.epoch = self.epoch
             # Main epoch loop
             t_in = time.time()
             self.step_train(
@@ -1338,28 +1337,14 @@ class LongitudinalNet(nn.Module):
             )
 
             # Segmentation update
-            n_batches_seg = len(dataloader_seg)
-            n_batches_reg = len(dataloader_reg)
-            n_batches = max(n_batches_reg, n_batches_seg)
+            n_batches = len(dataloader_seg)
             loss_list = []
-            dataloaders = izip_longest(dataloader_reg, dataloader_seg)
-            for batch_i, (data_reg, data_seg) in enumerate(dataloaders):
-                losses = []
-                if data_reg is not None:
-                    b_reg_losses = self.atrophy.step(data_reg[0], data_reg[1])
-                    losses.append(sum(b_reg_losses))
-                if data_seg is not None:
-                    b_seg_loss = self.step(data_seg[0], data_seg[1])
-                    losses.append(b_seg_loss)
+            for batch_i, (inputs, output) in enumerate(dataloader_seg):
+                b_seg_loss = self.step(inputs, output)
 
-                b_loss = sum(losses).backward()
-
-                self.optimizer_alg.zero_grad()
-                self.optimizer_alg.step()
-
-                b_loss_value = b_loss.tolist()
-
+                b_loss_value = b_seg_loss.tolist()
                 loss_list.append(b_loss_value)
+
                 mean_loss = np.mean(loss_list)
 
                 # Print the intermediate results
@@ -1379,7 +1364,7 @@ class LongitudinalNet(nn.Module):
             n_batches = len(dataloader_seg)
             losses_list = []
             for batch_i, (inputs, output) in enumerate(dataloader_seg):
-                b_loss = self.step(inputs, output)
+                b_loss = self.step(inputs, output, False)
 
                 losses_list.append(b_loss.tolist())
 
@@ -1399,7 +1384,8 @@ class LongitudinalNet(nn.Module):
     def step(
             self,
             inputs,
-            output
+            output,
+            train=True
     ):
         # We train the model and check the loss
         b_source = inputs[0].to(self.device)
@@ -1411,6 +1397,12 @@ class LongitudinalNet(nn.Module):
             (b_source, b_target)
         )
         b_loss = dsc_bin_loss(b_pred_lesion, b_lesion)
+
+        if train:
+            self.optimizer_alg.zero_grad()
+            b_loss.backward()
+            self.optimizer_alg.step()
+
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
 
