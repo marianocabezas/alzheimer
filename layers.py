@@ -9,10 +9,23 @@ class SmoothingLayer(nn.Module):
     def __init__(
             self,
             length=5,
-            sigma=1,
+            init_sigma=0.5,
+            trainable=False
     ):
         super(SmoothingLayer, self).__init__()
-        self.sigma = sigma
+        if trainable:
+            self.sigma = nn.Parameter(
+                torch.tensor(
+                    init_sigma,
+                    dtype=torch.float,
+                    requires_grad=True
+                )
+            )
+        else:
+            self.sigma = torch.tensor(
+                    init_sigma,
+                    dtype=torch.float
+                )
         self.length = length
 
     def forward(self, x):
@@ -21,20 +34,26 @@ class SmoothingLayer(nn.Module):
 
         kernel_shape = (self.length,) * dims
         lims = map(lambda s: (s - 1.) / 2, kernel_shape)
-        grid = np.ogrid[tuple(map(lambda l: slice(-l, l+1), lims))]
-        k = np.exp(
-            -sum(map(lambda g: g*g, grid)) / 2. * self.sigma * self.sigma
+        grid = map(
+            lambda g: torch.tensor(g, dtype=torch.float, device=x.device),
+            np.ogrid[tuple(map(lambda l: slice(-l, l + 1), lims))]
         )
+        sigma_square = self.sigma * self.sigma
+        k = torch.exp(
+            -sum(map(lambda g: g*g, grid)) / (2. * sigma_square.to(x.device))
+        )
+        sumk = torch.sum(k)
+        if sumk.tolist() > 0:
+            k = k / sumk
 
-        kernel = torch.tensor(
-            np.reshape(k, (1,) * 2 + kernel_shape),
-            dtype=x.dtype,
-            device=x.device,
-        ).repeat((x.shape[1],) * 2 + (1,) * dims)
+        kernel = torch.reshape(k, (1,) * 2 + kernel_shape).to(x.device)
+        final_kernel = kernel.repeat((x.shape[1],) * 2 + (1,) * dims)
+        conv_f = [F.conv1d, F.conv2d, F.conv3d]
+        padding = self.length / 2
 
-        convs = [F.conv1d, F.conv2d, F.conv3d]
+        smoothed_x = conv_f[dims - 1](x, final_kernel, padding=padding)
 
-        return convs[dims - 1](x, kernel, padding=self.length / 2)
+        return smoothed_x
 
 
 class ScalingLayer(nn.Module):
