@@ -594,7 +594,10 @@ class MaskAtrophyNet(nn.Module):
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             lambda_d=1,
             leakyness=0.2,
-            loss_idx=list([0, 1, 6])
+            loss_idx=list([0, 1, 6]),
+            data_smooth=False,
+            df_smooth=False,
+            trainable_smooth=False
     ):
         # Init
         loss_names = list([
@@ -609,6 +612,8 @@ class MaskAtrophyNet(nn.Module):
                 'modulo'
             ])
 
+        self.data_smooth = data_smooth
+        self.df_smooth = df_smooth
         self.epoch = 0
         self.optimizer_alg = None
         super(MaskAtrophyNet, self).__init__()
@@ -667,7 +672,7 @@ class MaskAtrophyNet(nn.Module):
         self.to_df.to(device)
         nn.init.normal_(self.to_df.weight, 0.0, 1e-5)
 
-        self.smooth = SmoothingLayer()
+        self.smooth = SmoothingLayer(trainable=trainable_smooth)
         self.smooth.to(device)
 
         self.trans_im = SpatialTransformer()
@@ -677,32 +682,36 @@ class MaskAtrophyNet(nn.Module):
 
     def forward(self, inputs):
         source, target, mask = inputs
-        input_s = torch.cat([source, target], dim=1)
+        data = torch.cat([source, target], dim=1)
+
+        if self.data_smooth:
+            data = self.smooth(data)
 
         down_inputs = list()
         for c in self.conv:
-            down_inputs.append(input_s)
-            input_s = F.leaky_relu(c(input_s), self.leakyness)
+            down_inputs.append(data)
+            data = F.leaky_relu(c(data), self.leakyness)
 
         for d, i in zip(self.deconv_u, down_inputs[::-1]):
-            up = F.leaky_relu(d(input_s, output_size=i.size()), self.leakyness)
-            input_s = torch.cat((up, i), dim=1)
+            up = F.leaky_relu(d(data, output_size=i.size()), self.leakyness)
+            data = torch.cat((up, i), dim=1)
 
         for d in self.deconv:
-            input_s = F.leaky_relu(d(input_s), self.leakyness)
+            data = F.leaky_relu(d(data), self.leakyness)
 
-        df = self.to_df(input_s)
+        df = self.to_df(data)
 
-        df_smooth = self.smooth(df)
+        if self.df_smooth:
+            df = self.smooth(df)
 
         source_mov = self.trans_im(
-            [source, df_smooth]
+            [source, df]
         )
 
         mask_mov = self.trans_mask(
-            [mask, df_smooth]
+            [mask, df]
         )
-        return source_mov, mask_mov, df_smooth
+        return source_mov, mask_mov, df
 
     def register(
             self,
@@ -1020,7 +1029,10 @@ class LongitudinalNet(nn.Module):
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             lambda_d=1,
             leakyness=0.2,
-            loss_idx=list([0, 1, 7])
+            loss_idx=list([0, 1, 7]),
+            data_smooth=False,
+            df_smooth=False,
+            trainable_smooth=False
     ):
         super(LongitudinalNet, self).__init__()
         # Init
@@ -1032,7 +1044,10 @@ class LongitudinalNet(nn.Module):
             device=device,
             lambda_d=lambda_d,
             leakyness=leakyness,
-            loss_idx=loss_idx
+            loss_idx=loss_idx,
+            data_smooth=data_smooth,
+            df_smooth=df_smooth,
+            trainable_smooth=trainable_smooth
         )
         self.device = device
 

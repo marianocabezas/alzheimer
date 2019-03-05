@@ -82,13 +82,13 @@ def parse_args():
         description='Run the longitudinal MS lesion segmentation docker.'
     )
     group = parser.add_mutually_exclusive_group()
-    group.add_argument(
+    parser.add_argument(
         '-d', '--dataset-path',
         dest='dataset_path',
         default='/home/mariano/DATA/Australia60m/Workstation',
         help='Parameter to store the working directory.'
     )
-    group.add_argument(
+    parser.add_argument(
         '-D', '--seg-dataset-path',
         dest='seg_dataset_path',
         default='/home/mariano/DATA/VH',
@@ -138,6 +138,25 @@ def parse_args():
         dest='gpu_id',
         type=int, default=0,
         help='GPU id number'
+    )
+    parser.add_argument(
+        '--data-smooth',
+        dest='data_smooth',
+        action='store_true', default=False,
+        help='Whether or not to apply a smoothing layer to the input'
+    )
+    parser.add_argument(
+        '--df-smooth',
+        dest='df_smooth',
+        action='store_true', default=False,
+        help='Whether or not to apply a smoothing layer to the '
+             'deformation field'
+    )
+    parser.add_argument(
+        '--trainable-smooth',
+        dest='train_smooth',
+        action='store_true', default=False,
+        help='Whether or not to make the smoothing trainable'
     )
     return vars(parser.parse_args())
 
@@ -1194,10 +1213,23 @@ def cnn_registration(
     epochs = parse_args()['epochs']
     patience = parse_args()['patience']
     lambda_v = parse_args()['lambda']
+    data_smooth = parse_args()['data_smooth']
+    df_smooth = parse_args()['df_smooth']
+    train_smooth = parse_args()['train_smooth']
+    smooth_s = '.'.join(
+        filter(
+            None,
+            [
+                'data' if data_smooth else None,
+                'df' if df_smooth else None,
+                'tr' if train_smooth else None,
+            ]
+        )
+    )
     model_name = os.path.join(
         d_path,
-        'mixedlong_model_loss%s_l%.2fe%dp%d.mdl' % (
-            '.'.join(map(str, loss_idx)), lambda_v, epochs, patience
+        'mixedlong_model_%s_loss%s_l%.2fe%dp%d.mdl' % (
+            smooth_s, '+'.join(map(str, loss_idx)), lambda_v, epochs, patience
         )
     )
 
@@ -1206,7 +1238,10 @@ def cnn_registration(
     reg_net = LongitudinalNet(
         loss_idx=loss_idx,
         lambda_d=lambda_v,
-        device=device
+        device=device,
+        data_smooth=data_smooth,
+        df_smooth=df_smooth,
+        trainable_smooth=train_smooth
     )
     try:
         reg_net.load_model(model_name)
