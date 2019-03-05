@@ -1,3 +1,4 @@
+from operator import mul
 import torch
 import itertools
 import numpy as np
@@ -104,6 +105,7 @@ class SpatialTransformer(nn.Module):
     def __init__(
             self,
             interp_method='linear',
+            linear_norm=False,
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             **kwargs
     ):
@@ -115,6 +117,7 @@ class SpatialTransformer(nn.Module):
         super(SpatialTransformer, self).__init__(**kwargs)
         self.interp_method = interp_method
         self.device = device
+        self.linear_norm = linear_norm
 
     def forward(self, inputs):
         """
@@ -124,7 +127,7 @@ class SpatialTransformer(nn.Module):
         This is a spatial transform in the sense that at location [x] we now
         have the data from, [x + shift] so we've moved data.
         Parameters
-            :param input: Input volume to be warped and deformation field.
+            :param inputs: Input volume to be warped and deformation field.
 
             :return new interpolated volumes in the same size as df
         """
@@ -197,9 +200,11 @@ class SpatialTransformer(nn.Module):
                 # if c[d] is 0 --> want weight = 1 - (pt - floor[pt]) = diff_loc1
                 # if c[d] is 1 --> want weight = pt - floor[pt] = diff_loc0
                 wts_lst = map(lambda (i, cd): weights_loc[cd][i], enumerate(point))
-                # wt = reduce(mul, wts_lst)
-                # wt = sum(wts_lst) / len(wts_lst)
-                wt = sum(wts_lst) / norm_factor
+                if self.linear_norm:
+                    wt = sum(wts_lst) / norm_factor
+                else:
+                    wt = reduce(mul, wts_lst)
+
                 wt = torch.reshape(wt, vol.shape)
                 return wt * vol_val
 
