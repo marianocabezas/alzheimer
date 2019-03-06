@@ -1,5 +1,4 @@
 from __future__ import print_function
-from itertools import izip_longest
 import time
 import sys
 from copy import deepcopy
@@ -15,6 +14,7 @@ from criterions import df_modulo, df_gradient_mean
 from criterions import histogram_loss, mahalanobis_loss
 from criterions import dsc_bin_loss
 from datasets import ImageListDataset, ImagePairListCroppingDataset
+from optimizers import AdaBound
 
 
 def to_torch_var(
@@ -272,6 +272,7 @@ class CustomModel(nn.Module):
 
         optimizer_dict = {
             'adam': torch.optim.Adam,
+            'adabound': AdaBound,
         }
 
         model_params = filter(lambda p: p.requires_grad, self.parameters())
@@ -731,6 +732,7 @@ class MaskAtrophyNet(nn.Module):
         # Optimizer init
         optimizer_dict = {
             'adam': torch.optim.Adam,
+            'adabound': AdaBound,
         }
         model_params = filter(lambda p: p.requires_grad, self.parameters())
         self.optimizer_alg = optimizer_dict[optimizer](model_params)
@@ -1235,6 +1237,7 @@ class LongitudinalNet(nn.Module):
         # Optimizer init
         optimizer_dict = {
             'adam': torch.optim.Adam,
+            'adabound': AdaBound,
         }
         model_params = filter(lambda p: p.requires_grad, self.parameters())
         self.optimizer_alg = optimizer_dict[optimizer](model_params)
