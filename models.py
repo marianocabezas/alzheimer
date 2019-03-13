@@ -10,7 +10,7 @@ from torchvision import models
 import numpy as np
 from layers import ScalingLayer, SpatialTransformer, SmoothingLayer
 from criterions import normalized_xcor_loss, subtraction_loss
-from criterions import df_modulo, df_gradient_mean
+from criterions import df_modulo, df_loss
 from criterions import histogram_loss, mahalanobis_loss
 from criterions import dsc_bin_loss
 from datasets import ImageListDataset, ImagePairListCroppingDataset
@@ -977,7 +977,7 @@ class MaskAtrophyNet(nn.Module):
             ' mse  ': torch.nn.MSELoss(),
             'mahal ': mahalanobis_loss,
             ' hist ': histogram_loss,
-            'deform': df_gradient_mean,
+            'deform': df_loss,
             'modulo': df_modulo,
 
         }
@@ -1148,7 +1148,7 @@ class LongitudinalNet(nn.Module):
 
             seg = torch.sigmoid(self.seg(input_s))
 
-            return seg
+            return seg, source_mov
 
     def transform(
             self,
@@ -1204,7 +1204,7 @@ class LongitudinalNet(nn.Module):
 
         with torch.no_grad():
             torch.cuda.synchronize()
-            seg = self((source_tensor, target_tensor))
+            seg, _ = self((source_tensor, target_tensor))
             torch.cuda.synchronize()
             torch.cuda.empty_cache()
 
@@ -1411,10 +1411,13 @@ class LongitudinalNet(nn.Module):
         b_lesion = output.to(self.device)
 
         torch.cuda.synchronize()
-        b_pred_lesion = self(
+        b_pred_lesion, b_moved = self(
             (b_source, b_target)
         )
-        b_loss = dsc_bin_loss(b_pred_lesion, b_lesion)
+        b_dsc_loss = dsc_bin_loss(b_pred_lesion, b_lesion)
+        b_reg_loss = normalized_xcor_loss(b_moved, b_target)
+        # b_loss = dsc_bin_loss(b_pred_lesion, b_lesion)
+        b_loss = b_dsc_loss + b_reg_loss
 
         if train:
             self.optimizer_alg.zero_grad()
@@ -1424,7 +1427,8 @@ class LongitudinalNet(nn.Module):
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
 
-        return b_loss
+        # return b_loss
+        return b_dsc_loss
 
     def print_progress(self, batch_i, n_batches, b_loss, mean_loss, train=True):
         init_c = '\033[0m' if train else '\033[38;5;238m'
