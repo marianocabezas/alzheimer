@@ -35,7 +35,7 @@ def parse_args():
         description='Run the longitudinal MS lesion segmentation docker.'
     )
     parser.add_argument(
-        '-f', '--old',
+        '-f', '--files-path',
         dest='dataset_path',
         default='/home/owner/data/OASIS2Reoriented',
         help='Parameter to store the working directory.'
