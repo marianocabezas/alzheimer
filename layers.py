@@ -105,7 +105,7 @@ class SpatialTransformer(nn.Module):
     def __init__(
             self,
             interp_method='linear',
-            linear_norm=True,
+            linear_norm=False,
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             **kwargs
     ):
