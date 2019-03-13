@@ -24,7 +24,7 @@ from sklearn.metrics import mean_squared_error
 from data_manipulation.sitk import itkn4, itkhist_match, itksubtraction, itkdemons
 from data_manipulation.generate_features import get_mask_voxels, get_voxels
 from data_manipulation.information_theory import bidirectional_mahalanobis, normalized_mutual_information
-from models import LongitudinalNet
+from models import LongitudinalNet, MaskAtrophyNet
 
 # torch.backends.cudnn.benchmark = True
 
@@ -157,6 +157,12 @@ def parse_args():
         dest='train_smooth',
         action='store_true', default=False,
         help='Whether or not to make the smoothing trainable'
+    )
+    parser.add_argument(
+        '--atrophy',
+        dest='atrophy',
+        action='store_true', default=False,
+        help='Whether or not to use the atrophy net alone'
     )
     return vars(parser.parse_args())
 
@@ -1216,6 +1222,7 @@ def cnn_registration(
     data_smooth = parse_args()['data_smooth']
     df_smooth = parse_args()['df_smooth']
     train_smooth = parse_args()['train_smooth']
+    atrophy = parse_args()['atrophy']
     smooth_s = '.'.join(
         filter(
             None,
@@ -1226,36 +1233,62 @@ def cnn_registration(
             ]
         )
     )
+
+    net_name = 'atrophy' if atrophy else 'mixedlong'
+
     model_name = os.path.join(
         d_path,
-        'mixedlong_model_%s_loss%s_l%.2fe%dp%d.mdl' % (
-            smooth_s, '+'.join(map(str, loss_idx)), lambda_v, epochs, patience
+        '%s_model_%s_loss%s_l%.2fe%dp%d.mdl' % (
+            net_name,
+            smooth_s + '_' if smooth_s else '',
+            '+'.join(map(str, loss_idx)),
+            lambda_v, epochs, patience
         )
     )
 
     training_start = time.time()
 
-    reg_net = LongitudinalNet(
-        loss_idx=loss_idx,
-        lambda_d=lambda_v,
-        device=device,
-        data_smooth=data_smooth,
-        df_smooth=df_smooth,
-        trainable_smooth=train_smooth
-    )
-    try:
-        reg_net.load_model(model_name)
-    except IOError:
-        reg_net.fit(
-            norm_source,
-            norm_target,
-            vhlesions,
-            norm_cases,
-            lesions,
-            masks,
-            epochs=epochs,
-            patience=patience
+    if atrophy:
+        reg_net = MaskAtrophyNet(
+            loss_idx=loss_idx,
+            lambda_d=lambda_v,
+            device=device,
+            data_smooth=data_smooth,
+            df_smooth=df_smooth,
+            trainable_smooth=train_smooth
         )
+        try:
+            reg_net.load_model(model_name)
+        except IOError:
+            reg_net.register(
+                norm_cases,
+                lesions,
+                masks,
+                epochs=epochs,
+                patience=patience
+            )
+    else:
+        reg_net = LongitudinalNet(
+            loss_idx=loss_idx,
+            lambda_d=lambda_v,
+            device=device,
+            data_smooth=data_smooth,
+            df_smooth=df_smooth,
+            trainable_smooth=train_smooth
+        )
+        try:
+            reg_net.load_model(model_name)
+        except IOError:
+            reg_net.fit(
+                norm_source,
+                norm_target,
+                vhlesions,
+                norm_cases,
+                lesions,
+                masks,
+                epochs=epochs,
+                patience=patience
+            )
 
     reg_net.save_model(model_name)
 
@@ -1323,6 +1356,11 @@ def cnn_registration(
         target_image = np.reshape(target_image, (1, 1) + target_image.shape)
         norm_target = (target_image - target_mu) / target_sigma
 
+        sufix = '%sloss%s_l%.2fe%dp%d' % (
+            smooth_s + '_' if smooth_s else '',
+            '+'.join(map(str, loss_idx)), lambda_v, epochs, patience
+        )
+
         # Test the network
         source_mov, mask_mov, df = reg_net.transform(
             norm_source, norm_target, mask_image
@@ -1331,7 +1369,7 @@ def cnn_registration(
         source_mov = source_mov[0] * source_sigma + source_mu
         source_nii.get_data()[:] = source_mov * brain_mask
         source_nii.to_filename(
-            os.path.join(patient_path, 'cnn_defo.nii.gz')
+            os.path.join(patient_path, 'cnn_defo_%s.nii.gz' % sufix)
         )
         mask_nii = nib.Nifti1Image(
             mask_mov[0],
@@ -1339,7 +1377,7 @@ def cnn_registration(
             source_nii.get_header()
         )
         mask_nii.to_filename(
-            os.path.join(patient_path, 'cnn_defo_mask.nii.gz')
+            os.path.join(patient_path, 'cnn_defo_mask_%s.nii.gz' % sufix)
         )
 
         df_mask = np.repeat(np.expand_dims(brain_mask, -1), 3, -1)
@@ -1349,7 +1387,7 @@ def cnn_registration(
             source_nii.get_header()
         )
         df_nii.to_filename(
-            os.path.join(patient_path, 'cnn_defo_df.nii.gz')
+            os.path.join(patient_path, 'cnn_defo_df_%s.nii.gz' % sufix)
         )
 
         # Patient done
