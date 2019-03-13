@@ -27,7 +27,11 @@ def normalized_xcor_loss(var_x, var_y):
 
 
 def subtraction_loss(var_x, var_y, mask):
-    return im_gradient_mean(var_y - var_x, mask)
+    return gradient_mean(var_y - var_x, mask)
+
+
+def df_loss(var_x, mask):
+    return gradient_mean(var_x, mask)
 
 
 def mahalanobis_loss(var_x, var_y):
@@ -68,6 +72,13 @@ def torch_hist(var_x, bins=100):
 
 
 def histogram_loss(var_x, var_y):
+    '''
+    Function that computes a loss based on the histogram of the expected
+    and predicted values
+    :param var_x: Predicted values.
+    :param var_y: Expected values.
+    :return: A tensor with the loss
+    '''
     # Histogram computation
     loss = 1
     hist_x = torch_hist(var_x)
@@ -83,6 +94,13 @@ def histogram_loss(var_x, var_y):
 
 
 def dsc_bin_loss(var_x, var_y):
+    '''
+    Function to compute the binary dice loss. There is no need to binarise
+    the tensors. In fact, we cast the target values to float (for the gradient)
+    :param var_x: Predicted values.
+    :param var_y: Expected values.
+    :return: A tensor with the loss
+    '''
     var_y = var_y.type_as(var_x)
     intersection = torch.sum(var_x * var_y)
     sum_x = torch.sum(var_x)
@@ -92,65 +110,61 @@ def dsc_bin_loss(var_x, var_y):
     return 1.0 - dsc_value
 
 
-def df_gradient_mean(df, mask):
-    grad_v = torch.tensor([-1, 1, 0], dtype=torch.float32).to(df.device)
-    grad_x_k = torch.reshape(grad_v, (1, 1, -1)).repeat((3, 3, 1))
-    grad_y_k = torch.reshape(grad_v, (1, -1, 1)).repeat((3, 1, 3))
-    grad_z_k = torch.reshape(grad_v, (-1, 1, 1)).repeat((1, 3, 3))
+def gradient_mean(tensor, mask):
+    '''
+    Function to compute the mean of a multidimensional tensor. We assume that
+     the first two dimensions specify the number of samples and channels.
+    :param tensor: Input tensor
+    :param mask: Mask that defines the region of interest where the loss should
+     be evaluated.
+    :return: The mean gradient tensor
+    '''
 
-    grad_x = F.conv3d(df, grad_x_k.repeat((3, 3, 1, 1, 1)), padding=1)
-    grad_y = F.conv3d(df, grad_y_k.repeat((3, 3, 1, 1, 1)), padding=1)
-    grad_z = F.conv3d(df, grad_z_k.repeat((3, 3, 1, 1, 1)), padding=1)
+    # Init
+    tensor_dims = len(tensor.shape)
+    data_dims = tensor_dims - 2
 
-    gradient = torch.cat([grad_x, grad_y, grad_z], dim=1)
-    gradient = torch.sum(gradient * gradient, dim=1, keepdim=True)
-    mean_grad = torch.mean(gradient[mask])
-
-    return mean_grad
-
-
-def im_gradient_mean(im, mask):
-    n_images = im.shape[1]
-    grad_v0 = torch.tensor([-1, 1, 0], dtype=torch.float32).to(im.device)
-    grad_x_k0 = torch.reshape(grad_v0, (1, 1, -1)).repeat((3, 3, 1))
-    grad_y_k0 = torch.reshape(grad_v0, (1, -1, 1)).repeat((3, 1, 3))
-    grad_z_k0 = torch.reshape(grad_v0, (-1, 1, 1)).repeat((1, 3, 3))
-
-    grad_v1 = torch.tensor([0, 1, -1], dtype=torch.float32).to(im.device)
-    grad_x_k1 = torch.reshape(grad_v1, (1, 1, -1)).repeat((3, 3, 1))
-    grad_y_k1 = torch.reshape(grad_v1, (1, -1, 1)).repeat((3, 1, 3))
-    grad_z_k1 = torch.reshape(grad_v1, (-1, 1, 1)).repeat((1, 3, 3))
-
-    grad_x = F.conv3d(
-        im,
-        grad_x_k0.repeat((n_images, n_images, 1, 1, 1)),
-        padding=1
-    ) + F.conv3d(
-        im,
-        grad_x_k1.repeat((n_images, n_images, 1, 1, 1)),
-        padding=1
+    # Since we want this function to be generic, we need a trick to define
+    # the gradient on each dimension.
+    all_slices = (slice(0, None),) * (tensor_dims - 1)
+    first = slice(0, -1)
+    last = slice(1, None)
+    slices = map(
+        lambda i: (
+            all_slices[:i + 2] + (first,) + all_slices[i + 2:],
+            all_slices[:i + 2] + (last,) + all_slices[i + 2:],
+        ),
+        range(data_dims)
     )
-    grad_y = F.conv3d(
-        im,
-        grad_y_k0.repeat((n_images, n_images, 1, 1, 1)),
-        padding=1
-    ) + F.conv3d(
-        im,
-        grad_y_k1.repeat((n_images, n_images, 1, 1, 1)),
-        padding=1
+
+    gradients = map(
+        lambda (si, sf): tensor[si] - tensor[sf],
+        slices
     )
-    grad_z = F.conv3d(
-        im,
-        grad_z_k0.repeat((n_images, n_images, 1, 1, 1)),
-        padding=1
-    ) + F.conv3d(
-        im,
-        grad_z_k1.repeat((n_images, n_images, 1, 1, 1)),
-        padding=1
+
+    # Remember that gradients moved the image 0.5 pixels while also reducing
+    # 1 voxel per dimension. To deal with that we pad before and after. What
+    # that actually means is that some gradients are checked twice.
+    no_pad = (0, 0)
+    pre_pad = (1, 0)
+    post_pad = (0, 1)
+    paddings = map(
+        lambda i: (
+            no_pad * i + pre_pad + no_pad * (data_dims - i - 1),
+            no_pad * i + post_pad + no_pad * (data_dims - i - 1),
+        ),
+        range(data_dims)[::-1]
     )
-    gradient = torch.cat([grad_x, grad_y, grad_z], dim=1)
-    gradient = torch.sum(gradient * gradient, dim=1, keepdim=True)
-    mean_grad = torch.mean(gradient[mask])
+
+    padded_gradients = map(
+        lambda (g, (pi, pf)): F.pad(g, pi) + F.pad(g, pf),
+        zip(gradients, paddings)
+    )
+
+    gradient = torch.cat(padded_gradients, dim=1)
+
+    mod_grad = torch.sum(gradient * gradient, dim=1, keepdim=True)
+    mean_grad = torch.mean(mod_grad[mask])
 
     return mean_grad
 
