@@ -365,3 +365,62 @@ class ImageListDataset(Dataset):
 
     def __len__(self):
         return self.max_combo[-1]
+
+
+class ImagePairListDataset(Dataset):
+    def __init__(self, source, target, lesions, masks):
+        # Init
+        # Image and mask should be numpy arrays
+        # Init
+        # Image and mask should be numpy arrays
+        shape_comparisons = map(
+            lambda (x, y, l): x.shape == y.shape and x.shape == l.shape,
+            zip(source, target, lesions)
+        )
+
+        assert reduce(and_, shape_comparisons)
+
+        self.source = source
+        self.target = target
+        self.lesions = lesions
+        self.masks = masks
+
+        min_bb = np.min(
+            map(
+                lambda mask: np.min(np.where(mask > 0), axis=-1),
+                masks
+            ),
+            axis=0
+        )
+        max_bb = np.max(
+            map(
+                lambda mask: np.max(np.where(mask > 0), axis=-1),
+                masks
+            ),
+            axis=0
+        )
+        self.bb = tuple(
+            map(
+                lambda (min_i, max_i): slice(min_i, max_i),
+                zip(min_bb, max_bb)
+            )
+        )
+        self.max_slice = np.cumsum(map(len, self.patch_slices))
+
+    def __getitem__(self, index):
+        source_bb = np.expand_dims(self.source[index][self.bb], axis=0)
+        target_bb = np.expand_dims(self.target[index][self.bb], axis=0)
+        lesion_bb = np.expand_dims(self.lesions[index][self.bb], axis=0)
+        mask_bb = np.expand_dims(self.masks[index][self.bb], axis=0)
+        inputs_bb = (
+            source_bb,
+            target_bb,
+            mask_bb
+        )
+        targets_bb = (
+            target_bb, lesion_bb
+        )
+        return inputs_bb, targets_bb
+
+    def __len__(self):
+        return len(self.source)
