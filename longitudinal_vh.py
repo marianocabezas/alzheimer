@@ -7,64 +7,18 @@ import numpy as np
 import torch
 import argparse
 import os
-import sys
 import time
 import re
-import traceback
 from nibabel import load as load_nii
 import nibabel as nib
 from time import strftime
-from subprocess import call
-from scipy.ndimage.morphology import binary_dilation as imdilate
 from data_manipulation.sitk import itkn4, itkhist_match, itkrigid
 from data_manipulation.metrics import dsc_det, tp_fraction_det, fp_fraction_det
 from data_manipulation.metrics import dsc_seg, tp_fraction_seg, fp_fraction_seg
 from data_manipulation.metrics import true_positive_det, num_regions, num_voxels
 from models import NewLesionsNet
-
-
-"""
-Utility functions
-"""
-
-
-def color_codes():
-    """
-    Function that returns a custom dictionary with ASCII codes related to
-    colors.
-    :return: Custom dictionary with ASCCI codes for terminal colors.
-    """
-    codes = {
-        'nc': '\033[0m',
-        'b': '\033[1m',
-        'k': '\033[0m',
-        '0.25': '\033[30m',
-        'dgy': '\033[30m',
-        'r': '\033[31m',
-        'g': '\033[32m',
-        'gc': '\033[32m;0m',
-        'bg': '\033[32;1m',
-        'y': '\033[33m',
-        'c': '\033[36m',
-        '0.75': '\033[37m',
-        'lgy': '\033[37m',
-    }
-    return codes
-
-
-def find_file(name, dirname):
-    """
-
-    :param name:
-    :param dirname:
-    :return:
-    """
-    result = filter(
-        lambda x: not os.path.isdir(x) and re.search(name, x),
-        os.listdir(dirname)
-    )
-
-    return os.path.join(dirname, result[0]) if result else None
+from utils import color_codes, get_dirs, find_file, run_command, print_message
+from utils import get_mask, get_normalised_image
 
 
 def parse_args():
@@ -138,124 +92,6 @@ def parse_args():
         help='Whether or not to make the smoothing trainable'
     )
     return vars(parser.parse_args())
-
-
-def print_message(message):
-    """
-    Function to print a message with a custom specification
-    :param message: Message to be printed
-    :return: None.
-    """
-    c = color_codes()
-    dashes = ''.join(['-'] * (len(message) + 11))
-    print(dashes)
-    print(
-        '%s[%s]%s %s' %
-        (c['c'], strftime("%H:%M:%S", time.localtime()), c['nc'], message)
-    )
-    print(dashes)
-
-
-def run_command(command, message=None, stdout=None, stderr=None):
-    """
-    Function to run and time a shell command using the call function from the
-    subprocess module.
-    :param command: Command that will be run. It has to comply with the call
-    function specifications.
-    :param message: Message to be printed before running the command. This is
-    an optional parameter and by default its
-    None.
-    :param stdout: File where the stdout will be redirected. By default we use
-    the system's stdout.
-    :param stderr: File where the stderr will be redirected. By default we use
-    the system's stderr.
-    :return:
-    """
-    if message is not None:
-        print_message(message)
-
-    time_f(lambda: call(command), stdout=stdout, stderr=stderr)
-
-
-def time_f(f, stdout=None, stderr=None):
-    """
-    Function to time another function.
-    :param f: Function to be run. If the function has any parameters, it should
-    be passed using the lambda keyword.
-    :param stdout: File where the stdout will be redirected. By default we use
-    the system's stdout.
-    :param stderr: File where the stderr will be redirected. By default we use
-    the system's stderr.
-    :return: The result of running f.
-    """
-    # Init
-    stdout_copy = sys.stdout
-    if stdout is not None:
-        sys.stdout = stdout
-
-    start_t = time.time()
-    try:
-        ret = f()
-    except Exception as e:
-        ret = None
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        print('{0}: {1}'.format(type(e).__name__, e.message), file=stderr)
-        traceback.print_tb(exc_traceback, file=stderr)
-    finally:
-        if stdout is not None:
-            sys.stdout = stdout_copy
-
-    print(
-        time.strftime(
-            'Time elapsed = %H hours %M minutes %S seconds',
-            time.gmtime(time.time() - start_t)
-        )
-    )
-    return ret
-
-
-def get_dirs(path):
-    """
-    Function to get the folder name of the patients given a path.
-    :param path: Folder where the patients should be located.
-    :return: List of patient names.
-    """
-    # All patients (full path)
-    patient_paths = sorted(
-        filter(
-            lambda d: os.path.isdir(os.path.join(path, d)),
-            os.listdir(path)
-        )
-    )
-    # Patients used during training
-    return patient_paths
-
-
-"""
-Data related functions
-"""
-
-
-def get_mask(mask_name, dilate=0, dtype=np.uint8):
-    # Lesion mask
-    mask_image = load_nii(mask_name).get_data().astype(dtype)
-    if dilate > 0:
-        mask_image = imdilate(
-            mask_image,
-            iterations=dilate
-        ).astype(dtype)
-
-    return mask_image
-
-
-def get_normalised_image(image_name, mask, dtype=np.float32):
-    mask_bin = mask > 0
-    image = load_nii(image_name).get_data()
-    image_mu = np.mean(image[mask_bin])
-    image_sigma = np.std(image[mask_bin])
-    norm_image = (image - image_mu) / image_sigma
-
-    return norm_image.astype(dtype)
 
 
 """
@@ -448,7 +284,7 @@ def initial_analysis(
     )
 
 
-def cnn_registration(
+def new_lesions(
         d_path=None,
         source_name='flair_moved.nii.gz',
         target_name='flair_processed.nii.gz',
@@ -700,7 +536,7 @@ def cnn_registration(
 
 def main():
     # initial_analysis()
-    cnn_registration(verbose=2)
+    new_lesions(verbose=2)
 
 
 if __name__ == "__main__":
