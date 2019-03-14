@@ -475,7 +475,7 @@ def new_lesions(
         source_mov = source_mov[0] * source_sigma + source_mu
         source_nii.get_data()[:] = source_mov * brain
         source_nii.to_filename(
-            os.path.join(patient_path, 'cnn_defo_%s.nii.gz' % sufix)
+            os.path.join(patient_path, 'moved_%s.nii.gz' % sufix)
         )
         mask_nii = nib.Nifti1Image(
             seg[0],
@@ -483,7 +483,7 @@ def new_lesions(
             source_nii.get_header()
         )
         mask_nii.to_filename(
-            os.path.join(patient_path, 'cnn_defo_mask_%s.nii.gz' % sufix)
+            os.path.join(patient_path, 'lesion_mask_%s.nii.gz' % sufix)
         )
 
         df_mask = np.repeat(np.expand_dims(brain, -1), 3, -1)
@@ -493,7 +493,7 @@ def new_lesions(
             source_nii.get_header()
         )
         df_nii.to_filename(
-            os.path.join(patient_path, 'cnn_defo_df_%s.nii.gz' % sufix)
+            os.path.join(patient_path, 'deformation_%s.nii.gz' % sufix)
         )
 
         # Patient done
