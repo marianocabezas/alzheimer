@@ -26,7 +26,6 @@ from data_manipulation.generate_features import get_mask_voxels, get_voxels
 from data_manipulation.information_theory import bidirectional_mahalanobis, normalized_mutual_information
 from models import LongitudinalNet, MaskAtrophyNet
 
-# torch.backends.cudnn.benchmark = True
 
 """
 Utility functions
@@ -103,7 +102,7 @@ def parse_args():
     parser.add_argument(
         '-L', '--losses-list',
         dest='loss_idx',
-        nargs='+', type=int, default=[0, 1],
+        nargs='+', type=int, default=[2, 1, 7],
         help='List of loss indices. '
              '0: Global subtraction gradient\n'
              '1: Lesion subtraction gradient\n'
@@ -113,7 +112,9 @@ def parse_args():
              '5: Lesion mahalanobis distance between timepoints\n'
              '6: Lesion histogram difference\n'
              '7: Deformation regularization\n'
-             '8: Modulo maximisation'
+             '8: Modulo maximisation\n'
+             '9: Global mutual information\n'
+             '10: Lesion mutual information'
     )
     parser.add_argument(
         '-e', '--epochs',
@@ -1279,7 +1280,7 @@ def cnn_registration(
         try:
             reg_net.load_model(model_name)
         except IOError:
-            reg_net.fit(
+            reg_net.register(
                 norm_source,
                 norm_target,
                 vhlesions,
