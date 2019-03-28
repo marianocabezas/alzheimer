@@ -106,6 +106,7 @@ class SpatialTransformer(nn.Module):
             self,
             interp_method='linear',
             linear_norm=False,
+            patch_based=False,
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             **kwargs
     ):
@@ -118,6 +119,7 @@ class SpatialTransformer(nn.Module):
         self.interp_method = interp_method
         self.device = device
         self.linear_norm = linear_norm
+        self.patch_based = patch_based
 
     def forward(self, inputs):
         """
@@ -133,21 +135,30 @@ class SpatialTransformer(nn.Module):
         """
 
         # parse shapes
-        vol, df = inputs
+        if self.patch_based:
+            vol, df, mesh = inputs
+        else:
+            vol, df = inputs
         df_shape = df.shape[2:]
         nb_dims = len(df_shape)
         max_loc = map(lambda s: s - 1, vol.shape[2:])
 
         # location should be mesh and delta
-        linvec = map(lambda s: torch.arange(0, s), df_shape)
-        mesh = map(
-            lambda m_i: m_i.type(dtype=torch.float32),
-            torch.meshgrid(linvec)
-        )
-        loc = [
-            mesh[d].to(df.device) + df[:, d, ...]
-            for d in range(nb_dims)
-        ]
+        if not self.patch_based:
+            linvec = map(lambda s: torch.arange(0, s), df_shape)
+            mesh = map(
+                lambda m_i: m_i.type(dtype=torch.float32),
+                torch.meshgrid(linvec)
+            )
+            loc = [
+                mesh[d].to(df.device) + df[:, d, ...]
+                for d in range(nb_dims)
+            ]
+        else:
+            loc = [
+                mesh[:, d, ...] + df[:, d, ...]
+                for d in range(nb_dims)
+            ]
         loc = map(
             lambda (l, m): torch.clamp(l, 0, m),
             zip(loc, max_loc)
