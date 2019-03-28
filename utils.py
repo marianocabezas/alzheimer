@@ -277,3 +277,91 @@ def get_normalised_image(image_name, mask, dtype=np.float32):
     norm_image = (image - image_mu) / image_sigma
 
     return norm_image.astype(dtype)
+
+
+def is_dir(path, name):
+    return os.path.isdir(os.path.join(path, name))
+
+
+def get_atrophy_cases(d_path, mask, lesion_tags, dilate):
+    patients = get_dirs(d_path)
+
+    patient_paths = map(lambda p: os.path.join(d_path, p), patients)
+
+    max_timepoint = map(
+        lambda p_path: len(
+            filter(
+                lambda f: is_dir(p_path, f),
+                os.listdir(p_path)
+            )
+        ),
+        patient_paths
+    )
+    timepoints_list = map(
+        lambda (p_path, max_i): map(
+            lambda t: 'flair_time%d-time%d_corrected_matched.nii.gz' % (t, max_i),
+            range(1, max_i)
+        ),
+        zip(patient_paths, max_timepoint)
+    )
+    for timepoints in timepoints_list:
+        timepoints.append('flair_corrected.nii.gz')
+
+    brain_names = map(
+        lambda (p_path, max_i): os.path.join(p_path, 'time%d' % max_i, mask),
+        zip(patient_paths, max_timepoint)
+    )
+    masks = map(get_mask, brain_names)
+
+    lesion_names = map(
+        lambda p_path: find_file('(' + '|'.join(lesion_tags) + ')', p_path),
+        patient_paths
+    )
+    lesions = map(
+        lambda name: get_mask(name, dilate),
+        lesion_names
+    )
+
+    norm_cases = map(
+        lambda (p, mask_i, max_i, timepoints_i): map(
+            lambda name: get_normalised_image(
+                os.path.join(p, 'time%d' % max_i, name), mask_i
+            ),
+            timepoints_i
+        ),
+        zip(patient_paths, masks, max_timepoint, timepoints_list)
+    )
+
+    return norm_cases, lesions, masks
+
+
+def get_newlesion_cases(
+        d_path,
+        brain_name, lesion_name, source_name, target_name
+):
+    patients = get_dirs(d_path)
+    patient_paths = map(lambda p: os.path.join(d_path, p), patients)
+    brain_names = map(
+        lambda p_path: os.path.join(p_path, brain_name),
+        patient_paths
+    )
+    brains = map(get_mask, brain_names)
+    lesion_names = map(
+        lambda p_path: os.path.join(p_path, lesion_name),
+        patient_paths
+    )
+    lesions = map(get_mask, lesion_names)
+    norm_source = map(
+        lambda (p, mask_i): get_normalised_image(
+            os.path.join(p, source_name), mask_i
+        ),
+        zip(patient_paths, brains)
+    )
+    norm_target = map(
+        lambda (p, mask_i): get_normalised_image(
+            os.path.join(p, target_name), mask_i
+        ),
+        zip(patient_paths, brains)
+    )
+
+    return norm_source, norm_target, lesions
