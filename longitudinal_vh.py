@@ -91,6 +91,13 @@ def parse_args():
         action='store_true', default=False,
         help='Whether or not to make the smoothing trainable'
     )
+    parser.add_argument(
+        '--hybrid',
+        dest='hybrid',
+        action='store_true', default=False,
+        help='Whether to use the hybrid method (that uses images for '
+             'registration and patches for segmentation.'
+    )
     return vars(parser.parse_args())
 
 
@@ -334,6 +341,7 @@ def new_lesions(
     data_smooth = parse_args()['data_smooth']
     df_smooth = parse_args()['df_smooth']
     train_smooth = parse_args()['train_smooth']
+    hybrid = parse_args()['hybrid']
     smooth_s = '.'.join(
         filter(
             None,
@@ -344,7 +352,7 @@ def new_lesions(
             ]
         )
     )
-    net_name = 'newlesions'
+    net_name = 'newlesions' if not hybrid else 'mixedlong'
     model_name = '%s_model_%s_loss%s_l%.2fe%dp%d.mdl' % (
         net_name,
         smooth_s + '_' if smooth_s else '',
@@ -358,16 +366,13 @@ def new_lesions(
     for i, patient in enumerate(patients):
         if verbose > 0:
             print(
-                '%s[%s]%s Starting testing with patient %s %s(%d/%d)%s' %
+                '%s[%s]%s Starting training for patient %s %s(%d/%d)%s' %
                 (
                     c['c'], strftime("%H:%M:%S"),
                     c['g'], patient,
                     c['c'], i + 1, len(patients), c['nc']
                 )
             )
-
-        timepoints = get_dirs(os.path.join(d_path, patient))
-        followup = timepoints[-1]
 
         train_patients = patients[:i] + patients[i + 1:]
         patient_paths = map(lambda p: os.path.join(d_path, p), train_patients)
@@ -402,7 +407,8 @@ def new_lesions(
             device=device,
             data_smooth=data_smooth,
             df_smooth=df_smooth,
-            trainable_smooth=train_smooth
+            trainable_smooth=train_smooth,
+            hybrid=hybrid
         )
         try:
             reg_net.load_model(os.path.join(d_path, patient, model_name))
@@ -441,7 +447,7 @@ def new_lesions(
         patient_path = os.path.join(d_path, patient)
 
         # Brain mask
-        brain = get_mask(os.path.join(patient_path, brain_name))
+        brain = get_mask(os.path.join(patient_path, brain_name), dtype=bool)
 
         # Lesion mask
         gt = get_mask(os.path.join(patient_path, lesion_name))
@@ -460,14 +466,15 @@ def new_lesions(
             os.path.join(patient_path, source_name), brain
         )
 
-        sufix = '%sloss%s_l%.2fe%dp%d' % (
-            smooth_s + '_' if smooth_s else '',
+        sufix = '%s%sloss%s_l%.2fe%dp%d' % (
+            smooth_s + '_' if smooth_s else '', net_name,
             '+'.join(map(str, loss_idx)), lambda_v, epochs, patience
         )
 
         # Test the network
         seg, source_mov, df = reg_net.new_lesions(
-            norm_source, norm_target
+            np.reshape(norm_source, (1, 1) + norm_source.shape),
+            np.reshape(norm_target, (1, 1) + norm_target.shape)
         )
 
         lesion = seg[0] > 0.5
@@ -493,7 +500,7 @@ def new_lesions(
             source_nii.get_header()
         )
         df_nii.to_filename(
-            os.path.join(patient_path, 'deformation_%s.nii.gz' % sufix)
+            os.path.join(patient_path, 'deformation _%s.nii.gz' % sufix)
         )
 
         # Patient done
@@ -506,24 +513,23 @@ def new_lesions(
                 '%sPatient %s finished%s (total time %s)\n' %
                 (c['r'], patient, c['nc'], time_str)
             )
+            tpfv = tp_fraction_seg(gt, lesion)
+            fpfv = fp_fraction_seg(gt, lesion)
+            dscv = dsc_seg(gt, lesion)
+            tpfl = tp_fraction_det(gt, lesion)
+            fpfl = fp_fraction_det(gt, lesion)
+            dscl = dsc_det(gt, lesion)
+            tp = true_positive_det(lesion, gt)
+            gt_d = num_regions(gt)
+            lesion_s = num_voxels(lesion)
+            gt_s = num_voxels(gt)
+            measures = (tpfv, fpfv, dscv, tpfl, fpfl, dscl, tp, gt_d, lesion_s, gt_s)
+
+            print('TPFV FPFV DSCV TPFL FPFL DSCL TPL GTL Voxels GTV')
+            print('%f %f %f %f %f %f %d %d %d %d' % measures)
 
     # Finished
     if verbose > 0:
-        tpfv = tp_fraction_seg(gt, lesion)
-        fpfv = fp_fraction_seg(gt, lesion)
-        dscv = dsc_seg(gt, lesion)
-        tpfl = tp_fraction_det(gt, lesion)
-        fpfl = fp_fraction_det(gt, lesion)
-        dscl = dsc_det(gt, lesion)
-        tp = true_positive_det(lesion, gt)
-        gt_d = num_regions(gt)
-        lesion_s = num_voxels(lesion)
-        gt_s = num_voxels(gt)
-        measures = (tpfv, fpfv, dscv, tpfl, fpfl, dscl, tp, gt_d, lesion_s, gt_s)
-
-        print('TPFV FPFV DSCV TPFL FPFL DSCL TPL GTL Voxels GTV')
-        print('%f %f %f %f %f %f %d %d %d %d' % measures)
-
         time_str = time.strftime(
             '%H hours %M minutes %S seconds',
             time.gmtime(time.time() - global_start)
