@@ -18,12 +18,18 @@ from time import strftime
 from scipy.ndimage.morphology import binary_erosion as erode
 from scipy.ndimage.morphology import binary_dilation as imdilate
 from sklearn.metrics import mean_squared_error
-from data_manipulation.sitk import itkn4, itkhist_match, itksubtraction, itkdemons
+from data_manipulation.sitk import itkn4, itkhist_match
+from data_manipulation.sitk import itksubtraction, itkdemons
 from data_manipulation.generate_features import get_mask_voxels
-from data_manipulation.information_theory import bidirectional_mahalanobis, normalized_mutual_information
+from data_manipulation.information_theory import bidirectional_mahalanobis
+from data_manipulation.information_theory import normalized_mutual_information
+from data_manipulation.metrics import dsc_det, tp_fraction_det, fp_fraction_det
+from data_manipulation.metrics import dsc_seg, tp_fraction_seg, fp_fraction_seg
+from data_manipulation.metrics import true_positive_det, num_regions, num_voxels
 from models import LongitudinalNet, MaskAtrophyNet
 from utils import color_codes, get_dirs, find_file, run_command, print_message
 from utils import get_mask, get_normalised_image, improve_mask, best_match
+from utils import get_atrophy_cases, get_newlesion_cases
 
 
 def parse_args():
@@ -114,10 +120,10 @@ def parse_args():
         help='Whether or not to make the smoothing trainable'
     )
     parser.add_argument(
-        '--atrophy',
-        dest='atrophy',
+        '--patch',
+        dest='patch_based',
         action='store_true', default=False,
-        help='Whether or not to use the atrophy net alone'
+        help='Whether or not to use a patch-based training'
     )
     return vars(parser.parse_args())
 
@@ -159,7 +165,7 @@ def initial_analysis(
     # Init
     if d_path is None:
         d_path = parse_args()['dataset_path']
-    robex = os.path.join(parse_args()['tools_path'], 'ROBEX', 'runROBEX.sh')
+    robex = os.path.join('ROBEX', 'runROBEX.sh')
     tags = [pd_tags, t1_tags, t2_tags, flair_tags]
     images = ['pd', 't1', 't2', 'flair']
     patients = get_dirs(d_path)
@@ -833,7 +839,6 @@ def subtraction_registration(
 def cnn_registration(
         d_path=None,
         lesion_tags=list(['_bin', 'lesion', 'lesionMask']),
-        folder='time6',
         mask='union_brainmask.nii.gz',
         source_name='flair_moved.nii.gz',
         target_name='flair_processed.nii.gz',
@@ -849,7 +854,6 @@ def cnn_registration(
          specified,it will be read from the command parameters.
         :param lesion_tags: Tags that may be contained on the lesion mask
          filename.
-        :param folder: Folder that contains the images.
         :param mask: Brainmask name.
         :param source_name: Name of the source image from the segmentation
          dataset.
@@ -887,56 +891,16 @@ def cnn_registration(
     global_start = time.time()
 
     # Main loop
-    patient_paths = map(lambda p: os.path.join(d_path, p), patients)
-    brain_names = map(
-        lambda p_path: os.path.join(p_path, folder, mask),
-        patient_paths
-    )
-    masks = map(get_mask, brain_names)
-
-    lesion_names = map(
-        lambda p_path: find_file('(' + '|'.join(lesion_tags) + ')', p_path),
-        patient_paths
-    )
-    lesions = map(
-        lambda name: get_mask(name, parse_args()['dilate']),
-        lesion_names
+    norm_cases, lesions, masks = get_atrophy_cases(
+        d_path,
+        mask, lesion_tags,
+        parse_args()['dilate']
     )
 
-    norm_cases = map(
-        lambda (p, mask_i): map(
-            lambda name: get_normalised_image(
-                os.path.join(p, folder, name), mask_i
-            ),
-            timepoints
-        ),
-        zip(patient_paths, masks)
-    )
-
-    vhpath = parse_args()['seg_dataset_path']
-    vhpatients = get_dirs(vhpath)
-    vhpatient_paths = map(lambda p: os.path.join(vhpath, p), vhpatients)
-    vhbrain_names = map(
-        lambda p_path: os.path.join(p_path, brain_name),
-        vhpatient_paths
-    )
-    brains = map(get_mask, vhbrain_names)
-    vhlesion_names = map(
-        lambda p_path: os.path.join(p_path, lesion_name),
-        vhpatient_paths
-    )
-    vhlesions = map(get_mask, vhlesion_names)
-    norm_source = map(
-        lambda (p, mask_i): get_normalised_image(
-            os.path.join(p, source_name), mask_i
-        ),
-        zip(vhpatient_paths, brains)
-    )
-    norm_target = map(
-        lambda (p, mask_i): get_normalised_image(
-            os.path.join(p, target_name), mask_i
-        ),
-        zip(vhpatient_paths, brains)
+    _, test_lesions, _ = get_atrophy_cases(
+        d_path,
+        mask, lesion_tags,
+        0
     )
 
     if verbose > 0:
@@ -955,7 +919,7 @@ def cnn_registration(
     data_smooth = parse_args()['data_smooth']
     df_smooth = parse_args()['df_smooth']
     train_smooth = parse_args()['train_smooth']
-    atrophy = parse_args()['atrophy']
+    patch_based = parse_args()['patch_based']
     smooth_s = '.'.join(
         filter(
             None,
@@ -967,7 +931,7 @@ def cnn_registration(
         )
     )
 
-    net_name = 'atrophy' if atrophy else 'mixedlong'
+    net_name = 'patch' if patch_based else 'full'
 
     model_name = os.path.join(
         d_path,
@@ -981,47 +945,25 @@ def cnn_registration(
 
     training_start = time.time()
 
-    if atrophy:
-        reg_net = MaskAtrophyNet(
-            loss_idx=loss_idx,
-            lambda_d=lambda_v,
-            device=device,
-            data_smooth=data_smooth,
-            df_smooth=df_smooth,
-            trainable_smooth=train_smooth
+    reg_net = MaskAtrophyNet(
+        loss_idx=loss_idx,
+        lambda_d=lambda_v,
+        device=device,
+        data_smooth=data_smooth,
+        df_smooth=df_smooth,
+        trainable_smooth=train_smooth,
+        patch_based=patch_based
+    )
+    try:
+        reg_net.load_model(model_name)
+    except IOError:
+        reg_net.register(
+            norm_cases,
+            lesions,
+            masks,
+            epochs=epochs,
+            patience=patience
         )
-        try:
-            reg_net.load_model(model_name)
-        except IOError:
-            reg_net.register(
-                norm_cases,
-                lesions,
-                masks,
-                epochs=epochs,
-                patience=patience
-            )
-    else:
-        reg_net = LongitudinalNet(
-            loss_idx=loss_idx,
-            lambda_d=lambda_v,
-            device=device,
-            data_smooth=data_smooth,
-            df_smooth=df_smooth,
-            trainable_smooth=train_smooth
-        )
-        try:
-            reg_net.load_model(model_name)
-        except IOError:
-            reg_net.register(
-                norm_source,
-                norm_target,
-                vhlesions,
-                norm_cases,
-                lesions,
-                masks,
-                epochs=epochs,
-                patience=patience
-            )
 
     reg_net.save_model(model_name)
 
@@ -1046,15 +988,8 @@ def cnn_registration(
                     c['c'], i + 1, len(patients), c['nc']
                 )
             )
-        # Load mask, source and target and expand the dimensions.
+        # Get mask, source and target (already loaded) and expand the dimensions.
         patient_path = os.path.join(d_path, patient)
-        source_name = os.path.join(
-            patient_path, folder, 'flair_time1-time6_corrected_matched.nii.gz'
-        )
-        target_name = os.path.join(
-            patient_path, folder, 'flair_corrected.nii.gz'
-        )
-        brain_name = os.path.join(patient_path, folder, mask)
         mask_name = find_file('(' + '|'.join(lesion_tags) + ')', patient_path)
         if verbose > 1:
             print(
@@ -1067,57 +1002,67 @@ def cnn_registration(
             )
 
         # Brain mask
-        brain_mask = load_nii(brain_name).get_data()
-        brain_bin = brain_mask > 0
+        brain_mask = masks[i]
 
         # Lesion mask
-        lesion = load_nii(mask_name).get_data()
+        lesion = test_lesions[i]
         mask_image = np.reshape(lesion, (1, 1) + lesion.shape)
 
         # Baseline image (testing)
-        source_nii = load_nii(source_name)
-        source_image = source_nii.get_data()
-        source_mu = np.mean(source_image[brain_bin])
-        source_sigma = np.std(source_image[brain_bin])
-        source_image = np.reshape(source_image, (1, 1) + source_image.shape)
-        norm_source = (source_image - source_mu) / source_sigma
+        nii = load_nii(mask_name)
+        norm_source = norm_cases[i][0]
+        norm_source = np.reshape(norm_source, (1, 1) + norm_source.shape)
 
         # Follow-up image (testing)
-        target_image = load_nii(target_name).get_data()
-        target_mu = np.mean(target_image[brain_bin])
-        target_sigma = np.std(target_image[brain_bin])
-        target_image = np.reshape(target_image, (1, 1) + target_image.shape)
-        norm_target = (target_image - target_mu) / target_sigma
+        norm_target = norm_cases[i][1]
+        norm_target = np.reshape(norm_target, (1, 1) + norm_target.shape)
 
         sufix = '%sloss%s_l%.2fe%dp%d' % (
             smooth_s + '_' if smooth_s else '',
             '+'.join(map(str, loss_idx)), lambda_v, epochs, patience
         )
 
-        # Test the network
+        # - Test the network -
         source_mov, mask_mov, df = reg_net.transform(
             norm_source, norm_target, mask_image
         )
 
-        source_mov = source_mov[0] * source_sigma + source_mu
-        source_nii.get_data()[:] = source_mov * brain_mask
-        source_nii.to_filename(
-            os.path.join(patient_path, 'cnn_defo_%s.nii.gz' % sufix)
-        )
-        mask_nii = nib.Nifti1Image(
-            mask_mov[0],
-            source_nii.get_qform(),
-            source_nii.get_header()
-        )
-        mask_nii.to_filename(
+        # Lesion mask
+        nii.get_data()[:] = mask_mov[0]
+        nii.to_filename(
             os.path.join(patient_path, 'cnn_defo_mask_%s.nii.gz' % sufix)
+        )
+
+        # Deformed image
+        folder = sorted(
+            filter(
+                lambda f: os.path.isdir(os.path.join(patient_path, f)),
+                os.listdir(patient_path)
+            )
+        )[-1]
+        target_name = os.path.join(
+            patient_path, folder,
+            'flair_corrected.nii.gz'
+        )
+        image = load_nii(target_name).get_data()
+        mu = np.mean(image[brain_mask > 0])
+        sigma = np.std(image[brain_mask > 0])
+
+        source_mov = source_mov[0] * sigma + mu
+        img_nii = nib.Nifti1Image(
+            source_mov * brain_mask,
+            nii.get_qform(),
+            nii.get_header()
+        )
+        img_nii.to_filename(
+            os.path.join(patient_path, 'cnn_defo_im_%s.nii.gz' % sufix)
         )
 
         df_mask = np.repeat(np.expand_dims(brain_mask, -1), 3, -1)
         df_nii = nib.Nifti1Image(
             np.moveaxis(df[0], 0, -1) * df_mask,
-            source_nii.get_qform(),
-            source_nii.get_header()
+            nii.get_qform(),
+            nii.get_header()
         )
         df_nii.to_filename(
             os.path.join(patient_path, 'cnn_defo_df_%s.nii.gz' % sufix)
@@ -1146,11 +1091,267 @@ def cnn_registration(
         )
 
 
+def new_lesions(
+        d_path=None,
+        lesion_tags=list(['_bin', 'lesion', 'lesionMask']),
+        mask='union_brainmask.nii.gz',
+        source_name='flair_moved.nii.gz',
+        target_name='flair_processed.nii.gz',
+        brain_name='brainmask.nii.gz',
+        lesion_name='gt_mask.nii',
+        verbose=1,
+):
+    """
+        Function that applies a CNN-based registration approach. The goal of
+        this network is to find the atrophy deformation, and how it affects the
+        lesion mask, manually segmented on the baseline image.
+        :param d_path: Path where the whole database is stored. If not
+         specified,it will be read from the command parameters.
+        :param lesion_tags: Tags that may be contained on the lesion mask
+         filename.
+        :param mask: Brainmask name.
+        :param source_name: Name of the source image from the segmentation
+         dataset.
+        :param target_name: Name of the target image from the segmentation
+         dataset.
+        :param brain_name: Name of the brainmask image from the segmentation
+         dataset.
+        :param lesion_name: Name of the lesionmask image from the segmentation
+         dataset.
+        :param verbose: Verbosity level.
+        :return: None.
+        """
+
+    c = color_codes()
+
+    # Init
+    if d_path is None:
+        d_path = parse_args()['dataset_path']
+    patients = get_dirs(d_path)
+    gpu = parse_args()['gpu_id']
+    cuda = torch.cuda.is_available()
+    device = torch.device('cuda:%d' % gpu if cuda else 'cpu')
+    torch.backends.cudnn.benchmark = True
+
+    time_str = strftime("%H:%M:%S")
+    print('\n%s[%s]%s CNN registration' % (
+        c['c'], time_str, c['nc']
+    ))
+    timepoints = map(
+        lambda t: 'flair_time%d-time6_corrected_matched.nii.gz' % t,
+        range(1, 6)
+    )
+    timepoints.append('flair_corrected.nii.gz')
+
+    global_start = time.time()
+
+    # Main loop
+    norm_cases, lesions, masks = get_atrophy_cases(
+        d_path,
+        mask, lesion_tags,
+        parse_args()['dilate']
+    )
+
+    vhpath = parse_args()['seg_dataset_path']
+    vhpatients = get_dirs(vhpath)
+    vhpatient_paths = map(lambda p: os.path.join(vhpath, p), vhpatients)
+
+    norm_source, norm_target, vhlesions = get_newlesion_cases(
+        vhpath, brain_name, lesion_name, source_name, target_name
+    )
+
+    loss_idx = parse_args()['loss_idx']
+    epochs = parse_args()['epochs']
+    patience = parse_args()['patience']
+    lambda_v = parse_args()['lambda']
+    data_smooth = parse_args()['data_smooth']
+    df_smooth = parse_args()['df_smooth']
+    train_smooth = parse_args()['train_smooth']
+    smooth_s = '.'.join(
+        filter(
+            None,
+            [
+                'data' if data_smooth else None,
+                'df' if df_smooth else None,
+                'tr' if train_smooth else None,
+            ]
+        )
+    )
+
+    net_name = 'newlesion'
+
+    # Main loop
+    for i, patient in enumerate(vhpatient_paths):
+        if verbose > 0:
+            print(
+                '%s[%s]%s Starting training for patient %s %s(%d/%d)%s' %
+                (
+                    c['c'], strftime("%H:%M:%S"),
+                    c['g'], patient,
+                    c['c'], i + 1, len(patients), c['nc']
+                )
+            )
+
+        model_name = os.path.join(
+            vhpath,
+            patient,
+            '%s_model_%s_loss%s_l%.2fe%dp%d.mdl' % (
+                net_name,
+                smooth_s + '_' if smooth_s else '',
+                '+'.join(map(str, loss_idx)),
+                lambda_v, epochs, patience
+            )
+        )
+
+        training_start = time.time()
+
+        reg_net = LongitudinalNet(
+            loss_idx=loss_idx,
+            lambda_d=lambda_v,
+            device=device,
+            data_smooth=data_smooth,
+            df_smooth=df_smooth,
+            trainable_smooth=train_smooth
+        )
+        try:
+            reg_net.load_model(model_name)
+        except IOError:
+            reg_net.register(
+                norm_source,
+                norm_target,
+                vhlesions,
+                norm_cases,
+                lesions,
+                masks,
+                epochs=epochs,
+                patience=patience
+            )
+
+        reg_net.save_model(model_name)
+
+        if verbose > 0:
+            time_str = time.strftime(
+                '%H hours %M minutes %S seconds',
+                time.gmtime(time.time() - training_start)
+            )
+            print(
+                '%sTraining finished%s (total time %s)\n' %
+                (c['r'], c['nc'], time_str)
+            )
+
+
+            print(
+                '%s[%s]%s Starting testing with patient %s %s(%d/%d)%s' %
+                (
+                    c['c'], strftime("%H:%M:%S"),
+                    c['g'], patient,
+                    c['c'], i + 1, len(patients), c['nc']
+                )
+            )
+
+        # Load mask, source and target and expand the dimensions.
+        patient_path = os.path.join(d_path, patient)
+
+        # Brain mask
+        brain = get_mask(os.path.join(patient_path, brain_name), dtype=bool)
+
+        # Lesion mask
+        gt = get_mask(os.path.join(patient_path, lesion_name))
+
+        # Baseline image (testing)
+        source_nii = load_nii(os.path.join(patient_path, source_name))
+        source_image = source_nii.get_data()
+        source_mu = np.mean(source_image[brain])
+        source_sigma = np.std(source_image[brain])
+        norm_source = get_normalised_image(
+            os.path.join(patient_path, source_name), brain
+        )
+
+        # Follow-up image (testing)
+        norm_target = get_normalised_image(
+            os.path.join(patient_path, source_name), brain
+        )
+
+        sufix = '%smixedloss%s_l%.2fe%dp%d' % (
+            smooth_s + '_' if smooth_s else '',
+            '+'.join(map(str, loss_idx)), lambda_v, epochs, patience
+        )
+
+        # Test the network
+        seg, source_mov, df = reg_net.new_lesions(
+            np.reshape(norm_source, (1, 1) + norm_source.shape),
+            np.reshape(norm_target, (1, 1) + norm_target.shape)
+        )
+
+        lesion = seg[0] > 0.5
+
+        source_mov = source_mov[0] * source_sigma + source_mu
+        source_nii.get_data()[:] = source_mov * brain
+        source_nii.to_filename(
+            os.path.join(patient_path, 'moved_%s.nii.gz' % sufix)
+        )
+        mask_nii = nib.Nifti1Image(
+            seg[0],
+            source_nii.get_qform(),
+            source_nii.get_header()
+        )
+        mask_nii.to_filename(
+            os.path.join(patient_path, 'lesion_mask_%s.nii.gz' % sufix)
+        )
+
+        df_mask = np.repeat(np.expand_dims(brain, -1), 3, -1)
+        df_nii = nib.Nifti1Image(
+            np.moveaxis(df[0], 0, -1) * df_mask,
+            source_nii.get_qform(),
+            source_nii.get_header()
+        )
+        df_nii.to_filename(
+            os.path.join(patient_path, 'deformation _%s.nii.gz' % sufix)
+        )
+
+        # Patient done
+        if verbose > 0:
+            time_str = time.strftime(
+                '%H hours %M minutes %S seconds',
+                time.gmtime(time.time() - training_start)
+            )
+            print(
+                '%sPatient %s finished%s (total time %s)\n' %
+                (c['r'], patient, c['nc'], time_str)
+            )
+            tpfv = tp_fraction_seg(gt, lesion)
+            fpfv = fp_fraction_seg(gt, lesion)
+            dscv = dsc_seg(gt, lesion)
+            tpfl = tp_fraction_det(gt, lesion)
+            fpfl = fp_fraction_det(gt, lesion)
+            dscl = dsc_det(gt, lesion)
+            tp = true_positive_det(lesion, gt)
+            gt_d = num_regions(gt)
+            lesion_s = num_voxels(lesion)
+            gt_s = num_voxels(gt)
+            measures = (tpfv, fpfv, dscv, tpfl, fpfl, dscl, tp, gt_d, lesion_s, gt_s)
+
+            print('TPFV FPFV DSCV TPFL FPFL DSCL TPL GTL Voxels GTV')
+            print('%f %f %f %f %f %f %d %d %d %d' % measures)
+
+    # Finished
+    if verbose > 0:
+        time_str = time.strftime(
+            '%H hours %M minutes %S seconds',
+            time.gmtime(time.time() - global_start)
+        )
+        print_message(
+            '%sAll patients finished %s(total time %s)%s' %
+            (c['r'], c['b'], time_str, c['nc'])
+        )
+
+
 def main():
     # initial_analysis()
     # naive_registration(verbose=2)
     # naive_registration(refine=True, verbose=2)
     cnn_registration(verbose=2)
+    new_lesions(verbose=2)
     # deformationbased_registration(verbose=2)
     # subtraction_registration(image='m60_flair', verbose=2)
 
