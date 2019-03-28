@@ -197,8 +197,8 @@ def torch_hist2(var_x, var_y, bins=100, norm=True):
         steps_y = torch.arange(
             min_y, max_y + step_y / 10, step_y
         ).to(var_y.device)
-        min_steps = product(steps_x[:, -1], steps_y[:, -1])
-        max_steps = product(steps_x[1, :], steps_y[1, :])
+        min_steps = product(steps_x[:-1], steps_y[:-1])
+        max_steps = product(steps_x[1:], steps_y[1:])
         h = map(
             lambda ((min_i, min_j), (max_i, max_j)): torch.sum(
                 (var_x >= min_i) & (var_x < max_i) &
@@ -291,23 +291,32 @@ def gradient_mean(tensor, mask):
     no_pad = (0, 0)
     pre_pad = (1, 0)
     post_pad = (0, 1)
-    paddings = map(
-        lambda i: (
-            no_pad * i + pre_pad + no_pad * (data_dims - i - 1),
-            no_pad * i + post_pad + no_pad * (data_dims - i - 1),
-        ),
+
+    pre_paddings = map(
+        lambda i: no_pad * i + pre_pad + no_pad * (data_dims - i - 1),
+        range(data_dims)[::-1]
+    )
+    post_paddings = map(
+        lambda i: no_pad * i + post_pad + no_pad * (data_dims - i - 1),
         range(data_dims)[::-1]
     )
 
-    padded_gradients = map(
-        lambda (g, (pi, pf)): F.pad(g, pi) + F.pad(g, pf),
-        zip(gradients, paddings)
+    pre_padded = map(
+        lambda (g, pad): F.pad(g, pad),
+        zip(gradients, pre_paddings)
+    )
+    post_padded = map(
+        lambda (g, pad): F.pad(g, pad),
+        zip(gradients, post_paddings)
     )
 
-    gradient = torch.cat(padded_gradients, dim=1)
+    pre_gradient = torch.cat(pre_padded, dim=1)
+    post_gradient = torch.cat(post_padded, dim=1)
 
-    mod_grad = torch.sum(gradient * gradient, dim=1, keepdim=True)
-    mean_grad = torch.mean(mod_grad[mask])
+    pre_mod = torch.sum(pre_gradient * pre_gradient, dim=1, keepdim=True)
+    post_mod = torch.sum(post_gradient * post_gradient, dim=1, keepdim=True)
+
+    mean_grad = torch.mean(pre_mod[mask] + post_mod[mask])
 
     return mean_grad
 
