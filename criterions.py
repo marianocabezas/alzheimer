@@ -104,6 +104,20 @@ def subtraction_loss(var_x, var_y, mask):
     return gradient_mean(var_y - var_x, mask)
 
 
+def weighted_subtraction_loss(var_x, var_y, mask):
+    """
+        Loss function based on the mean gradient of the subtraction between two
+        tensors weighted by the mask voxels.
+        :param var_x: First tensor.
+        :param var_y: Second tensor.
+        :param mask: Mask that defines the region of interest where the loss
+         should be evaluated.
+        :return: A tensor with the loss
+    """
+    weight = torch.sum(mask.type(torch.float32)) / var_y.numel()
+    return weight * gradient_mean(var_y - var_x, mask)
+
+
 def df_loss(df, mask):
     """
         Loss function based on mean gradient of a deformation field.
@@ -270,8 +284,8 @@ def gradient_mean(tensor, mask):
     # Since we want this function to be generic, we need a trick to define
     # the gradient on each dimension.
     all_slices = (slice(0, None),) * (tensor_dims - 1)
-    first = slice(0, -1)
-    last = slice(1, None)
+    first = slice(0, -2)
+    last = slice(2, None)
     slices = map(
         lambda i: (
             all_slices[:i + 2] + (first,) + all_slices[i + 2:],
@@ -280,43 +294,56 @@ def gradient_mean(tensor, mask):
         range(data_dims)
     )
 
-    gradients = map(
-        lambda (si, sf): tensor[si] - tensor[sf],
-        slices
-    )
-
     # Remember that gradients moved the image 0.5 pixels while also reducing
-    # 1 voxel per dimension. To deal with that we pad before and after. What
-    # that actually means is that some gradients are checked twice.
+    # 1 voxel per dimension. To deal with that we are technically interpolating
+    # the gradient in between these positions. These is the equivalent of
+    # computing the gradient between voxels separated one space. 1D ex:
+    # [a, b, c, d] -> gradient0.5 = [a - b, b - c, c - d]
+    # gradient1 = 0.5 * [(a - b) + (b - c), (b - c) + (c - d)] = [a - c, b - d]
     no_pad = (0, 0)
-    pre_pad = (1, 0)
-    post_pad = (0, 1)
-
-    pre_paddings = map(
-        lambda i: no_pad * i + pre_pad + no_pad * (data_dims - i - 1),
-        range(data_dims)[::-1]
-    )
-    post_paddings = map(
-        lambda i: no_pad * i + post_pad + no_pad * (data_dims - i - 1),
+    pad = (1, 1)
+    paddings = map(
+        lambda i: no_pad * i + pad + no_pad * (data_dims - i - 1),
         range(data_dims)[::-1]
     )
 
-    pre_padded = map(
-        lambda (g, pad): F.pad(g, pad),
-        zip(gradients, pre_paddings)
+    gradients = map(
+        lambda (p, (si, sf)): 0.5 * F.pad(tensor[si] - tensor[sf], p),
+        zip(paddings, slices)
     )
-    post_padded = map(
-        lambda (g, pad): F.pad(g, pad),
-        zip(gradients, post_paddings)
-    )
+    gradients = torch.cat(gradients, dim=1)
 
-    pre_gradient = torch.cat(pre_padded, dim=1)
-    post_gradient = torch.cat(post_padded, dim=1)
-
-    pre_mod = torch.sum(pre_gradient * pre_gradient, dim=1, keepdim=True)
-    post_mod = torch.sum(post_gradient * post_gradient, dim=1, keepdim=True)
-
-    mean_grad = torch.mean(pre_mod[mask] + post_mod[mask])
+    mod_gradients = torch.sum(gradients * gradients, dim=1, keepdim=True)
+    # no_pad = (0, 0)
+    # pre_pad = (1, 0)
+    # post_pad = (0, 1)
+    #
+    # pre_paddings = map(
+    #     lambda i: no_pad * i + pre_pad + no_pad * (data_dims - i - 1),
+    #     range(data_dims)[::-1]
+    # )
+    # post_paddings = map(
+    #     lambda i: no_pad * i + post_pad + no_pad * (data_dims - i - 1),
+    #     range(data_dims)[::-1]
+    # )
+    #
+    # pre_padded = map(
+    #     lambda (g, pad): F.pad(g, pad),
+    #     zip(gradients, pre_paddings)
+    # )
+    # post_padded = map(
+    #     lambda (g, pad): F.pad(g, pad),
+    #     zip(gradients, post_paddings)
+    # )
+    #
+    # pre_gradient = torch.cat(pre_padded, dim=1)
+    # post_gradient = torch.cat(post_padded, dim=1)
+    #
+    # pre_mod = torch.sum(pre_gradient * pre_gradient, dim=1, keepdim=True)
+    # post_mod = torch.sum(post_gradient * post_gradient, dim=1, keepdim=True)
+    #
+    # mean_grad = torch.mean(pre_mod[mask] + post_mod[mask])
+    mean_grad = torch.mean(mod_gradients[mask])
 
     return mean_grad
 

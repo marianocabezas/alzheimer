@@ -11,7 +11,7 @@ import numpy as np
 from layers import ScalingLayer, SpatialTransformer, SmoothingLayer
 from criterions import normalised_xcor_loss, normalised_mi_loss, subtraction_loss
 from criterions import df_modulo, df_loss
-from criterions import histogram_loss, mahalanobis_loss
+from criterions import histogram_loss, mahalanobis_loss, weighted_subtraction_loss
 from criterions import dsc_bin_loss
 from datasets import ImageListDataset, ImagePairListDataset
 from datasets import ImagePairListCroppingDataset, ImageListCroppingDataset
@@ -600,7 +600,6 @@ class MaskAtrophyNet(nn.Module):
             data_smooth=False,
             df_smooth=False,
             trainable_smooth=False,
-            patch_based=False
     ):
         # Init
         loss_names = list([
@@ -626,7 +625,6 @@ class MaskAtrophyNet(nn.Module):
         self.loss_names = map(lambda idx: loss_names[idx], loss_idx)
         self.device = device
         self.leakyness = leakyness
-        self.patch_based = patch_based
         # Down path of the unet
         conv_in = [2] + conv_filters[:-1]
         self.conv = map(
@@ -681,16 +679,14 @@ class MaskAtrophyNet(nn.Module):
         self.smooth = SmoothingLayer(trainable=trainable_smooth)
         self.smooth.to(device)
 
-        self.trans_im = SpatialTransformer(patch_based=self.patch_based)
+        self.trans_im = SpatialTransformer()
         self.trans_im.to(device)
-        self.trans_mask = SpatialTransformer(
-            'nearest',
-            patch_based=self.patch_based
-        )
+        self.trans_mask = SpatialTransformer('nearest')
         self.trans_mask.to(device)
 
     def forward(self, inputs):
-        if self.patch_based:
+        n_inputs = len(inputs)
+        if n_inputs > 3:
             patch_source, target, mask, mesh, source = inputs
             data = torch.cat([patch_source, target], dim=1)
         else:
@@ -717,7 +713,7 @@ class MaskAtrophyNet(nn.Module):
         if self.df_smooth:
             df = self.smooth(df)
 
-        if self.patch_based:
+        if n_inputs > 3:
             source_mov = self.trans_im(
                 [source, df, mesh]
             )
@@ -733,6 +729,7 @@ class MaskAtrophyNet(nn.Module):
             mask_mov = self.trans_mask(
                 [mask, df]
             )
+
         return source_mov, mask_mov, df
 
     def register(
@@ -741,10 +738,12 @@ class MaskAtrophyNet(nn.Module):
             masks,
             brain_masks,
             batch_size=1,
+            val_batch_size=1,
             optimizer='adam',
             epochs=100,
             patience=10,
             num_workers=10,
+            patch_based=False,
             verbose=True
     ):
         # Init
@@ -770,16 +769,24 @@ class MaskAtrophyNet(nn.Module):
         # but it doesn't actually do any supervised training. Therefore, there
         # is no real validation.
         # Due to this, we modified the generic fit algorithm.
-        if self.patch_based:
-            dataset = ImageListCroppingDataset(
+        if patch_based:
+            tr_dataset = ImageListCroppingDataset(
+                cases, masks, brain_masks, overlap=8
+            )
+            val_dataset = ImageListDataset(
                 cases, masks, brain_masks
             )
         else:
-            dataset = ImageListDataset(
+            tr_dataset = ImageListDataset(
                 cases, masks, brain_masks
             )
-        dataloader = DataLoader(
-            dataset, batch_size, True, num_workers=num_workers
+            val_dataset = tr_dataset
+        tr_dataloader = DataLoader(
+            tr_dataset, batch_size, True, num_workers=num_workers
+        )
+
+        val_dataloader = DataLoader(
+            val_dataset, val_batch_size, True, num_workers=num_workers
         )
 
         l_names = [' loss '] + self.loss_names
@@ -790,9 +797,9 @@ class MaskAtrophyNet(nn.Module):
             # Main epoch loop
             t_in = time.time()
             with torch.autograd.set_detect_anomaly(True):
-                self.step_train(dataloader)
+                self.step_train(tr_dataloader)
 
-                loss_tr, mid_losses = self.step_validate(dataloader)
+                loss_tr, mid_losses = self.step_validate(val_dataloader)
 
             losses_color = map(
                 lambda (pl, l): '\033[36m%s\033[0m' if l < pl else '%s',
@@ -897,18 +904,20 @@ class MaskAtrophyNet(nn.Module):
         # then compute the global loss (and intermediate ones to show) and do
         # back propagation.
         # We train the model and check the loss
-        if self.patch_based:
-            b_source, b_target, b_lesion, b_mask, b_mesh, b_im = inputs
+        n_inputs = len(inputs)
+        if n_inputs > 4:
+            b_source, b_target, b_lesion, b_mask, b_mesh, b_im, b_m = inputs
             b_source = b_source.to(self.device)
             b_target = b_target.to(self.device)
             b_lesion = b_lesion.to(self.device)
             b_mask = b_mask.to(self.device)
             b_mesh = b_mesh.to(self.device)
             b_im = b_im.to(self.device)
+            b_m = b_m.to(self.device)
 
             b_gt = output.to(self.device)
 
-            b_inputs = (b_source, b_target, b_lesion, b_mesh, b_im)
+            b_inputs = (b_source, b_target, b_m, b_mesh, b_im)
 
         else:
             b_source, b_target, b_lesion, b_mask = inputs
@@ -1011,7 +1020,7 @@ class MaskAtrophyNet(nn.Module):
 
         functions = {
             ' subt ': subtraction_loss,
-            'subt_l': subtraction_loss,
+            'subt_l': weighted_subtraction_loss,
             ' xcor ': normalised_xcor_loss,
             'xcor_l': normalised_xcor_loss,
             ' mse  ': torch.nn.MSELoss(),
@@ -1040,7 +1049,7 @@ class MaskAtrophyNet(nn.Module):
 
         weights = {
             ' subt ': 1.0,
-            'subt_l': 1.0,
+            'subt_l': 10.0,
             ' xcor ': 1.0,
             'xcor_l': 1.0,
             ' mse  ': 1.0,
@@ -1306,7 +1315,7 @@ class LongitudinalNet(nn.Module):
             seg_dataset, seg_batch_size, True, num_workers=num_workers
         )
 
-        reg_dataset = ImageListDataset(
+        reg_dataset = ImageListCroppingDataset(
             cases, masks, brain_masks
         )
         reg_dataloader = DataLoader(
@@ -1372,99 +1381,6 @@ class LongitudinalNet(nn.Module):
                     print('%s----------|--%s--|' % (whites, l_bars))
                 final_s = whites + ' | '.join([epoch_s, loss_s] + losses_s + [t_s])
                 print(final_s)
-
-            if no_improv_e == patience:
-                break
-
-        self.epoch = best_e
-        self.load_state_dict(best_state)
-        t_end = time.time() - t_start
-        if verbose:
-            print(
-                'Registration finished in %d epochs (%fs) with minimum loss = %f (epoch %d)' % (
-                    e + 1, t_end, best_loss_tr, best_e)
-            )
-
-    def fit(
-            self,
-            source,
-            target,
-            new_lesion,
-            seg_batch_size=32,
-            optimizer='adam',
-            epochs=100,
-            patience=10,
-            num_workers=10,
-            verbose=True
-    ):
-        # Init
-        self.train()
-
-        # Optimizer init
-        optimizer_dict = {
-            'adam': torch.optim.Adam,
-            'adabound': AdaBound,
-        }
-        model_params = filter(lambda p: p.requires_grad, self.parameters())
-        self.optimizer_alg = optimizer_dict[optimizer](model_params)
-
-        # Pre-loop init
-        best_loss_tr = np.inf
-        no_improv_e = 0
-        best_state = deepcopy(self.state_dict())
-
-        t_start = time.time()
-
-        # This is actually a registration approach. It uses the nn framework
-        # but it doesn't actually do any supervised training. Therefore, there
-        # is no real validation.
-        # Due to this, we modified the generic fit algorithm.
-        seg_dataset = ImagePairListCroppingDataset(
-            source, target, new_lesion, overlap=24
-        )
-        seg_dataloader = DataLoader(
-            seg_dataset, seg_batch_size, True, num_workers=num_workers
-        )
-
-        best_e = 0
-        e = 0
-
-        for self.epoch in range(epochs):
-            self.atrophy.epoch = self.epoch
-            # Main epoch loop
-            t_in = time.time()
-            self.step_train(
-                seg_dataloader
-            )
-            loss_seg, _, _ = self.step_validate(
-                seg_dataloader
-            )
-
-            # Patience check
-            loss_value = loss_seg
-            improvement = loss_value < best_loss_tr
-            loss_s = '{:8.4f}'.format(loss_value)
-            if improvement:
-                best_loss_tr = loss_value
-                epoch_s = '\033[32mEpoch %03d\033[0m' % self.epoch
-                loss_s = '\033[32m%s\033[0m' % loss_s
-                best_e = self.epoch
-                best_state = deepcopy(self.state_dict())
-                no_improv_e = 0
-            else:
-                epoch_s = 'Epoch %03d' % self.epoch
-                no_improv_e += 1
-
-            t_out = time.time() - t_in
-            t_s = '%.2fs' % t_out
-
-            if verbose:
-                print('\033[K', end='')
-                whites = ' '.join([''] * 12)
-                if self.epoch == 0:
-                    print('%sEpoch num |  loss  |' % whites)
-                    print('%s----------|--------|' % whites)
-                print(whites + ' | '.join([epoch_s, loss_s, t_s]))
 
             if no_improv_e == patience:
                 break
@@ -1558,10 +1474,7 @@ class LongitudinalNet(nn.Module):
         b_pred_lesion, b_moved = self(
             (b_source, b_target)
         )
-        b_dsc_loss = dsc_bin_loss(b_pred_lesion, b_lesion)
-        b_reg_loss = normalised_xcor_loss(b_moved, b_target)
-        # b_loss = dsc_bin_loss(b_pred_lesion, b_lesion)
-        b_loss = b_dsc_loss + b_reg_loss
+        b_loss = dsc_bin_loss(b_pred_lesion, b_lesion)
 
         if train:
             self.optimizer_alg.zero_grad()
@@ -1572,7 +1485,7 @@ class LongitudinalNet(nn.Module):
         torch.cuda.empty_cache()
 
         # return b_loss
-        return b_dsc_loss
+        return b_loss
 
     def print_progress(self, batch_i, n_batches, b_loss, mean_loss, train=True):
         init_c = '\033[0m' if train else '\033[38;5;238m'
