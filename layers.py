@@ -106,7 +106,6 @@ class SpatialTransformer(nn.Module):
             self,
             interp_method='linear',
             linear_norm=False,
-            patch_based=False,
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             **kwargs
     ):
@@ -119,7 +118,6 @@ class SpatialTransformer(nn.Module):
         self.interp_method = interp_method
         self.device = device
         self.linear_norm = linear_norm
-        self.patch_based = patch_based
 
     def forward(self, inputs):
         """
@@ -135,16 +133,23 @@ class SpatialTransformer(nn.Module):
         """
 
         # parse shapes
-        if self.patch_based:
+        n_inputs = len(inputs)
+        if n_inputs > 2:
             vol, df, mesh = inputs
         else:
             vol, df = inputs
         df_shape = df.shape[2:]
+        final_shape = vol.shape[:2] + df_shape
         nb_dims = len(df_shape)
         max_loc = map(lambda s: s - 1, vol.shape[2:])
 
         # location should be mesh and delta
-        if not self.patch_based:
+        if n_inputs > 2:
+            loc = [
+                mesh[:, d, ...] + df[:, d, ...]
+                for d in range(nb_dims)
+            ]
+        else:
             linvec = map(lambda s: torch.arange(0, s), df_shape)
             mesh = map(
                 lambda m_i: m_i.type(dtype=torch.float32),
@@ -152,11 +157,6 @@ class SpatialTransformer(nn.Module):
             )
             loc = [
                 mesh[d].to(df.device) + df[:, d, ...]
-                for d in range(nb_dims)
-            ]
-        else:
-            loc = [
-                mesh[:, d, ...] + df[:, d, ...]
                 for d in range(nb_dims)
             ]
         loc = map(
@@ -202,11 +202,17 @@ class SpatialTransformer(nn.Module):
 
             def get_point_value(point):
                 subs = map(lambda (i, cd): locs[cd][i], enumerate(point))
-
                 loc_list_p = map(lambda (s, l): s * l, zip(subs, d_size))
                 idx_p = torch.sum(torch.stack(loc_list_p, dim=0), dim=0)
-                vol_val_flat = torch.take(vol, idx_p.type(torch.long))
-                vol_val = torch.reshape(vol_val_flat, vol.shape)
+                vol_val_flat = torch.stack(
+                    map(
+                        lambda (idx_i, vol_i): torch.take(vol_i, idx_i),
+                        zip(idx_p, vol)
+                    ),
+                    dim=0
+                )
+
+                vol_val = torch.reshape(vol_val_flat, final_shape)
                 # get the weight of this cube_pt based on the distance
                 # if c[d] is 0 --> want weight = 1 - (pt - floor[pt]) = diff_loc1
                 # if c[d] is 1 --> want weight = pt - floor[pt] = diff_loc0
@@ -216,7 +222,7 @@ class SpatialTransformer(nn.Module):
                 else:
                     wt = reduce(mul, wts_lst)
 
-                wt = torch.reshape(wt, vol.shape)
+                wt = torch.reshape(wt, final_shape)
                 return wt * vol_val
 
             values = map(get_point_value, cube_pts)
@@ -232,7 +238,13 @@ class SpatialTransformer(nn.Module):
             # get values
             loc_list = map(lambda (s, l): s * l, zip(roundloc, d_size))
             idx = torch.sum(torch.stack(loc_list, dim=0), dim=0)
-            interp_vol_flat = torch.take(vol, idx)
-            interp_vol = torch.reshape(interp_vol_flat, vol.shape)
+            interp_vol_flat = torch.stack(
+                map(
+                    lambda (idx_i, vol_i): torch.take(vol_i, idx_i),
+                    zip(idx, vol)
+                ),
+                dim=0
+            )
+            interp_vol = torch.reshape(interp_vol_flat, final_shape)
 
         return interp_vol
