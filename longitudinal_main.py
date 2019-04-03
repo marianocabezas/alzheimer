@@ -952,15 +952,17 @@ def cnn_registration(
         data_smooth=data_smooth,
         df_smooth=df_smooth,
         trainable_smooth=train_smooth,
-        patch_based=patch_based
     )
     try:
         reg_net.load_model(model_name)
     except IOError:
+        batch_size = 64 if patch_based else 1
         reg_net.register(
             norm_cases,
             lesions,
             masks,
+            patch_based=patch_based,
+            batch_size=batch_size,
             epochs=epochs,
             patience=patience
         )
