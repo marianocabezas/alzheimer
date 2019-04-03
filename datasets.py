@@ -88,6 +88,12 @@ def get_combos(cases):
     return combos
 
 
+def get_mesh(shape):
+    linvec = tuple(map(lambda s: np.linspace(0, s - 1, s), shape))
+    mesh = np.stack(np.meshgrid(*linvec, indexing='ij')).astype(np.float32)
+    return mesh
+
+
 def assert_shapes(cases):
     shape_comparisons = map(
         lambda case: map(
@@ -148,7 +154,7 @@ class ImagePairListCroppingDataset(Dataset):
         case_mask = self.masks[case]
 
         # Now we just need to look for the desired slice
-        slices = [0] + self.max_slice
+        slices = [0] + self.max_slice.tolist()
         patch_idx = index - slices[case]
         patch_slice = case_slices[patch_idx]
         if self.masks is None:
@@ -207,13 +213,16 @@ class ImageListCroppingDataset(Dataset):
         self.lesions = lesions
         self.masks = masks
 
-        if type(patch_size) is not tuple:
-            patch_size = (patch_size,) * len(self.lesions[0].shape)
+        data_shape = self.lesions[0].shape
 
-        self.patch_slices = get_slices_bb(lesions, patch_size, overlap)
+        if type(patch_size) is not tuple:
+            patch_size = (patch_size,) * len(data_shape)
+
+        self.patch_slices = get_slices_bb(masks, patch_size, overlap)
+        self.mesh = get_mesh(data_shape)
         self.max_slice = np.cumsum(
             map(
-                lambda (s, c): len(s) * c,
+                lambda (s, c): len(s) * len(c),
                 zip(self.patch_slices, self.combos)
             )
         )
@@ -221,46 +230,39 @@ class ImageListCroppingDataset(Dataset):
     def __getitem__(self, index):
         # We select the case
         case = np.min(np.where(self.max_slice > index))
-        case_idx = index - ([0] + self.max_slice)[case]
-        combo = self.combos[case_idx]
+        slices = [0] + self.max_slice.tolist()
+        case_idx = index - slices[case]
+        combo = self.combos[case]
+        case_slices = self.patch_slices[case]
 
-        n_combo = len(combo)
-        combo_idx = case_idx // n_combo
-        patch_idx = case_idx % n_combo
+        n_slices = len(case_slices)
+        combo_idx = case_idx // n_slices
+        patch_idx = case_idx % n_slices
 
-        case_source = self.cases[case][combo_idx[0]]
-        case_target = self.cases[case][combo_idx[1]]
-        case_tuple = self.patch_slices[case][patch_idx]
-        case_slices = tuple(
+        case_source = self.cases[case][combo[combo_idx, 0]]
+        case_target = self.cases[case][combo[combo_idx, 1]]
+        slice_tuple = case_slices[patch_idx]
+        slice_i = tuple(
             map(
                 lambda (p_ini, p_end): slice(p_ini, p_end),
-                case_tuple
+                slice_tuple
             )
         )
         case_lesion = self.lesions[case]
         case_mask = self.masks[case]
 
-        linvec = map(
-            lambda (p_ini, p_end): np.linspace(
-                p_ini,
-                p_end,
-                p_end - p_ini + 1
-            ),
-            case_tuple
-        )
-        mesh = np.stack(np.meshgrid(*linvec))
+        mesh = self.mesh[(slice(None, None),) + slice_i]
 
         inputs_p = (
-            np.expand_dims(case_source[case_slices], 0),
-            np.expand_dims(case_target[case_slices], 0),
+            np.expand_dims(case_source[slice_i], 0),
+            np.expand_dims(case_target[slice_i], 0),
+            np.expand_dims(case_lesion[slice_i], 0),
+            np.expand_dims(case_mask[slice_i], 0),
+            mesh,
+            np.expand_dims(case_source, 0),
             np.expand_dims(case_lesion, 0),
-            np.expand_dims(case_mask[case_slices], 0),
-            np.expand_dims(mesh, 0),
-            np.expand_dims(case_source, 0)
         )
-        targets_p = (
-            np.expand_dims(case_target[case_slices], 0),
-        )
+        targets_p = np.expand_dims(case_target[slice_i], 0)
 
         return inputs_p, targets_p
 
@@ -282,14 +284,14 @@ class ImageListDataset(Dataset):
 
         min_bb = np.min(
             map(
-                lambda mask: np.min(np.where(mask > 0), axis=-1) + bb_adjust,
+                lambda mask: np.min(np.where(mask > 0), axis=-1),
                 masks
             ),
             axis=0
         )
         max_bb = np.max(
             map(
-                lambda mask: np.max(np.where(mask > 0), axis=-1) - bb_adjust,
+                lambda mask: np.max(np.where(mask > 0), axis=-1),
                 masks
             ),
             axis=0
