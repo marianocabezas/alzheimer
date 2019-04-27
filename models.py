@@ -656,7 +656,6 @@ class MaskAtrophyNet(nn.Module):
             trainable_smooth=False,
     ):
         # Init
-        pad = kernel_size // 2
         final_filters = deconv_filters[-1]
         loss_names = list([
                 ' subt ',
@@ -718,6 +717,7 @@ class MaskAtrophyNet(nn.Module):
             deconv_filters[unet_filters:]
         )
         if kernel_size is not None:
+            pad = kernel_size // 2
             self.deconv = map(
                 lambda (f_in, f_out): nn.Conv3d(
                     f_in, f_out, kernel_size, padding=pad
@@ -738,7 +738,7 @@ class MaskAtrophyNet(nn.Module):
                 d.to(device)
 
         # Final DF computation
-        self.to_df = nn.Conv3d(final_filters, 3, kernel_size, padding=pad)
+        self.to_df = nn.Conv3d(final_filters, 3, 1)
         self.to_df.to(device)
         nn.init.normal_(self.to_df.weight, 0.0, 1e-5)
 
