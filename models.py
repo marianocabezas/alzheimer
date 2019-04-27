@@ -629,7 +629,7 @@ class MultiViewBlock(nn.Module):
     def _get_filters_list(self, channels):
         n_kernels = len(self.kernels)
         n_kernels_1 = n_kernels - 1
-        filter_k = round(1.0 * channels / n_kernels)
+        filter_k = int(round(1.0 * channels / n_kernels))
         filters_k = (filter_k,) * n_kernels_1
         filters = filters_k + (channels - n_kernels_1 * filter_k,)
 
