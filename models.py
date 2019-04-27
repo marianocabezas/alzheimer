@@ -635,11 +635,11 @@ class MultiViewBlock(nn.Module):
 
         return filters
 
-    def forward(self, *input):
-        conv_out = map(lambda c: c(input), self.convs)
-        pool_out = map(lambda c: c(input), self.pools)
+    def forward(self, *inputs):
+        conv_out = map(lambda c: c(inputs), self.convs)
+        pool_out = map(lambda c: c(inputs), self.pools)
 
-        return torch.cat(conv_out + pool_out)
+        return torch.cat(conv_out + pool_out, dim=1)
 
 
 class MaskAtrophyNet(nn.Module):
