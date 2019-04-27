@@ -16,10 +16,9 @@ import SimpleITK as sitk
 import nibabel as nib
 from time import strftime
 from scipy.ndimage.morphology import binary_erosion as erode
-from scipy.ndimage.morphology import binary_dilation as imdilate
 from sklearn.metrics import mean_squared_error
 from data_manipulation.sitk import itkn4, itkhist_match
-from data_manipulation.sitk import itksubtraction, itkdemons
+from data_manipulation.sitk import itksubtraction, itkdemons, itkwarp
 from data_manipulation.generate_features import get_mask_voxels
 from data_manipulation.information_theory import bidirectional_mahalanobis
 from data_manipulation.information_theory import normalized_mutual_information
@@ -77,6 +76,12 @@ def parse_args():
              '10: Lesion mutual information'
     )
     parser.add_argument(
+        '-b', '--batch_size',
+        dest='batch_size',
+        type=int, default=32,
+        help='Batch size for patch based training'
+    )
+    parser.add_argument(
         '-e', '--epochs',
         dest='epochs',
         type=int,  default=100,
@@ -87,6 +92,12 @@ def parse_args():
         dest='patience',
         type=int, default=50,
         help='Patience for early stopping'
+    )
+    parser.add_argument(
+        '-k', '--kernel-size',
+        dest='kernel_size',
+        type=int, default=None,
+        help='Size of the kernels used on the registration net'
     )
     parser.add_argument(
         '-r', '--dilate-radius',
@@ -121,9 +132,15 @@ def parse_args():
     )
     parser.add_argument(
         '--patch',
-        dest='patch_based',
-        action='store_true', default=False,
+        dest='patch_size',
+        type=int, default=None,
         help='Whether or not to use a patch-based training'
+    )
+    parser.add_argument(
+        '--curriculum',
+        dest='curriculum',
+        action='store_true', default=False,
+        help='Whether or not to use curriculum learning'
     )
     return vars(parser.parse_args())
 
@@ -613,6 +630,7 @@ def deformationbased_registration(
 
         # Deformation loading
         defo_name = find_file(image, defo_path)
+
         defo = np.moveaxis(np.squeeze(load_nii(defo_name).get_data()), -1, 0)
 
         mask_name = find_file('(' + '|'.join(lesion_tags) + ')', patient_path)
@@ -679,6 +697,109 @@ def deformationbased_registration(
                 '%sPatient %s finished%s (total time %s)\n' %
                 (c['r'], patient, c['nc'], time_str)
             )
+
+    if verbose > 0:
+        time_str = time.strftime(
+            '%H hours %M minutes %S seconds',
+            time.gmtime(time.time() - global_start)
+        )
+        print_message(
+            '%sAll patients finished %s(total time %s)%s' %
+            (c['r'], c['b'], time_str, c['nc'])
+        )
+
+
+def demonsbased_registration(
+        d_path=None,
+        target_name='flair_corrected.nii.gz',
+        lesion_tags=list(['_bin', 'lesion', 'lesionMask']),
+        verbose=1,
+):
+    """
+    Function that applies a translation based solely on a deformation field. It
+    basically moves the mask using the average deformation inside the mask.
+    :param d_path: Path where the whole database is stored. If not specified,
+    it will be read from the command parameters.
+    :param target_name: Name of the target image
+    :param lesion_tags: Tags that may be contained on the lesion mask filename.
+    :param verbose: Verbosity level.
+    :return: None.
+    """
+    c = color_codes()
+
+    # Init
+    if d_path is None:
+        d_path = parse_args()['dataset_path']
+    patients = get_dirs(d_path)
+
+    time_str = strftime("%H:%M:%S")
+    print('\n%s[%s]%s Naive registration' % (
+        c['c'], time_str, c['nc']
+    ))
+
+    global_start = time.time()
+
+    # Main loop
+    for i, patient in enumerate(patients):
+        patient_start = time.time()
+        if verbose > 0:
+            print(
+                '%s[%s]%s Starting deformation with patient %s %s(%d/%d)%s' %
+                (
+                    c['c'], strftime("%H:%M:%S"),
+                    c['g'], patient,
+                    c['c'], i + 1, len(patients), c['nc']
+                )
+            )
+
+        patient_path = os.path.join(d_path, patient)
+        fixed_folder = sorted(
+            filter(
+                lambda f: os.path.isdir(os.path.join(patient_path, f)),
+                os.listdir(patient_path)
+            )
+        )[-1]
+        target_path = os.path.join(patient_path, fixed_folder)
+
+        # Deformation loading
+        image_re = 'time1-%s_corrected' % fixed_folder
+        mask_re = '(' + '|'.join(lesion_tags) + ')'
+        image = 'flair_time1-%s_multidemons_deformation.nii.gz' % fixed_folder
+        defo_name = find_file(image, target_path)
+        mask_name = find_file(mask_re, patient_path)
+        image_name = find_file(image_re, target_path)
+        fixed_name = find_file(target_name, target_path)
+
+        if mask_name is not None:
+            print(defo_name)
+            itkwarp(
+                fixed_name,
+                mask_name,
+                defo_name,
+                path=patient_path,
+                name='demons_mask',
+                interpolation='nn',
+                verbose=verbose
+            )
+
+            itkwarp(
+                fixed_name,
+                image_name,
+                defo_name,
+                path=patient_path,
+                name='demons_im',
+                verbose=verbose
+            )
+
+            if verbose > 0:
+                time_str = time.strftime(
+                    '%H hours %M minutes %S seconds',
+                    time.gmtime(time.time() - patient_start)
+                )
+                print(
+                    '%sPatient %s finished%s (total time %s)\n' %
+                    (c['r'], patient, c['nc'], time_str)
+                )
 
     if verbose > 0:
         time_str = time.strftime(
@@ -840,10 +961,6 @@ def cnn_registration(
         d_path=None,
         lesion_tags=list(['_bin', 'lesion', 'lesionMask']),
         mask='union_brainmask.nii.gz',
-        source_name='flair_moved.nii.gz',
-        target_name='flair_processed.nii.gz',
-        brain_name='brainmask.nii.gz',
-        lesion_name='gt_mask.nii',
         verbose=1,
 ):
     """
@@ -855,14 +972,6 @@ def cnn_registration(
         :param lesion_tags: Tags that may be contained on the lesion mask
          filename.
         :param mask: Brainmask name.
-        :param source_name: Name of the source image from the segmentation
-         dataset.
-        :param target_name: Name of the target image from the segmentation
-         dataset.
-        :param brain_name: Name of the brainmask image from the segmentation
-         dataset.
-        :param lesion_name: Name of the lesionmask image from the segmentation
-         dataset.
         :param verbose: Verbosity level.
         :return: None.
         """
@@ -882,19 +991,15 @@ def cnn_registration(
     print('\n%s[%s]%s CNN registration' % (
         c['c'], time_str, c['nc']
     ))
-    timepoints = map(
-        lambda t: 'flair_time%d-time6_corrected_matched.nii.gz' % t,
-        range(1, 6)
-    )
-    timepoints.append('flair_corrected.nii.gz')
 
     global_start = time.time()
 
     # Main loop
+    dilate = parse_args()['dilate']
     norm_cases, lesions, masks = get_atrophy_cases(
         d_path,
         mask, lesion_tags,
-        parse_args()['dilate']
+        dilate=dilate
     )
 
     _, test_lesions, _ = get_atrophy_cases(
@@ -913,13 +1018,17 @@ def cnn_registration(
         )
 
     loss_idx = parse_args()['loss_idx']
+    batch_size = parse_args()['batch_size']
     epochs = parse_args()['epochs']
     patience = parse_args()['patience']
     lambda_v = parse_args()['lambda']
     data_smooth = parse_args()['data_smooth']
     df_smooth = parse_args()['df_smooth']
     train_smooth = parse_args()['train_smooth']
-    patch_based = parse_args()['patch_based']
+    patch_size = parse_args()['patch_size']
+    patch_based = patch_size is not None
+    kernel_size = parse_args()['kernel_size']
+    curriculum = parse_args()['curriculum']
     smooth_s = '.'.join(
         filter(
             None,
@@ -931,15 +1040,17 @@ def cnn_registration(
         )
     )
 
-    net_name = 'patch' if patch_based else 'full'
+    net_name = 'patch%d' % patch_size if patch_based else 'full'
+    learn_name = 'curriculum' if curriculum else 'normal'
 
     model_name = os.path.join(
         d_path,
-        '%s_model_%s_loss%s_l%.2fe%dp%d.mdl' % (
+        '%s_model_%s_%s-loss%s_%s.dil%d.l%.2fe%dp%db%d.mdl' % (
             net_name,
             smooth_s + '_' if smooth_s else '',
-            '+'.join(map(str, loss_idx)),
-            lambda_v, epochs, patience
+            learn_name, '+'.join(map(str, loss_idx)),
+            'k%d' % kernel_size if kernel_size is not None else 'multik',
+            dilate, lambda_v, epochs, patience, batch_size
         )
     )
 
@@ -952,19 +1063,22 @@ def cnn_registration(
         data_smooth=data_smooth,
         df_smooth=df_smooth,
         trainable_smooth=train_smooth,
+        kernel_size=kernel_size,
     )
     try:
         reg_net.load_model(model_name)
     except IOError:
-        batch_size = 64 if patch_based else 1
+        batch_size = batch_size if patch_based else 1
         reg_net.register(
             norm_cases,
             lesions,
             masks,
             patch_based=patch_based,
+            patch_size=patch_size,
             batch_size=batch_size,
             epochs=epochs,
-            patience=patience
+            patience=patience,
+            curriculum=curriculum
         )
 
     reg_net.save_model(model_name)
@@ -1019,9 +1133,11 @@ def cnn_registration(
         norm_target = norm_cases[i][1]
         norm_target = np.reshape(norm_target, (1, 1) + norm_target.shape)
 
-        sufix = '%sloss%s_l%.2fe%dp%d' % (
+        sufix = '%sloss%s-%s-%s_k%d.dil%d.l%.2fe%dp%db%d.' % (
             smooth_s + '_' if smooth_s else '',
-            '+'.join(map(str, loss_idx)), lambda_v, epochs, patience
+            '+'.join(map(str, loss_idx)),
+            net_name, learn_name,
+            kernel_size, dilate, lambda_v, epochs, patience, batch_size
         )
 
         # - Test the network -
@@ -1352,6 +1468,7 @@ def main():
     # initial_analysis()
     # naive_registration(verbose=2)
     # naive_registration(refine=True, verbose=2)
+    # demonsbased_registration(verbose=2)
     cnn_registration(verbose=2)
     new_lesions(verbose=2)
     # deformationbased_registration(verbose=2)

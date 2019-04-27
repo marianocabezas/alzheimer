@@ -107,15 +107,53 @@ def subtraction_loss(var_x, var_y, mask):
 def weighted_subtraction_loss(var_x, var_y, mask):
     """
         Loss function based on the mean gradient of the subtraction between two
-        tensors weighted by the mask voxels.
+        tensors.
         :param var_x: First tensor.
         :param var_y: Second tensor.
         :param mask: Mask that defines the region of interest where the loss
          should be evaluated.
         :return: A tensor with the loss
     """
-    weight = torch.sum(mask.type(torch.float32)) / var_y.numel()
-    return weight * gradient_mean(var_y - var_x, mask)
+    h = torch.tensor([1, 2, 1])
+    h_ = torch.tensor([1, 0, -1])
+    patch_shape = var_x.shape[2:]
+    n_dim = len(patch_shape)
+    patches = var_x.shape[0]
+
+    sub_gradient = gradient(var_y - var_x)
+
+    if n_dim in [2, 3]:
+        if n_dim is 2:
+            sobel = torch.stack(
+                (
+                    h_ * h.reshape((3, 1)),
+                    h * h_.reshape((3, 1))
+                ),
+                dim=0
+            ).type(torch.float32)
+            sobel_k = torch.unsqueeze(sobel, 1).to(var_x.device)
+            edges = torch.abs(torch.conv2d(var_y, sobel_k, padding=1))
+        else:
+            sobel = torch.stack(
+                (
+                    h_ * h.reshape((3, 1)) * h.reshape((3, 1, 1)),
+                    h * h_.reshape((3, 1)) * h.reshape((3, 1, 1)),
+                    h * h.reshape((3, 1)) * h_.reshape((3, 1, 1)),
+                ),
+                dim=0
+            ).type(torch.float32)
+            sobel_k = torch.unsqueeze(sobel, 1).to(var_x.device)
+            edges = torch.abs(torch.conv3d(var_y, sobel_k, padding=1))
+        weights = torch.sum(edges, dim=1, keepdim=True)
+        sum_w = torch.sum(weights.reshape(patches, -1), dim=1)
+        sum_w = sum_w.reshape((-1,) + (1,) * (n_dim + 1))
+        sum_w = sum_w.repeat((1, 1) + patch_shape)
+        weighted_sub = sub_gradient * weights / sum_w
+        sub_loss = torch.sum(weighted_sub[mask]) / patches
+    else:
+        sub_loss = torch.mean(sub_gradient[mask])
+
+    return sub_loss
 
 
 def df_loss(df, mask):
@@ -266,6 +304,54 @@ def dsc_bin_loss(var_x, var_y):
     return 1.0 - dsc_value
 
 
+def gradient(tensor):
+    """
+        Function to compute the gradient of a multidimensional tensor. We
+         assume that the first two dimensions specify the number of samples and
+         channels.
+        :param tensor: Input tensor
+        :return: The mean gradient tensor
+    """
+
+    # Init
+    tensor_dims = len(tensor.shape)
+    data_dims = tensor_dims - 2
+
+    # Since we want this function to be generic, we need a trick to define
+    # the gradient on each dimension.
+    all_slices = (slice(0, None),) * (tensor_dims - 1)
+    first = slice(0, -2)
+    last = slice(2, None)
+    slices = map(
+        lambda i: (
+            all_slices[:i + 2] + (first,) + all_slices[i + 2:],
+            all_slices[:i + 2] + (last,) + all_slices[i + 2:],
+        ),
+        range(data_dims)
+    )
+
+    # Remember that gradients moved the image 0.5 pixels while also reducing
+    # 1 voxel per dimension. To deal with that we are technically interpolating
+    # the gradient in between these positions. These is the equivalent of
+    # computing the gradient between voxels separated one space. 1D ex:
+    # [a, b, c, d] -> gradient0.5 = [a - b, b - c, c - d]
+    # gradient1 = 0.5 * [(a - b) + (b - c), (b - c) + (c - d)] = [a - c, b - d]
+    no_pad = (0, 0)
+    pad = (1, 1)
+    paddings = map(
+        lambda i: no_pad * i + pad + no_pad * (data_dims - i - 1),
+        range(data_dims)[::-1]
+    )
+
+    gradients = map(
+        lambda (p, (si, sf)): 0.5 * F.pad(tensor[si] - tensor[sf], p),
+        zip(paddings, slices)
+    )
+    gradients = torch.cat(gradients, dim=1)
+
+    return torch.sum(gradients * gradients, dim=1, keepdim=True)
+
+
 def gradient_mean(tensor, mask):
     """
         Function to compute the mean gradient of a multidimensional tensor. We
@@ -314,35 +400,6 @@ def gradient_mean(tensor, mask):
     gradients = torch.cat(gradients, dim=1)
 
     mod_gradients = torch.sum(gradients * gradients, dim=1, keepdim=True)
-    # no_pad = (0, 0)
-    # pre_pad = (1, 0)
-    # post_pad = (0, 1)
-    #
-    # pre_paddings = map(
-    #     lambda i: no_pad * i + pre_pad + no_pad * (data_dims - i - 1),
-    #     range(data_dims)[::-1]
-    # )
-    # post_paddings = map(
-    #     lambda i: no_pad * i + post_pad + no_pad * (data_dims - i - 1),
-    #     range(data_dims)[::-1]
-    # )
-    #
-    # pre_padded = map(
-    #     lambda (g, pad): F.pad(g, pad),
-    #     zip(gradients, pre_paddings)
-    # )
-    # post_padded = map(
-    #     lambda (g, pad): F.pad(g, pad),
-    #     zip(gradients, post_paddings)
-    # )
-    #
-    # pre_gradient = torch.cat(pre_padded, dim=1)
-    # post_gradient = torch.cat(post_padded, dim=1)
-    #
-    # pre_mod = torch.sum(pre_gradient * pre_gradient, dim=1, keepdim=True)
-    # post_mod = torch.sum(post_gradient * post_gradient, dim=1, keepdim=True)
-    #
-    # mean_grad = torch.mean(pre_mod[mask] + post_mod[mask])
     mean_grad = torch.mean(mod_gradients[mask])
 
     return mean_grad

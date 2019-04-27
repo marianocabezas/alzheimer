@@ -68,8 +68,18 @@ def get_slices_bb(masks, patch_size, overlap):
         return patch_slices
 
 
-def get_combos(cases):
-    case_idx = map(lambda case: range(len(case)), cases)
+def get_combos(cases, limits_only, step):
+    if step is not None:
+        if step < 1:
+            step = 1
+
+        case_idx = map(lambda case: [0, min(len(case) - 1, step)], cases)
+
+    else:
+        if limits_only:
+            case_idx = map(lambda case: [0, len(case) - 1], cases)
+        else:
+            case_idx = map(lambda case: range(len(case)), cases)
     timepoints_combo = map(
         lambda timepoint_idx: map(
             lambda i: map(
@@ -202,14 +212,16 @@ class ImageListCroppingDataset(Dataset):
     def __init__(
             self,
             cases, lesions, masks,
-            patch_size=32, overlap=16
+            patch_size=32, overlap=16,
+            limits_only=False,
+            step=None,
     ):
         # Init
         # Image and mask should be numpy arrays
         assert_shapes(cases)
 
         self.cases = cases
-        self.combos = get_combos(cases)
+        self.combos = get_combos(cases, limits_only, step)
         self.lesions = lesions
         self.masks = masks
 
@@ -271,13 +283,13 @@ class ImageListCroppingDataset(Dataset):
 
 
 class ImageListDataset(Dataset):
-    def __init__(self, cases, lesions, masks):
+    def __init__(self, cases, lesions, masks, limits_only=False, step=None):
         # Init
         # Image and mask should be numpy arrays
         assert_shapes(cases)
 
         self.cases = cases
-        self.combos = get_combos(cases)
+        self.combos = get_combos(cases, limits_only, step)
 
         self.lesions = lesions
         self.masks = masks

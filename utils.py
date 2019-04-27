@@ -11,6 +11,7 @@ from nibabel import load as load_nii
 from time import strftime
 from subprocess import call
 from scipy.ndimage.morphology import binary_dilation as imdilate
+from scipy.ndimage.morphology import binary_erosion as imerode
 from data_manipulation.generate_features import get_voxels
 
 """
@@ -261,10 +262,15 @@ def get_mask(mask_name, dilate=0, dtype=np.uint8):
     # Lesion mask
     mask_image = load_nii(mask_name).get_data().astype(dtype)
     if dilate > 0:
-        mask_image = imdilate(
+        mask_d = imdilate(
             mask_image,
             iterations=dilate
-        ).astype(dtype)
+        )
+        mask_e = imerode(
+            mask_image,
+            iterations=dilate
+        )
+        mask_image = np.logical_and(mask_d, np.logical_not(mask_e)).astype(dtype)
 
     return mask_image
 
@@ -283,7 +289,7 @@ def is_dir(path, name):
     return os.path.isdir(os.path.join(path, name))
 
 
-def get_atrophy_cases(d_path, mask, lesion_tags, dilate):
+def get_atrophy_cases(d_path, mask, lesion_tags, dilate, limits_only=False):
     patients = get_dirs(d_path)
 
     patient_paths = map(lambda p: os.path.join(d_path, p), patients)
@@ -297,15 +303,24 @@ def get_atrophy_cases(d_path, mask, lesion_tags, dilate):
         ),
         patient_paths
     )
-    timepoints_list = map(
-        lambda (p_path, max_i): map(
-            lambda t: 'flair_time%d-time%d_corrected_matched.nii.gz' % (t, max_i),
-            range(1, max_i)
-        ),
-        zip(patient_paths, max_timepoint)
-    )
-    for timepoints in timepoints_list:
-        timepoints.append('flair_corrected.nii.gz')
+    if limits_only:
+        timepoints_list = map(
+            lambda max_i: [
+                'flair_time1-time%d_corrected_matched.nii.gz' % max_i,
+                'flair_corrected.nii.gz'
+            ],
+            max_timepoint
+        )
+    else:
+        timepoints_list = map(
+            lambda max_i: map(
+                lambda t: 'flair_time%d-time%d_corrected_matched.nii.gz' % (t, max_i),
+                range(1, max_i)
+            ),
+            max_timepoint
+        )
+        for timepoints in timepoints_list:
+            timepoints.append('flair_corrected.nii.gz')
 
     brain_names = map(
         lambda (p_path, max_i): os.path.join(p_path, 'time%d' % max_i, mask),

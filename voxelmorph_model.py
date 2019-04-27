@@ -154,7 +154,7 @@ class VoxelMorph(nn.Module):
         # Extra DF path
         deconv_out = 2 + deconv_filters[unet_filters - 1]
         self.deconv = map(
-            lambda (f_in, f_out): nn.ConvTranspose3d(
+            lambda (f_in, f_out): nn.Conv3d(
                 f_in, f_out, 3, padding=1
             ),
             zip(

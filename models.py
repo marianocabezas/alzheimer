@@ -10,8 +10,8 @@ from torchvision import models
 import numpy as np
 from layers import ScalingLayer, SpatialTransformer, SmoothingLayer
 from criterions import normalised_xcor_loss, normalised_mi_loss, subtraction_loss
-from criterions import df_modulo, df_loss
-from criterions import histogram_loss, mahalanobis_loss, weighted_subtraction_loss
+from criterions import df_modulo, df_loss, weighted_subtraction_loss
+from criterions import histogram_loss, mahalanobis_loss
 from criterions import dsc_bin_loss
 from datasets import ImageListDataset, ImagePairListDataset
 from datasets import ImagePairListCroppingDataset, ImageListCroppingDataset
@@ -588,6 +588,59 @@ class BratsSurvivalNet(CustomModel):
         return output
 
 
+class MultiViewBlock(nn.Module):
+    def __init__(
+            self,
+            in_channels,
+            out_channels=64,
+            pool=2,
+            kernels=[3, 5, 7, 9],
+            device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
+    ):
+        # Init
+        super(MultiViewBlock, self).__init__()
+        self.out_channels=out_channels
+        self.kernels = kernels
+        # We need to separate the output channels into pooled ones and normal
+        # ones
+        conv_channels = out_channels // 2
+        pool_channels = out_channels - conv_channels
+
+        # First we create the convolutional channels
+        conv_filters = self._get_filters_list(conv_channels)
+        self.convs = map(
+            lambda (f_out, k): nn.Conv3d(in_channels, f_out, k, padding=k // 2),
+            zip(conv_filters, kernels)
+        )
+        for c in self.convs:
+            c.to(device)
+
+        pool_filters = self._get_filters_list(pool_channels)
+        self.pools = map(
+            lambda (f_out, k): nn.Sequential(
+                nn.Conv3d(in_channels, f_out, k, pool, k // 2),
+                nn.ConvTranspose3d(in_channels, f_out, 1, pool),
+            ),
+            zip(pool_filters, kernels)
+        )
+        for c in self.pools:
+            c.to(device)
+
+    def _get_filters_list(self, channels):
+        n_kernels = len(self.kernels)
+        n_kernels_1 = n_kernels - 1
+        filter_k = (round(1.0 * channels / n_kernels),) * n_kernels_1
+        filters = filter_k + (channels - n_kernels_1 * filter_k,)
+
+        return filters
+
+    def forward(self, *input):
+        conv_out = map(lambda c: c(input), self.convs)
+        pool_out = map(lambda c: c(input), self.pools)
+
+        return torch.cat(conv_out + pool_out)
+
+
 class MaskAtrophyNet(nn.Module):
     def __init__(
             self,
@@ -597,11 +650,14 @@ class MaskAtrophyNet(nn.Module):
             lambda_d=1,
             leakyness=0.2,
             loss_idx=list([0, 1, 6]),
+            kernel_size=3,
             data_smooth=False,
             df_smooth=False,
             trainable_smooth=False,
     ):
         # Init
+        pad = kernel_size // 2
+        final_filters = deconv_filters[-1]
         loss_names = list([
                 ' subt ',
                 'subt_l',
@@ -615,12 +671,11 @@ class MaskAtrophyNet(nn.Module):
                 ' n_mi ',
                 'n_mi_l',
             ])
-
+        super(MaskAtrophyNet, self).__init__()
         self.data_smooth = data_smooth
         self.df_smooth = df_smooth
         self.epoch = 0
         self.optimizer_alg = None
-        super(MaskAtrophyNet, self).__init__()
         self.lambda_d = lambda_d
         self.loss_names = map(lambda idx: loss_names[idx], loss_idx)
         self.device = device
@@ -658,21 +713,32 @@ class MaskAtrophyNet(nn.Module):
 
         # Extra DF path
         deconv_out = 2 + deconv_filters[unet_filters - 1]
-        self.deconv = map(
-            lambda (f_in, f_out): nn.ConvTranspose3d(
-                f_in, f_out, 3, padding=1
-            ),
-            zip(
-                [deconv_out] + deconv_filters[unet_filters:-1],
-                deconv_filters[unet_filters:]
-            )
+        zipped_f = zip(
+            [deconv_out] + deconv_filters[unet_filters:-1],
+            deconv_filters[unet_filters:]
         )
-        for d in self.deconv:
-            d.to(device)
-            nn.init.kaiming_normal_(d.weight)
+        if kernel_size is not None:
+            self.deconv = map(
+                lambda (f_in, f_out): nn.Conv3d(
+                    f_in, f_out, kernel_size, padding=pad
+                ),
+                zipped_f
+            )
+            for d in self.deconv:
+                d.to(device)
+                nn.init.kaiming_normal_(d.weight)
+        else:
+            self.deconv = map(
+                lambda (f_in, f_out): MultiViewBlock(
+                    f_in, f_out
+                ),
+                zipped_f
+            )
+            for d in self.deconv:
+                d.to(device)
 
         # Final DF computation
-        self.to_df = nn.Conv3d(deconv_filters[-1], 3, 3, padding=1)
+        self.to_df = nn.Conv3d(final_filters, 3, kernel_size, padding=pad)
         self.to_df.to(device)
         nn.init.normal_(self.to_df.weight, 0.0, 1e-5)
 
@@ -744,10 +810,13 @@ class MaskAtrophyNet(nn.Module):
             patience=10,
             num_workers=10,
             patch_based=False,
+            patch_size=32,
+            curriculum=False,
             verbose=True
     ):
         # Init
         self.train()
+        max_step = max(map(len, cases)) - 1
 
         # Optimizer init
         optimizer_dict = {
@@ -769,24 +838,32 @@ class MaskAtrophyNet(nn.Module):
         # but it doesn't actually do any supervised training. Therefore, there
         # is no real validation.
         # Due to this, we modified the generic fit algorithm.
+        if curriculum:
+            curr_step = 1
+            epochs = epochs * max_step
+            overlap = patch_size * 3 // 4
+        else:
+            curr_step = None
+            overlap = 8
+
         if patch_based:
             tr_dataset = ImageListCroppingDataset(
-                cases, masks, brain_masks, overlap=8
-            )
-            val_dataset = ImageListDataset(
-                cases, masks, brain_masks
+                cases, masks, masks,
+                patch_size=patch_size, overlap=overlap, step=curr_step
             )
         else:
             tr_dataset = ImageListDataset(
-                cases, masks, brain_masks
+                cases, masks, brain_masks, step=curr_step
             )
-            val_dataset = tr_dataset
+        val_dataset = ImageListDataset(
+            cases, masks, brain_masks, limits_only=True
+        )
         tr_dataloader = DataLoader(
             tr_dataset, batch_size, True, num_workers=num_workers
         )
 
         val_dataloader = DataLoader(
-            val_dataset, val_batch_size, True, num_workers=num_workers
+            val_dataset, val_batch_size, False, num_workers=num_workers
         )
 
         l_names = [' loss '] + self.loss_names
@@ -843,7 +920,36 @@ class MaskAtrophyNet(nn.Module):
                 print(final_s)
 
             if no_improv_e == patience:
-                break
+                # If we are going to use curriculum learning, once we surpass
+                # the patience value, we see if we can increase the difficulty.
+                # That means changing the dataloader for a new one with a
+                # bigger step between timepoints.
+                if curriculum and curr_step < max_step:
+                    # Print the end of an "era"
+                    whites = ' '.join([''] * 12)
+                    l_bars = '--|--'.join(['-' * 6] * len(l_names))
+                    print('%s----------|--%s--|' % (whites, l_bars))
+
+                    # Re-init
+                    curr_step += 1
+                    no_improv_e = 0
+                    self.load_state_dict(best_state)
+
+                    # New dataloaders
+                    if patch_based:
+                        tr_dataset = ImageListCroppingDataset(
+                            cases, masks, masks,
+                            overlap=overlap, step=curr_step
+                        )
+                    else:
+                        tr_dataset = ImageListDataset(
+                            cases, masks, brain_masks, step=curr_step
+                        )
+                    tr_dataloader = DataLoader(
+                        tr_dataset, batch_size, True, num_workers=num_workers
+                    )
+                else:
+                    break
 
         self.epoch = best_e
         self.load_state_dict(best_state)
@@ -940,7 +1046,8 @@ class MaskAtrophyNet(nn.Module):
             b_moved_lesion,
             b_gt,
             b_df,
-            b_mask
+            b_mask,
+            train
         )
 
         if train:
@@ -1010,6 +1117,7 @@ class MaskAtrophyNet(nn.Module):
             target,
             df,
             roi,
+            train=True
     ):
         # Init
         moved_lesion = moved[moved_mask > 0]
@@ -1018,9 +1126,13 @@ class MaskAtrophyNet(nn.Module):
         moved_roi = moved[roi > 0]
         target_roi = target[roi > 0]
 
+        float_mask = mask.type(torch.float32)
+        # float_mask = moved_mask.type(torch.float32)
+        mask_w = torch.sum(float_mask) / float_mask.numel()
+
         functions = {
-            ' subt ': subtraction_loss,
-            'subt_l': weighted_subtraction_loss,
+            ' subt ': weighted_subtraction_loss,
+            'subt_l': subtraction_loss,
             ' xcor ': normalised_xcor_loss,
             'xcor_l': normalised_xcor_loss,
             ' mse  ': torch.nn.MSELoss(),
@@ -1028,6 +1140,7 @@ class MaskAtrophyNet(nn.Module):
             ' hist ': histogram_loss,
             'deform': df_loss,
             'modulo': df_modulo,
+            ' mod_l': df_modulo,
             ' n_mi ': normalised_mi_loss,
             'n_mi_l': normalised_mi_loss,
 
@@ -1043,13 +1156,14 @@ class MaskAtrophyNet(nn.Module):
             ' hist ': (moved_lesion, source_lesion),
             'deform': (df, roi),
             'modulo': (df, roi),
+            ' mod_l': (df, mask),
             ' n_mi ': (moved_roi, target_roi),
             'n_mi_l': (moved_lesion, target_lesion),
         }
 
         weights = {
             ' subt ': 1.0,
-            'subt_l': 10.0,
+            'subt_l': 10.0 * mask_w if train else 1.0,
             ' xcor ': 1.0,
             'xcor_l': 1.0,
             ' mse  ': 1.0,
@@ -1057,6 +1171,7 @@ class MaskAtrophyNet(nn.Module):
             ' hist ': 1.0,
             'deform': self.lambda_d,
             'modulo': 1.0,
+            ' mod_l': 1.0,
             ' n_mi ': 1.0,
             'n_mi_l': 1.0,
         }
@@ -1340,18 +1455,22 @@ class LongitudinalNet(nn.Module):
                 reg_dataloader
             )
 
-            losses_color = map(
-                lambda (pl, l): '\033[36m%s\033[0m' if l < pl else '%s',
-                zip(best_losses, mid_reg_losses)
-            )
-            losses_s = map(
-                lambda (c, l): c % '{:8.4f}'.format(l),
-                zip(losses_color, mid_reg_losses)
-            )
-            best_losses = map(
-                lambda (pl, l): l if l < pl else pl,
-                zip(best_losses, mid_reg_losses)
-            )
+            if loss_reg is not None and mid_reg_losses is not None:
+                losses_color = map(
+                    lambda (pl, l): '\033[36m%s\033[0m' if l < pl else '%s',
+                    zip(best_losses, mid_reg_losses)
+                )
+                losses_s = map(
+                    lambda (c, l): c % '{:8.4f}'.format(l),
+                    zip(losses_color, mid_reg_losses)
+                )
+                best_losses = map(
+                    lambda (pl, l): l if l < pl else pl,
+                    zip(best_losses, mid_reg_losses)
+                )
+            else:
+                loss_reg = []
+                losses_s = []
 
             # Patience check
             loss_value = loss_seg + loss_reg
