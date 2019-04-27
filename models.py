@@ -588,7 +588,7 @@ class BratsSurvivalNet(CustomModel):
         return output
 
 
-class MultiViewBlock(nn.Module):
+class MultiViewBlock3D(nn.Module):
     def __init__(
             self,
             in_channels,
@@ -598,8 +598,8 @@ class MultiViewBlock(nn.Module):
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
     ):
         # Init
-        super(MultiViewBlock, self).__init__()
-        self.out_channels=out_channels
+        super(MultiViewBlock3D, self).__init__()
+        self.out_channels = out_channels
         self.kernels = kernels
         # We need to separate the output channels into pooled ones and normal
         # ones
@@ -621,7 +621,7 @@ class MultiViewBlock(nn.Module):
             zip(self.pool_filters, kernels)
         )
         self.pool_out = map(
-            lambda (f_out, k): nn.ConvTranspose3d(in_channels, f_out, 1, pool),
+            lambda (f_out, k): nn.ConvTranspose3d(f_out, f_out, 1, pool),
             zip(self.pool_filters, kernels)
         )
         for c in self.pool_in:
@@ -640,15 +640,11 @@ class MultiViewBlock(nn.Module):
 
     def forward(self, inputs):
         conv_out = map(lambda c: c(inputs), self.convs)
-        pool_shape = map(
-            lambda f: (len(inputs), f) + inputs.shape[2:],
-            self.pool_filters
-        )
         pool_out = map(
-            lambda (c_in, c_out, shape): c_out(
-                c_in(inputs), output_size=shape
+            lambda (c_in, c_out, f): c_out(
+                c_in(inputs), output_size=(len(inputs), f) + inputs.shape[2:]
             ),
-            zip(self.pool_in, self.pool_out, pool_shape)
+            zip(self.pool_in, self.pool_out, self.pool_filters)
         )
 
         return torch.cat(tuple(conv_out + pool_out), dim=1)
@@ -742,7 +738,7 @@ class MaskAtrophyNet(nn.Module):
                 nn.init.kaiming_normal_(d.weight)
         else:
             self.conv = map(
-                lambda (f_in, f_out): MultiViewBlock(
+                lambda (f_in, f_out): MultiViewBlock3D(
                     f_in, f_out
                 ),
                 zipped_f
