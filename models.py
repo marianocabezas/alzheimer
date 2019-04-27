@@ -616,11 +616,12 @@ class MultiViewBlock(nn.Module):
             c.to(device)
 
         pool_filters = self._get_filters_list(pool_channels)
-        self.pools = map(
-            lambda (f_out, k): nn.Sequential(
-                nn.Conv3d(in_channels, f_out, k, pool, k // 2),
-                nn.ConvTranspose3d(in_channels, f_out, 1, pool),
-            ),
+        self.pool_in = map(
+            lambda (f_out, k): nn.Conv3d(in_channels, f_out, k, pool, k // 2),
+            zip(pool_filters, kernels)
+        )
+        self.pool_out = map(
+            lambda (f_out, k): nn.ConvTranspose3d(in_channels, f_out, 1, pool),
             zip(pool_filters, kernels)
         )
         for c in self.pools:
@@ -636,11 +637,14 @@ class MultiViewBlock(nn.Module):
         return filters
 
     def forward(self, *inputs):
-        print(len(inputs))
         conv_out = map(lambda c: c(inputs), self.convs)
-        pool_out = map(lambda c: c(inputs), self.pools)
+        pool_shape = (None, None) + inputs.shape[2:]
+        pool_out = map(
+            lambda (c_in, c_out): c_out(c_in(inputs), output_size=pool_shape),
+            zip(self.pool_in, self.pool_out)
+        )
 
-        return torch.cat(conv_out + pool_out, dim=1)
+        return torch.cat(tuple(conv_out + pool_out), dim=1)
 
 
 class MaskAtrophyNet(nn.Module):
@@ -726,8 +730,8 @@ class MaskAtrophyNet(nn.Module):
                 ),
                 zipped_f
             )
-            for d in self.conv:
-                d.to(device)
+            for c in self.conv:
+                c.to(device)
                 nn.init.kaiming_normal_(d.weight)
         else:
             self.conv = map(
@@ -736,8 +740,8 @@ class MaskAtrophyNet(nn.Module):
                 ),
                 zipped_f
             )
-            for d in self.conv:
-                d.to(device)
+            for c in self.conv:
+                c.to(device)
 
         # Final DF computation
         self.to_df = nn.Conv3d(final_filters, 3, 1)
