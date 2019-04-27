@@ -624,8 +624,10 @@ class MultiViewBlock(nn.Module):
             lambda (f_out, k): nn.ConvTranspose3d(in_channels, f_out, 1, pool),
             zip(pool_filters, kernels)
         )
-        for c in self.pools:
+        for c in self.pool_in:
             c.to(device)
+        for d in self.pool_out:
+            d.to(device)
 
     def _get_filters_list(self, channels):
         n_kernels = len(self.kernels)
