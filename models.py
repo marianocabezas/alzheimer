@@ -607,22 +607,22 @@ class MultiViewBlock(nn.Module):
         pool_channels = out_channels - conv_channels
 
         # First we create the convolutional channels
-        conv_filters = self._get_filters_list(conv_channels)
+        self.conv_filters = self._get_filters_list(conv_channels)
         self.convs = map(
             lambda (f_out, k): nn.Conv3d(in_channels, f_out, k, padding=k // 2),
-            zip(conv_filters, kernels)
+            zip(self.conv_filters, kernels)
         )
         for c in self.convs:
             c.to(device)
 
-        pool_filters = self._get_filters_list(pool_channels)
+        self.pool_filters = self._get_filters_list(pool_channels)
         self.pool_in = map(
             lambda (f_out, k): nn.Conv3d(in_channels, f_out, k, pool, k // 2),
-            zip(pool_filters, kernels)
+            zip(self.pool_filters, kernels)
         )
         self.pool_out = map(
             lambda (f_out, k): nn.ConvTranspose3d(in_channels, f_out, 1, pool),
-            zip(pool_filters, kernels)
+            zip(self.pool_filters, kernels)
         )
         for c in self.pool_in:
             c.to(device)
@@ -640,10 +640,15 @@ class MultiViewBlock(nn.Module):
 
     def forward(self, *inputs):
         conv_out = map(lambda c: c(inputs), self.convs)
-        pool_shape = (len(inputs), None) + inputs.shape[2:]
+        pool_shape = map(
+            lambda f: (len(inputs), f) + inputs.shape[2:],
+            self.pool_filters
+        )
         pool_out = map(
-            lambda (c_in, c_out): c_out(c_in(inputs), output_size=pool_shape),
-            zip(self.pool_in, self.pool_out)
+            lambda (c_in, c_out, shape): c_out(
+                c_in(inputs), output_size=shape
+            ),
+            zip(self.pool_in, self.pool_out, pool_shape)
         )
 
         return torch.cat(tuple(conv_out + pool_out), dim=1)
