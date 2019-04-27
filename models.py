@@ -638,7 +638,7 @@ class MultiViewBlock(nn.Module):
 
         return filters
 
-    def forward(self, *inputs):
+    def forward(self, inputs):
         conv_out = map(lambda c: c(inputs), self.convs)
         pool_shape = map(
             lambda f: (len(inputs), f) + inputs.shape[2:],
