@@ -594,7 +594,7 @@ class MultiViewBlock3D(nn.Module):
             in_channels,
             out_channels=64,
             pool=2,
-            kernels=[3, 5, 7, 9],
+            kernels=[3, 5],
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
     ):
         # Init
