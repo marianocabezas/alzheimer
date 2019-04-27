@@ -636,6 +636,7 @@ class MultiViewBlock(nn.Module):
         return filters
 
     def forward(self, *inputs):
+        print(inputs)
         conv_out = map(lambda c: c(inputs), self.convs)
         pool_out = map(lambda c: c(inputs), self.pools)
 
@@ -682,14 +683,14 @@ class MaskAtrophyNet(nn.Module):
         self.leakyness = leakyness
         # Down path of the unet
         conv_in = [2] + conv_filters[:-1]
-        self.conv = map(
+        self.conv_u = map(
             lambda (f_in, f_out): nn.Conv3d(
                 f_in, f_out, 3, padding=1, stride=2
             ),
             zip(conv_in, conv_filters)
         )
         unet_filters = len(conv_filters)
-        for c in self.conv:
+        for c in self.conv_u:
             c.to(device)
             nn.init.kaiming_normal_(c.weight)
 
@@ -719,23 +720,23 @@ class MaskAtrophyNet(nn.Module):
         )
         if kernel_size is not None:
             pad = kernel_size // 2
-            self.deconv = map(
+            self.conv = map(
                 lambda (f_in, f_out): nn.Conv3d(
                     f_in, f_out, kernel_size, padding=pad
                 ),
                 zipped_f
             )
-            for d in self.deconv:
+            for d in self.conv:
                 d.to(device)
                 nn.init.kaiming_normal_(d.weight)
         else:
-            self.deconv = map(
+            self.conv = map(
                 lambda (f_in, f_out): MultiViewBlock(
                     f_in, f_out
                 ),
                 zipped_f
             )
-            for d in self.deconv:
+            for d in self.conv:
                 d.to(device)
 
         # Final DF computation
@@ -764,7 +765,7 @@ class MaskAtrophyNet(nn.Module):
             data = self.smooth(data)
 
         down_inputs = list()
-        for c in self.conv:
+        for c in self.conv_u:
             down_inputs.append(data)
             data = F.leaky_relu(c(data), self.leakyness)
 
@@ -772,8 +773,8 @@ class MaskAtrophyNet(nn.Module):
             up = F.leaky_relu(d(data, output_size=i.size()), self.leakyness)
             data = torch.cat((up, i), dim=1)
 
-        for d in self.deconv:
-            data = F.leaky_relu(d(data), self.leakyness)
+        for c in self.conv:
+            data = F.leaky_relu(c(data), self.leakyness)
 
         df = self.to_df(data)
 
