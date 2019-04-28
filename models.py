@@ -928,7 +928,7 @@ class MaskAtrophyNet(nn.Module):
                 final_s = whites + ' | '.join([epoch_s, loss_s] + losses_s + [t_s])
                 print(final_s)
 
-            step_done = curriculum and (self.epoch == curr_step * epochs)
+            step_done = curriculum and (self.epoch == (curr_step * epochs - 1))
             if no_improv_e == patience or step_done:
                 # If we are going to use curriculum learning, once we surpass
                 # the patience value, we see if we can increase the difficulty.
