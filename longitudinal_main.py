@@ -1038,7 +1038,7 @@ def cnn_registration(
 
     if verbose > 0:
         print(
-            '%s[%s]%s Training CNN (%s + %s + %S) with all timepoints%s' %
+            '%s[%s]%s Training CNN (%s + %s + %s) with all timepoints%s' %
             (
                 c['c'], strftime("%H:%M:%S"),
                 c['g'], net_name, k_name, learn_name, c['nc']
