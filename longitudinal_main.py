@@ -1008,15 +1008,7 @@ def cnn_registration(
         0
     )
 
-    if verbose > 0:
-        print(
-            '%s[%s]%s Training CNN with all timepoints + segmentation%s' %
-            (
-                c['c'], strftime("%H:%M:%S"),
-                c['g'], c['nc']
-            )
-        )
-
+    # Parameter init
     loss_idx = parse_args()['loss_idx']
     batch_size = parse_args()['batch_size']
     epochs = parse_args()['epochs']
@@ -1042,6 +1034,15 @@ def cnn_registration(
 
     net_name = 'patch%d' % patch_size if patch_based else 'full'
     learn_name = 'curriculum' if curriculum else 'normal'
+
+    if verbose > 0:
+        print(
+            '%s[%s]%s Training CNN (%s + %s) with all timepoints%s' %
+            (
+                c['c'], strftime("%H:%M:%S"),
+                c['g'], net_name, learn_name, c['nc']
+            )
+        )
 
     model_name = os.path.join(
         d_path,
