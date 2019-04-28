@@ -1133,11 +1133,12 @@ def cnn_registration(
         norm_target = norm_cases[i][1]
         norm_target = np.reshape(norm_target, (1, 1) + norm_target.shape)
 
-        sufix = '%sloss%s-%s-%s_k%d.dil%d.l%.2fe%dp%db%d.' % (
+        sufix = '%sloss%s-%s-%s_%s.dil%d.l%.2fe%dp%db%d.' % (
             smooth_s + '_' if smooth_s else '',
             '+'.join(map(str, loss_idx)),
             net_name, learn_name,
-            kernel_size, dilate, lambda_v, epochs, patience, batch_size
+            'multi_k' if kernel_size is None else 'k%d' % kernel_size,
+            dilate, lambda_v, epochs, patience, batch_size
         )
 
         # - Test the network -

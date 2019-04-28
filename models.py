@@ -928,7 +928,8 @@ class MaskAtrophyNet(nn.Module):
                 final_s = whites + ' | '.join([epoch_s, loss_s] + losses_s + [t_s])
                 print(final_s)
 
-            if no_improv_e == patience:
+            step_done = curriculum and (self.epoch == curr_step * epochs)
+            if no_improv_e == patience or step_done:
                 # If we are going to use curriculum learning, once we surpass
                 # the patience value, we see if we can increase the difficulty.
                 # That means changing the dataloader for a new one with a
@@ -1174,7 +1175,7 @@ class MaskAtrophyNet(nn.Module):
             ' subt ': 1.0,
             'subt_l': 10.0 * mask_w if train else 1.0,
             ' xcor ': 1.0,
-            'xcor_l': 1.0,
+            'xcor_l': 10.0 * mask_w if train else 1.0,
             ' mse  ': 1.0,
             'mahal ': 1.0,
             ' hist ': 1.0,
@@ -1182,7 +1183,7 @@ class MaskAtrophyNet(nn.Module):
             'modulo': 1.0,
             ' mod_l': 1.0,
             ' n_mi ': 1.0,
-            'n_mi_l': 1.0,
+            'n_mi_l': 10.0 * mask_w if train else 1.0,
         }
 
         losses = tuple(
