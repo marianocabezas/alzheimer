@@ -849,9 +849,10 @@ class MaskAtrophyNet(nn.Module):
         # Due to this, we modified the generic fit algorithm.
         if curriculum:
             curr_step = 1
-            epochs = epochs * max_step
+            max_epochs = epochs * max_step
             overlap = patch_size * 3 // 4
         else:
+            max_epochs = epochs
             curr_step = None
             overlap = 8
 
@@ -879,7 +880,7 @@ class MaskAtrophyNet(nn.Module):
         best_losses = [np.inf] * (len(l_names) - 1)
         best_e = 0
 
-        for self.epoch in range(epochs):
+        for self.epoch in range(max_epochs):
             # Main epoch loop
             t_in = time.time()
             with torch.autograd.set_detect_anomaly(True):
