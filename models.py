@@ -934,7 +934,7 @@ class MaskAtrophyNet(nn.Module):
                 # the patience value, we see if we can increase the difficulty.
                 # That means changing the dataloader for a new one with a
                 # bigger step between timepoints.
-                if step_done:
+                if step_done or (curriculum and curr_step < max_step):
                     # Print the end of an "era"
                     whites = ' '.join([''] * 12)
                     l_bars = '--|--'.join(['-' * 6] * len(l_names))
