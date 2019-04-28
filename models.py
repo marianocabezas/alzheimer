@@ -654,7 +654,7 @@ class MaskAtrophyNet(nn.Module):
     def __init__(
             self,
             conv_filters=list([32, 64, 64, 64]),
-            deconv_filters=list([64, 64, 64, 64, 64, 32, 32]),
+            deconv_filters=list([64, 64, 64, 64, 64, 64, 64]),
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             lambda_d=1,
             leakyness=0.2,
@@ -935,7 +935,7 @@ class MaskAtrophyNet(nn.Module):
                 # That means changing the dataloader for a new one with a
                 # bigger step between timepoints.
                 if curriculum and (curr_step < max_step):
-                    # Print the end of an "era"
+                    # Print the end of a step ("era")
                     whites = ' '.join([''] * 12)
                     l_bars = '--|--'.join(['-' * 6] * len(l_names))
                     print('%s----------|--%s--|' % (whites, l_bars))
