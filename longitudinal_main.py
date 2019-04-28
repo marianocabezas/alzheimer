@@ -1047,7 +1047,7 @@ def cnn_registration(
 
     model_name = os.path.join(
         d_path,
-        '%s_model_%s_%s-loss%s_%s.dil%d.l%.2fe%dp%db%d.mdl' % (
+        '%s_model_%s%s-loss%s_%s.dil%d.l%.2fe%dp%db%d.mdl' % (
             net_name,
             smooth_s + '_' if smooth_s else '',
             learn_name, '+'.join(map(str, loss_idx)),
