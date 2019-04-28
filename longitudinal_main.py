@@ -1034,13 +1034,14 @@ def cnn_registration(
 
     net_name = 'patch%d' % patch_size if patch_based else 'full'
     learn_name = 'curriculum' if curriculum else 'normal'
+    k_name = 'k%d' % kernel_size if kernel_size is not None else 'multik'
 
     if verbose > 0:
         print(
-            '%s[%s]%s Training CNN (%s + %s) with all timepoints%s' %
+            '%s[%s]%s Training CNN (%s + %s + %S) with all timepoints%s' %
             (
                 c['c'], strftime("%H:%M:%S"),
-                c['g'], net_name, learn_name, c['nc']
+                c['g'], net_name, k_name, learn_name, c['nc']
             )
         )
 
@@ -1050,8 +1051,7 @@ def cnn_registration(
             net_name,
             smooth_s + '_' if smooth_s else '',
             learn_name, '+'.join(map(str, loss_idx)),
-            'k%d' % kernel_size if kernel_size is not None else 'multik',
-            dilate, lambda_v, epochs, patience, batch_size
+            k_name, dilate, lambda_v, epochs, patience, batch_size
         )
     )
 
@@ -1138,8 +1138,7 @@ def cnn_registration(
             smooth_s + '_' if smooth_s else '',
             '+'.join(map(str, loss_idx)),
             net_name, learn_name,
-            'multi_k' if kernel_size is None else 'k%d' % kernel_size,
-            dilate, lambda_v, epochs, patience, batch_size
+            k_name, dilate, lambda_v, epochs, patience, batch_size
         )
 
         # - Test the network -
