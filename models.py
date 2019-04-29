@@ -942,6 +942,7 @@ class MaskAtrophyNet(nn.Module):
                     print('%s----------|--%s--|' % (whites, l_bars))
 
                     # Re-init
+                    best_loss_tr = np.inf
                     curr_step += 1
                     no_improv_e = 0
                     self.load_state_dict(best_state)
