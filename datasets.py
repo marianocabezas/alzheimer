@@ -230,7 +230,7 @@ class ImageListCroppingDataset(Dataset):
         if type(patch_size) is not tuple:
             patch_size = (patch_size,) * len(data_shape)
 
-        self.patch_slices = get_slices_bb(masks, patch_size, overlap)
+        self.patch_slices = get_slices_bb(lesions, patch_size, overlap)
         self.mesh = get_mesh(data_shape)
         self.max_slice = np.cumsum(
             map(

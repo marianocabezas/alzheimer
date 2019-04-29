@@ -858,7 +858,7 @@ class MaskAtrophyNet(nn.Module):
 
         if patch_based:
             tr_dataset = ImageListCroppingDataset(
-                cases, masks, masks,
+                cases, masks, brain_masks,
                 patch_size=patch_size, overlap=overlap, step=curr_step
             )
         else:
@@ -950,7 +950,7 @@ class MaskAtrophyNet(nn.Module):
                     # New dataloaders
                     if patch_based:
                         tr_dataset = ImageListCroppingDataset(
-                            cases, masks, masks,
+                            cases, masks, brain_masks,
                             overlap=overlap, step=curr_step
                         )
                     else:
