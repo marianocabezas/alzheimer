@@ -59,6 +59,12 @@ def parse_args():
         help='Parameter to store the working directory.'
     )
     parser.add_argument(
+        '--leaky',
+        dest='leaky',
+        type=float, default=0.2,
+        help='Leakyness of the leaky ReLU activations.'
+    )
+    parser.add_argument(
         '-L', '--losses-list',
         dest='loss_idx',
         nargs='+', type=int, default=[2, 1, 7],
@@ -1014,6 +1020,7 @@ def cnn_registration(
     epochs = parse_args()['epochs']
     patience = parse_args()['patience']
     lambda_v = parse_args()['lambda']
+    leakyness = parse_args()['leaky']
     data_smooth = parse_args()['data_smooth']
     df_smooth = parse_args()['df_smooth']
     train_smooth = parse_args()['train_smooth']
@@ -1047,11 +1054,11 @@ def cnn_registration(
 
     model_name = os.path.join(
         d_path,
-        '%s_model_%s%s-loss%s_%s.dil%d.l%.2fe%dp%db%d.mdl' % (
+        '%s_model_%s%s-loss%s_leak%.2f.%s.dil%d.l%.2fe%dp%db%d.mdl' % (
             net_name,
             smooth_s + '_' if smooth_s else '',
             learn_name, '+'.join(map(str, loss_idx)),
-            k_name, dilate, lambda_v, epochs, patience, batch_size
+            leakyness, k_name, dilate, lambda_v, epochs, patience, batch_size
         )
     )
 
@@ -1065,6 +1072,7 @@ def cnn_registration(
         df_smooth=df_smooth,
         trainable_smooth=train_smooth,
         kernel_size=kernel_size,
+        leakyness=leakyness,
     )
     try:
         reg_net.load_model(model_name)
@@ -1134,11 +1142,11 @@ def cnn_registration(
         norm_target = norm_cases[i][1]
         norm_target = np.reshape(norm_target, (1, 1) + norm_target.shape)
 
-        sufix = '%sloss%s-%s-%s_%s.dil%d.l%.2fe%dp%db%d.' % (
+        sufix = '%sloss%s-%s-%s_leak%.2f.%s.dil%d.l%.2fe%dp%db%d.' % (
             smooth_s + '_' if smooth_s else '',
             '+'.join(map(str, loss_idx)),
             net_name, learn_name,
-            k_name, dilate, lambda_v, epochs, patience, batch_size
+            leakyness, k_name, dilate, lambda_v, epochs, patience, batch_size
         )
 
         # - Test the network -

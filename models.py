@@ -774,14 +774,17 @@ class MaskAtrophyNet(nn.Module):
         down_inputs = list()
         for c in self.conv_u:
             down_inputs.append(data)
-            data = F.leaky_relu(c(data), self.leakyness)
+            # data = F.leaky_relu(c(data), self.leakyness)
+            data = F.selu(c(data))
 
         for d, i in zip(self.deconv_u, down_inputs[::-1]):
-            up = F.leaky_relu(d(data, output_size=i.size()), self.leakyness)
+            # up = F.leaky_relu(d(data, output_size=i.size()), self.leakyness)
+            up = F.selu(d(data, output_size=i.size()))
             data = torch.cat((up, i), dim=1)
 
         for c in self.conv:
-            data = F.leaky_relu(c(data), self.leakyness)
+            # data = F.leaky_relu(c(data), self.leakyness)
+            data = F.selu(c(data))
 
         df = self.to_df(data)
 
