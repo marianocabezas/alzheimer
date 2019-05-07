@@ -391,9 +391,7 @@ def naive_registration(
         d_path=None,
         image='flair',
         lesion_tags=list(['_bin', 'lesion', 'lesionMask']),
-        fixed_folder='time6',
         moving_folder='time1',
-        c_function=lambda x, y: -bidirectional_mahalanobis(x, y),
         width=5,
         dim=3,
         refine=False,
@@ -412,10 +410,7 @@ def naive_registration(
     it will be read from the command parameters.
     :param image: Image name that will be used for matching.
     :param lesion_tags: Tags that may be contained on the lesion mask filename.
-    :param fixed_folder: Folder that contains the fixed image.
     :param moving_folder: Folder that contains the moving image.
-    :param c_function: Function that compares two matrices and returns the
-    value of their similarity.
     :param width: Width of the sliding window.
     :param dim: Number of dimensions of the fixed and moving images.
     :param refine: Whether to refine the original mask or not. The refined mask
@@ -464,6 +459,12 @@ def naive_registration(
             )
 
         patient_path = os.path.join(d_path, patient)
+        fixed_folder = sorted(
+            filter(
+                lambda f: os.path.isdir(os.path.join(patient_path, f)),
+                os.listdir(patient_path)
+            )
+        )[-1]
 
         fixed_name = image + '_corrected.nii.gz'
         fixed = load_nii(
@@ -584,10 +585,7 @@ def naive_registration(
 
 def deformationbased_registration(
         d_path=None,
-        image='flair_time1-time6_multidemons_deformation.nii.gz',
         lesion_tags=list(['_bin', 'lesion', 'lesionMask']),
-        fixed_folder='time6',
-        vector_op=np.max,
         dim=3,
         verbose=1,
 ):
@@ -598,8 +596,6 @@ def deformationbased_registration(
     it will be read from the command parameters.
     :param image: Image name of the deformation image
     :param lesion_tags: Tags that may be contained on the lesion mask filename.
-    :param fixed_folder: Folder that contains the fixed image..
-    :param vector_op: Operation used on the deformation field of each lesion.
     :param dim: Number of dimensions of the fixed and moving images.
     :param verbose: Verbosity level.
     :return: None.
@@ -632,7 +628,15 @@ def deformationbased_registration(
             )
 
         patient_path = os.path.join(d_path, patient)
+        fixed_folder = sorted(
+            filter(
+                lambda f: os.path.isdir(os.path.join(patient_path, f)),
+                os.listdir(patient_path)
+            )
+        )[-1]
+
         defo_path = os.path.join(patient_path, fixed_folder)
+        image = 'flair_time1-%s_multidemons_deformation.nii.gz' % fixed_folder,
 
         # Deformation loading
         defo_name = find_file(image, defo_path)
@@ -1475,12 +1479,12 @@ def new_lesions(
 
 def main():
     # initial_analysis()
-    # naive_registration(verbose=2)
-    # naive_registration(refine=True, verbose=2)
-    # demonsbased_registration(verbose=2)
+    naive_registration(verbose=2)
+    naive_registration(refine=True, verbose=2)
+    demonsbased_registration(verbose=2)
     cnn_registration(verbose=2)
     new_lesions(verbose=2)
-    # deformationbased_registration(verbose=2)
+    deformationbased_registration(verbose=2)
     # subtraction_registration(image='m60_flair', verbose=2)
 
 
