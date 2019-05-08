@@ -1482,9 +1482,9 @@ def main():
     naive_registration(verbose=2)
     naive_registration(refine=True, verbose=2)
     demonsbased_registration(verbose=2)
+    deformationbased_registration(verbose=2)
     cnn_registration(verbose=2)
     new_lesions(verbose=2)
-    deformationbased_registration(verbose=2)
     # subtraction_registration(image='m60_flair', verbose=2)
 
 
