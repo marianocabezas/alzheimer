@@ -1,5 +1,5 @@
 """
-The main file running inside the docker (the starting point)
+The main file running the lesion evolution pi
 """
 # Import the required packages
 from __future__ import print_function
@@ -641,7 +641,7 @@ def deformationbased_registration(
         # Deformation loading
         defo_name = find_file(image, defo_path)
 
-        defo = -np.moveaxis(np.squeeze(load_nii(defo_name).get_data()), -1, 0)
+        defo = np.moveaxis(np.squeeze(load_nii(defo_name).get_data()), -1, 0)
 
         mask_name = find_file('(' + '|'.join(lesion_tags) + ')', patient_path)
         if mask_name is not None:
