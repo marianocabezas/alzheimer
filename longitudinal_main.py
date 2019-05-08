@@ -641,7 +641,7 @@ def deformationbased_registration(
         # Deformation loading
         defo_name = find_file(image, defo_path)
 
-        defo = np.moveaxis(np.squeeze(load_nii(defo_name).get_data()), -1, 0)
+        defo = -np.moveaxis(np.squeeze(load_nii(defo_name).get_data()), -1, 0)
 
         mask_name = find_file('(' + '|'.join(lesion_tags) + ')', patient_path)
         if mask_name is not None:
@@ -836,7 +836,7 @@ def subtraction_registration(
      that after 3 years, the atrophy of the MS patient is noticeable and that
      causes a movement on the chronic MS lesions (due to the ventricle
      expansion). The assumption is that we can use a naive registration
-     approach that open a sliding window around the baseline mask and tries to
+     approach that opens a sliding window around the baseline mask and tries to
      find the best match in terms of intensity similarity on the follow-up
      image.
     :param d_path: Path where the whole database is stored. If not specified,
