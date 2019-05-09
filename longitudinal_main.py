@@ -636,7 +636,7 @@ def deformationbased_registration(
         )[-1]
 
         defo_path = os.path.join(patient_path, fixed_folder)
-        image = 'flair_time1-%s_multidemons_deformation.nii.gz' % fixed_folder,
+        image = 'flair_time1-%s_multidemons_deformation.nii.gz' % fixed_folder
 
         # Deformation loading
         defo_name = find_file(image, defo_path)
