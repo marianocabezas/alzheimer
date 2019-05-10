@@ -397,8 +397,8 @@ def normalized_xcor(var_x, var_y):
         :return: A tensor with the normalized cross correlation
     """
     # Init
-    var_x_flat = var_x.view(-1)
-    var_y_flat = var_y.view(-1)
+    var_x_flat = var_x.flatten()
+    var_y_flat = var_y.flatten()
     if len(var_x_flat) > 1 and len(var_y_flat) > 1:
         # Computation
         var_x_norm = var_x - np.mean(var_x_flat)
