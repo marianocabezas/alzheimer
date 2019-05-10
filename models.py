@@ -932,7 +932,8 @@ class MaskAtrophyNet(nn.Module):
             step_done = curriculum and (self.epoch == (curr_step * epochs - 1))
             if no_improv_e == patience or step_done:
                 # If we are going to use curriculum learning, once we surpass
-                # the patience value, we see if we can increase the difficulty.
+                # the patience value, we'll see if we can increase the
+                # difficulty.
                 # That means changing the dataloader for a new one with a
                 # bigger step between timepoints.
                 if curriculum and (curr_step < max_step):

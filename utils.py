@@ -386,3 +386,27 @@ def get_newlesion_cases(
     )
 
     return norm_source, norm_target, lesions
+
+
+def normalized_xcor(var_x, var_y):
+    """
+        Function that computes the normalized cross correlation between two
+         tensors.
+        :param var_x: First tensor.
+        :param var_y: Second tensor.
+        :return: A tensor with the normalized cross correlation
+    """
+    # Init
+    var_x_flat = var_x.view(-1)
+    var_y_flat = var_y.view(-1)
+    if len(var_x_flat) > 1 and len(var_y_flat) > 1:
+        # Computation
+        var_x_norm = var_x - np.mean(var_x_flat)
+        var_y_norm = var_y - np.mean(var_y_flat)
+        var_xy_norm = np.abs(np.sum(var_x_norm * var_y_norm))
+        inv_var_x_den = np.rsqrt(np.sum(var_x_norm * var_x_norm))
+        inv_var_y_den = np.rsqrt(np.sum(var_y_norm * var_y_norm))
+
+        return var_xy_norm * inv_var_x_den * inv_var_y_den
+    else:
+        return np.mean(np.abs(var_x - var_y))

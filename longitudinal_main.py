@@ -29,6 +29,7 @@ from models import LongitudinalNet, MaskAtrophyNet
 from utils import color_codes, get_dirs, find_file, run_command, print_message
 from utils import get_mask, get_normalised_image, improve_mask, best_match
 from utils import get_atrophy_cases, get_newlesion_cases
+from utils import normalized_xcor
 
 
 def parse_args():
@@ -547,17 +548,21 @@ def naive_registration(
                     )
                 )
 
-            # These are the similarity functions I am using. It might be
-            # worth implementing cross-correlation (even if nmi is good
-            # enough).
+            # These are the similarity functions I am using.
             c_functions = {
                 'nmi': lambda x, y: normalized_mutual_information(x, y, 32),
+                'xcor': lambda x, y: normalized_xcor(x, y),
                 'mahal': lambda x, y: -bidirectional_mahalanobis(x, y),
                 'mse': lambda x, y: -mean_squared_error(x, y)
             }
 
             for n_f, c_f in c_functions.items():
 
+                # Here we use the best_match function. For this particualar
+                # case, c_function is a similarity metric between
+                # two images. Emphasis on "similarity". Distance functions
+                # (like the mahalanobis distance) must be negative (so that
+                #  a maximum value means there is similarity).
                 matches = map(
                     lambda mask: best_match(
                         fixed, moving,
@@ -665,6 +670,9 @@ def deformationbased_registration(
         defo = np.moveaxis(np.squeeze(load_nii(defo_name).get_data()), -1, 0)
 
         mask_name = find_file('(' + '|'.join(lesion_tags) + ')', patient_path)
+
+        # This is just a security check. If there is no mask (which shouldn't
+        # be the case), we can't really check how lesions move.
         if mask_name is not None:
             mask_nii = load_nii(mask_name)
             mask = mask_nii.get_data()
@@ -690,6 +698,11 @@ def deformationbased_registration(
                 lb_masks
             )
 
+            # For this registration, all we do is get a vector value from
+            # all the vectors inside the lesion mask. In this case, we are
+            # using different statistics on all the vectors. It might be
+            # better to define a point (or a set of points) and get the
+            # "global movement" from these points, instead of the whole mask.
             v_ops = {
                 'max': np.max,
                 'min': np.min,
@@ -924,6 +937,9 @@ def subtraction_registration(
                     c['nc']
                 )
             )
+
+        # This is just a security check. If there is no mask (which shouldn't
+        # be the case), we can't really check how lesions move.
         if mask_name is not None:
             strel = np.ones([3] * dim)
             mask_nii = load_nii(mask_name)
@@ -947,6 +963,11 @@ def subtraction_registration(
 
             for n_f, c_f in c_functions.items():
 
+                # Here we use the best_match function again. However,
+                # this time we are only passing one image. That means
+                # that the c_function is not a similarity metric between
+                # two images, but the evaluation of a function on a single
+                # image (in this case, the subtraction image).
                 matches = map(
                     lambda l: best_match(
                         sub, None,
@@ -1039,7 +1060,7 @@ def cnn_registration(
         0
     )
 
-    # Parameter init
+    # Parameter init (check parse_args function for their meaning)
     loss_idx = parse_args()['loss_idx']
     batch_size = parse_args()['batch_size']
     epochs = parse_args()['epochs']
@@ -1102,6 +1123,8 @@ def cnn_registration(
     try:
         reg_net.load_model(model_name)
     except IOError:
+        # If we are not using image patches, we'll probably only be able to
+        # fit 1 image per batch.
         batch_size = batch_size if patch_based else 1
         reg_net.register(
             norm_cases,
@@ -1200,6 +1223,8 @@ def cnn_registration(
         mu = np.mean(image[brain_mask > 0])
         sigma = np.std(image[brain_mask > 0])
 
+        # Since we normalized the intensities (zero mean, one sigma), we have
+        # to shift the intensities back.
         source_mov = source_mov[0] * sigma + mu
         img_nii = nib.Nifti1Image(
             source_mov * brain_mask,
@@ -1210,6 +1235,12 @@ def cnn_registration(
             os.path.join(patient_path, 'cnn_defo_im_%s.nii.gz' % sufix)
         )
 
+        # The mask is used to filter the movement outside the brain mask (we
+        # really don't care about what happens there).
+        # The axis change of the df is done because the network needs the
+        # vector dimensions (3 because the movement is in 3D) to be defined
+        # as channels, but for visualization of nifti files we need the
+        # channels at the end ([X, Y, Z, channels]).
         df_mask = np.repeat(np.expand_dims(brain_mask, -1), 3, -1)
         df_nii = nib.Nifti1Image(
             np.moveaxis(df[0], 0, -1) * df_mask,
@@ -1504,9 +1535,9 @@ def main():
     naive_registration(refine=True, verbose=2)
     demonsbased_registration(verbose=2)
     deformationbased_registration(verbose=2)
+    # subtraction_registration(image='m60_flair', verbose=2)
     cnn_registration(verbose=2)
     new_lesions(verbose=2)
-    # subtraction_registration(image='m60_flair', verbose=2)
 
 
 if __name__ == "__main__":
