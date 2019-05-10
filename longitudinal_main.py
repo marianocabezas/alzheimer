@@ -441,11 +441,11 @@ def naive_registration(
         lambda lmovs: filter(lambda mov: np.linalg.norm(mov) <= width, lmovs),
         movs
     )
-    print(movs)
-    # We pre-append the original position to ensure that when the similarity
-    # is the same for no movement and other positions, we don't move the
-    # lesion. For most cases, a movement is not really needed.
-    np_movs = np.unique(np.concatenate([[0, 0, 0]] + movs), axis=0)
+    # By default the original position will always be first to ensure that
+    # when the similarity is the same for no movement and other positions,
+    # we don't move the lesion. For most cases, a movement is not really
+    # needed.
+    np_movs = np.unique(np.concatenate(movs), axis=0)
     patients = get_dirs(d_path)
 
     time_str = strftime("%H:%M:%S")
