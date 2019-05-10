@@ -252,7 +252,7 @@ def initial_analysis(
                 if find_file('stripped.nii.gz', full_folder):
                     os.remove(brain_name)
 
-            # The next step is to apply bias correction
+            # The next step is to apply bias correction (N4 from simpleITK)
             """N4 preprocessing"""
             if verbose > 0:
                 print('\t-------------------------------')
@@ -287,6 +287,8 @@ def initial_analysis(
         brain_nii = load_nii(
             os.path.join(patient_path, timepoints[-1], 'brainmask.nii.gz')
         )
+        # We use the union of the brainmasks, in case skull stripping
+        # failed and eroded part of the brain in any timepoint.
         brain_nii.get_data()[:] = brain
         brain_nii.to_filename(
             os.path.join(followup_path, 'union_brainmask.nii.gz')
@@ -305,6 +307,8 @@ def initial_analysis(
             )
 
             # Now it's time to histogram match everything to the last timepoint.
+            # If we are doing "year-by-year" registration, it might be wise to
+            # histogram match any pair of successive timepoints.
             """Histogram matching"""
             if verbose > 0:
                 print('\t-------------------------------')
@@ -349,6 +353,7 @@ def initial_analysis(
             )
 
             """Deformation"""
+            # Here we'll just use the simpleITK demons implementation.
             if verbose > 0:
                 print('/-------------------------------\\')
                 print('|          Deformation          |')
@@ -435,7 +440,10 @@ def naive_registration(
         lambda lmovs: filter(lambda mov: np.linalg.norm(mov) <= width, lmovs),
         movs
     )
-    np_movs = np.unique(np.concatenate(movs), axis=0)
+    # We pre-append the original position to ensure that when the similarity
+    # is the same for no movement and other positions, we don't move the
+    # lesion. For most cases, a movement is not really needed.
+    np_movs = np.unique(np.concatenate([[0, 0, 0]] + movs), axis=0)
     patients = get_dirs(d_path)
 
     time_str = strftime("%H:%M:%S")
@@ -458,6 +466,9 @@ def naive_registration(
                 )
             )
 
+        # Patient init:
+        # Basically, we prepare the names of all the files needed for this
+        # specific patient.
         patient_path = os.path.join(d_path, patient)
         fixed_folder = sorted(
             filter(
@@ -486,6 +497,9 @@ def naive_registration(
                     c['nc']
                 )
             )
+
+        # This is just a security check. If there is no mask (which shouldn't
+        # be the case), we can't really check how lesions move.
         if mask_name is not None:
             strel = np.ones([3] * dim)
             mask_nii = load_nii(mask_name)
@@ -502,6 +516,9 @@ def naive_registration(
                     )
                 )
 
+            # What the refinement does, in practise, is to erode the mask
+            # keeping the voxels with the highest hyperintensities.
+            # It's basically a way to remove boundary errors.
             if refine:
                 masks = map(
                     lambda l: improve_mask(
@@ -511,6 +528,7 @@ def naive_registration(
                     range(1, nlabels + 1)
                 )
 
+                # We keep the final refined mask, just for visual inspection.
                 refined_mask = reduce(np.logical_or, masks)
                 mask_nii.get_data()[:] = refined_mask
                 mask_nii.to_filename(
@@ -529,6 +547,9 @@ def naive_registration(
                     )
                 )
 
+            # These are the similarity functions I am using. It might be
+            # worth implementing cross-correlation (even if nmi is good
+            # enough).
             c_functions = {
                 'nmi': lambda x, y: normalized_mutual_information(x, y, 32),
                 'mahal': lambda x, y: -bidirectional_mahalanobis(x, y),

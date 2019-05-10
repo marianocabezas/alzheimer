@@ -241,6 +241,9 @@ def improve_mask(image, mask, expansion=1, verbose=1):
     mask_int = image[mask.astype(bool)]
     bb_int = image[bounding_box]
     mask_mu = np.mean(mask_int)
+    # We will consider as lesion voxels all the voxels inside the expanded
+    # bounding box that are higher than the mean intensity of the initial
+    # mask voxels.
     nu_mask = bb_int > mask_mu
 
     fixed_mask = np.zeros_like(image)
@@ -255,6 +258,9 @@ def improve_mask(image, mask, expansion=1, verbose=1):
                 len(mask_int), np.sum(nu_mask)
             )
         )
+
+    # In the end we will only take the voxels inside the bounding box that
+    # were part of the original mask.
     return np.logical_and(fixed_mask, mask)
 
 
