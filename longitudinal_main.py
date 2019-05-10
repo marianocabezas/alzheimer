@@ -362,7 +362,9 @@ def initial_analysis(
                 print('|          Deformation          |')
                 print('\\-------------------------------/')
             mask = sitk.ReadImage(
-                os.path.join(followup_path, 'union_brainmask.nii.gz')
+                os.path.join(
+                    patient_path, timepoints[-1], 'union_brainmask.nii.gz'
+                )
             )
             map(
                 lambda (f, b, im): itkdemons(
@@ -443,7 +445,9 @@ def initial_analysis(
                 print('|          Deformation          |')
                 print('\\-------------------------------/')
             mask = sitk.ReadImage(
-                os.path.join(followup_path, 'union_brainmask.nii.gz')
+                os.path.join(
+                    patient_path, timepoints[-1], 'union_brainmask.nii.gz'
+                )
             )
             map(
                 lambda (f, b, im): itkdemons(
