@@ -299,6 +299,8 @@ def initial_analysis(
             lambda im: find_file(im + '_corrected.nii.gz', followup_path),
             images
         )
+
+        # "x" timepoint to last
         for baseline in timepoints[:-1]:
             image_tag = baseline + '-' + followup
             baseline_path = os.path.join(patient_path, baseline)
@@ -310,6 +312,87 @@ def initial_analysis(
             # Now it's time to histogram match everything to the last timepoint.
             # If we are doing "year-by-year" registration, it might be wise to
             # histogram match any pair of successive timepoints.
+            """Histogram matching"""
+            if verbose > 0:
+                print('\t-------------------------------')
+                print('\t       Histogram matching      ')
+                print('\t-------------------------------')
+            map(
+                lambda (f, b, im): itkhist_match(
+                    f, b,
+                    followup_path, im + '_' + image_tag,
+                    verbose=verbose
+                ),
+                filter(
+                    lambda (f, b, im): b is not None and f is not None,
+                    zip(followup_files, baseline_files, images)
+                )
+            )
+
+            """Subtraction"""
+            if verbose > 0:
+                print('/-------------------------------\\')
+                print('|          Subtraction          |')
+                print('\\-------------------------------/')
+            hm_tag = '_corrected_matched.nii.gz'
+            baseline_files = map(
+                lambda im: find_file(
+                    im + '_' + image_tag + hm_tag,
+                    followup_path
+                ),
+                images
+            )
+
+            map(
+                lambda (f, b, im): itksubtraction(
+                    f, b,
+                    followup_path, im + '_' + image_tag,
+                    verbose=verbose
+                ),
+                filter(
+                    lambda (f, b, im): b is not None and f is not None,
+                    zip(followup_files, baseline_files, images)
+                )
+            )
+
+            """Deformation"""
+            # Here we'll just use the simpleITK demons implementation.
+            if verbose > 0:
+                print('/-------------------------------\\')
+                print('|          Deformation          |')
+                print('\\-------------------------------/')
+            mask = sitk.ReadImage(
+                os.path.join(followup_path, 'union_brainmask.nii.gz')
+            )
+            map(
+                lambda (f, b, im): itkdemons(
+                    f, b, mask,
+                    followup_path, im + '_' + image_tag,
+                    verbose=verbose
+                ),
+                filter(
+                    lambda (f, b, im): f is not None and b is not None,
+                    zip(baseline_files, followup_files, images)
+                )
+            )
+
+        # 1 year pairs
+        for baseline, followup in zip(timepoints[:-1], timepoints[1:]):
+            image_tag = baseline + '-' + followup
+            baseline_path = os.path.join(patient_path, baseline)
+            baseline_files = map(
+                lambda im: find_file(im + '_corrected.nii.gz', baseline_path),
+                images
+            )
+
+            followup_path = os.path.join(patient_path, followup)
+            followup_files = map(
+                lambda im: find_file(im + '_corrected.nii.gz', followup_path),
+                images
+            )
+
+            # Now it's time to histogram match everything "year-by-year", and
+            # also apply registration and subtraction.
             """Histogram matching"""
             if verbose > 0:
                 print('\t-------------------------------')
