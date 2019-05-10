@@ -1614,7 +1614,7 @@ def new_lesions(
 
 
 def main():
-    # initial_analysis()
+    initial_analysis()
     naive_registration(verbose=2)
     naive_registration(refine=True, verbose=2)
     demonsbased_registration(verbose=2)
