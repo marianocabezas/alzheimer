@@ -404,8 +404,8 @@ def normalized_xcor(var_x, var_y):
         var_x_norm = var_x - np.mean(var_x_flat)
         var_y_norm = var_y - np.mean(var_y_flat)
         var_xy_norm = np.abs(np.sum(var_x_norm * var_y_norm))
-        inv_var_x_den = np.rsqrt(np.sum(var_x_norm * var_x_norm))
-        inv_var_y_den = np.rsqrt(np.sum(var_y_norm * var_y_norm))
+        inv_var_x_den = np.reciprocal(np.sqrt(np.sum(var_x_norm * var_x_norm)))
+        inv_var_y_den = np.reciprocal(np.sqrt(np.sum(var_y_norm * var_y_norm)))
 
         return var_xy_norm * inv_var_x_den * inv_var_y_den
     else:
