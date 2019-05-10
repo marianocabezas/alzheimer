@@ -441,6 +441,7 @@ def naive_registration(
         lambda lmovs: filter(lambda mov: np.linalg.norm(mov) <= width, lmovs),
         movs
     )
+    print(movs)
     # We pre-append the original position to ensure that when the similarity
     # is the same for no movement and other positions, we don't move the
     # lesion. For most cases, a movement is not really needed.
