@@ -69,7 +69,7 @@ def parse_args():
         '-L', '--losses-list',
         dest='loss_idx',
         nargs='+', type=int, default=[2, 1, 7],
-        help='List of loss indices. '
+        help='List of loss indices for the AtrophyNet. '
              '0: Global subtraction gradient\n'
              '1: Lesion subtraction gradient\n'
              '2: Global cross-correlation\n'
@@ -187,6 +187,7 @@ def initial_analysis(
     c = color_codes()
 
     # Init
+    # Preparation of the "default values" and parameters.
     if d_path is None:
         d_path = parse_args()['dataset_path']
     robex = os.path.join('ROBEX', 'runROBEX.sh')
@@ -201,7 +202,7 @@ def initial_analysis(
 
     global_start = time.time()
 
-    # Main loop
+    # Main loop for all patients
     for i, patient in enumerate(patients):
         patient_start = time.time()
         print(
@@ -237,6 +238,8 @@ def initial_analysis(
             # Check if there is a brainmask
             brainmask_name = find_file('brainmask.nii.gz', full_folder)
             if brainmask_name is None:
+                # If there is no brainmask, we have to apply ROBEX (a skull
+                # stripping method).
                 brainmask_name = os.path.join(full_folder, 'brainmask.nii.gz')
                 brain_name = os.path.join(full_folder, 'stripped.nii.gz')
                 base_pd = filter(
@@ -246,6 +249,10 @@ def initial_analysis(
                     os.listdir(full_folder)
                 )[0]
                 base_image = os.path.join(full_folder, base_pd)
+                # ROBEX is a binary file, so we need to call it as a terminal
+                # command. For that, we'll use a wrapping function that
+                # logs the output/errors of the terminal and shows a "nice"
+                # message.
                 run_command(
                     [robex, base_image, brain_name, brainmask_name],
                     'ROBEX skull stripping - %s (%s)' % (folder, patient),
@@ -262,6 +269,13 @@ def initial_analysis(
             original_files = map(
                 lambda t: find_file('(' + '|'.join(t) + ')', full_folder), tags
             )
+
+            # We use a map to apply the N4 wrapper function (that uses the
+            # simpleITK of the N4 method) to each image of each timepoint
+            # for a given patient.
+            # The filter is just a security check in case an image is missing
+            # (it's probably unnecessary if we set images to only the images
+            # we knoe we have for sure).
             map(
                 lambda (b, im): itkn4(
                     b, full_folder, im,
@@ -273,11 +287,14 @@ def initial_analysis(
                 )
             )
 
-        # Followup setup
-        followup = timepoints[-1]
-        followup_path = os.path.join(patient_path, followup)
+        # Final timepoint setup
+        last = timepoints[-1]
+        last_path = os.path.join(patient_path, last)
 
         bm_tag = 'brainmask.nii.gz'
+        # We load all the brainmasks of a given patient and then we'll
+        # just apply a logical or (0 or 0 = 0, 0 or 1 = 1, 1 or 1 = 1)
+        # to all of them.
         brains = map(
             lambda t: load_nii(
                 os.path.join(patient_path, t, bm_tag)
@@ -286,50 +303,60 @@ def initial_analysis(
         )
         brain = reduce(np.logical_or, brains)
         brain_nii = load_nii(
-            os.path.join(patient_path, timepoints[-1], 'brainmask.nii.gz')
-        )
-        # We use the union of the brainmasks, in case skull stripping
-        # failed and eroded part of the brain in any timepoint.
-        brain_nii.get_data()[:] = brain
-        brain_nii.to_filename(
-            os.path.join(followup_path, 'union_brainmask.nii.gz')
+            os.path.join(last_path, 'brainmask.nii.gz')
         )
 
-        followup_files = map(
-            lambda im: find_file(im + '_corrected.nii.gz', followup_path),
+        # We use the union of the brainmasks on each timepoint, in case skull
+        # stripping failed and eroded part of the brain in any timepoint.
+        brain_nii.get_data()[:] = brain
+        brain_nii.to_filename(
+            os.path.join(last_path, 'union_brainmask.nii.gz')
+        )
+
+        last_files = map(
+            lambda im: find_file(im + '_corrected.nii.gz', last_path),
             images
         )
 
         # "x" timepoint to last
         for baseline in timepoints[:-1]:
-            image_tag = baseline + '-' + followup
+            image_tag = baseline + '-' + last
             baseline_path = os.path.join(patient_path, baseline)
+            # Here we get the N4 corrected version of the baseline files.
+            # Images contains the name of the modalities (t1, t2,...)
             baseline_files = map(
                 lambda im: find_file(im + '_corrected.nii.gz', baseline_path),
                 images
             )
 
-            # Now it's time to histogram match everything to the last timepoint.
-            # If we are doing "year-by-year" registration, it might be wise to
-            # histogram match any pair of successive timepoints.
+            # Now it's time to histogram match everything (time1, time2, ...)
+            # to the last timepoint.
             """Histogram matching"""
             if verbose > 0:
                 print('\t-------------------------------')
                 print('\t       Histogram matching      ')
                 print('\t-------------------------------')
+            # We use a map to apply the histogram matching wrapper function
+            # (that uses the simpleITK of the N4 method) to each image of
+            # each timepoint for a given patient.
+            # The filter is just a security check in case an image is missing
+            # (it's probably unnecessary if we set images to only the images
+            # we knoe we have for sure).
             map(
                 lambda (f, b, im): itkhist_match(
                     f, b,
-                    followup_path, im + '_' + image_tag,
+                    last_path, im + '_' + image_tag,
                     verbose=verbose
                 ),
                 filter(
                     lambda (f, b, im): b is not None and f is not None,
-                    zip(followup_files, baseline_files, images)
+                    zip(last_files, baseline_files, images)
                 )
             )
 
             """Subtraction"""
+            # The next step is to apply a simple subtraction between the
+            # current timepoint and the last one.
             if verbose > 0:
                 print('/-------------------------------\\')
                 print('|          Subtraction          |')
@@ -338,47 +365,58 @@ def initial_analysis(
             baseline_files = map(
                 lambda im: find_file(
                     im + '_' + image_tag + hm_tag,
-                    followup_path
+                    last_path
                 ),
                 images
             )
-
+            # We use a map to apply the subtraction wrapper function to each
+            # image of each timepoint for a given patient.
+            # The filter is just a security check in case an image is missing
+            # (it's probably unnecessary if we set images to only the images
+            # we knoe we have for sure).
             map(
                 lambda (f, b, im): itksubtraction(
                     f, b,
-                    followup_path, im + '_' + image_tag,
+                    last_path, im + '_' + image_tag,
                     verbose=verbose
                 ),
                 filter(
                     lambda (f, b, im): b is not None and f is not None,
-                    zip(followup_files, baseline_files, images)
+                    zip(last_files, baseline_files, images)
                 )
             )
 
             """Deformation"""
-            # Here we'll just use the simpleITK demons implementation.
+            # Finally, we compute the deformation between timepoints.
             if verbose > 0:
                 print('/-------------------------------\\')
                 print('|          Deformation          |')
                 print('\\-------------------------------/')
             mask = sitk.ReadImage(
                 os.path.join(
-                    patient_path, timepoints[-1], 'union_brainmask.nii.gz'
+                    last_path, 'union_brainmask.nii.gz'
                 )
             )
+
+            # We use a map to apply the Demons wrapper function to each
+            # image of each timepoint for a given patient. This is just a
+            # wrapper for the basic demons implementation in simpleITK.
+            # The filter is just a security check in case an image is missing
+            # (it's probably unnecessary if we set images to only the images
+            # we knoe we have for sure).
             map(
                 lambda (f, b, im): itkdemons(
                     f, b, mask,
-                    followup_path, im + '_' + image_tag,
+                    last_path, im + '_' + image_tag,
                     verbose=verbose
                 ),
                 filter(
                     lambda (f, b, im): f is not None and b is not None,
-                    zip(baseline_files, followup_files, images)
+                    zip(baseline_files, last_files, images)
                 )
             )
 
-        # 1 year pairs
+        # 1 year pairs (this is just a lazy copy + paste of the previous loop).
         for baseline, followup in zip(timepoints[:-1], timepoints[1:]):
             image_tag = baseline + '-' + followup
             baseline_path = os.path.join(patient_path, baseline)
@@ -393,13 +431,14 @@ def initial_analysis(
                 images
             )
 
-            # Now it's time to histogram match everything "year-by-year", and
-            # also apply registration and subtraction.
+            # Now it's time to histogram match everything "year-by-year".
             """Histogram matching"""
             if verbose > 0:
                 print('\t-------------------------------')
                 print('\t       Histogram matching      ')
                 print('\t-------------------------------')
+            # Since that's a lazy copy paste it's the same as before, with the
+            # last path changed for a followup path of the next timepoint.
             map(
                 lambda (f, b, im): itkhist_match(
                     f, b,
@@ -413,6 +452,7 @@ def initial_analysis(
             )
 
             """Subtraction"""
+            # Next is the subtraction "year-by-year".
             if verbose > 0:
                 print('/-------------------------------\\')
                 print('|          Subtraction          |')
@@ -425,7 +465,8 @@ def initial_analysis(
                 ),
                 images
             )
-
+            # Since that's a lazy copy paste it's the same as before, with the
+            # last path changed for a followup path of the next timepoint.
             map(
                 lambda (f, b, im): itksubtraction(
                     f, b,
@@ -439,7 +480,7 @@ def initial_analysis(
             )
 
             """Deformation"""
-            # Here we'll just use the simpleITK demons implementation.
+            # And finally, we compute the Demons registration "year-by-year".
             if verbose > 0:
                 print('/-------------------------------\\')
                 print('|          Deformation          |')
@@ -449,6 +490,8 @@ def initial_analysis(
                     patient_path, timepoints[-1], 'union_brainmask.nii.gz'
                 )
             )
+            # Since that's a lazy copy paste it's the same as before, with the
+            # last path changed for a followup path of the next timepoint.
             map(
                 lambda (f, b, im): itkdemons(
                     f, b, mask,
@@ -590,6 +633,10 @@ def naive_registration(
         # This is just a security check. If there is no mask (which shouldn't
         # be the case), we can't really check how lesions move.
         if mask_name is not None:
+            # We define a structural element that's basically a matrix of
+            # 3x3x3 with all ones. This is used to apply a numerical label
+            # to each "independent" 3d lesion blob. We'll process lesions
+            # independently.
             strel = np.ones([3] * dim)
             mask_nii = load_nii(mask_name)
             mask = mask_nii.get_data()
@@ -741,6 +788,9 @@ def deformationbased_registration(
                 )
             )
 
+        # Patient init:
+        # Basically, we prepare the names of all the files needed for this
+        # specific patient.
         patient_path = os.path.join(d_path, patient)
         fixed_folder = sorted(
             filter(
@@ -755,6 +805,9 @@ def deformationbased_registration(
         # Deformation loading
         defo_name = find_file(image, defo_path)
 
+        # We are basically moving the axis that defines the dimension
+        # of the deformation vectors (and squeezing for unnecessary
+        # singleton dimensions). This makes the next steps easier.
         defo = np.moveaxis(np.squeeze(load_nii(defo_name).get_data()), -1, 0)
 
         mask_name = find_file('(' + '|'.join(lesion_tags) + ')', patient_path)
@@ -765,11 +818,17 @@ def deformationbased_registration(
             mask_nii = load_nii(mask_name)
             mask = mask_nii.get_data()
 
+            # We define a structural element that's basically a matrix of
+            # 3x3x3 with all ones. This is used to apply a numerical label
+            # to each "independent" 3d lesion blob. We'll process lesions
+            # independently.
             strel = np.ones([3] * dim)
             label_im, nlabels = nd.label(mask, structure=strel)
             labels = range(1, nlabels + 1)
 
+            # With this we are creating a mask for each lesion.
             l_masks = map(lambda l_i: label_im == l_i, labels)
+            # With this we only take the boundary of the lesion.
             lb_masks = map(
                 lambda (m_i, in_i): np.logical_xor(m_i, in_i),
                 zip(l_masks, map(lambda m_i: erode(m_i, strel), l_masks)))
@@ -799,6 +858,8 @@ def deformationbased_registration(
             }
 
             for n_op, v_op in v_ops.items():
+                # In order to find a single vector per lesion, we apply
+                # a vector op (defined as a dictionary in v_ops).
                 v_means = map(lambda v: np.round(v_op(v, axis=-1)), vectors)
                 if verbose > 1:
                     whites = ''.join([' '] * 11)
@@ -808,6 +869,8 @@ def deformationbased_registration(
                             (whites, ', '.join(map(str, mov)))
                         )
 
+                # We apply the previous vector to the lesion voxels in order
+                # to move the lesion.
                 matches = map(lambda (v, m): v + m, zip(l_voxels, v_means))
                 nulesion_idx = np.concatenate(matches, axis=0)
 
@@ -850,6 +913,8 @@ def demonsbased_registration(
     """
     Function that applies a translation based solely on a deformation field. It
     basically moves the mask using the average deformation inside the mask.
+    This function should never be used if initial_analysis() hasn't been run
+    before to ensure that we have a Demons deformation field.
     :param d_path: Path where the whole database is stored. If not specified,
     it will be read from the command parameters.
     :param target_name: Name of the target image
@@ -902,7 +967,14 @@ def demonsbased_registration(
         image_name = find_file(image_re, target_path)
         fixed_name = find_file(target_name, target_path)
 
+        # This is just a security check. If there is no mask (which shouldn't
+        # be the case), we can't really check how lesions move.
         if mask_name is not None:
+            # This is actually one of the easier functions on this file. All it
+            # does is load a previously computed deformation field and apply it
+            # to the mask using wrapper function.
+            # Currently, it takes only the flair demons deformation, but it can
+            # be modified to use the deformation from any other image.
             print(defo_name)
             itkwarp(
                 fixed_name,
@@ -1249,7 +1321,8 @@ def cnn_registration(
                     c['c'], i + 1, len(patients), c['nc']
                 )
             )
-        # Get mask, source and target (already loaded) and expand the dimensions.
+        # Get the mask, source and target (already loaded) and expand the
+        # dimensions.
         patient_path = os.path.join(d_path, patient)
         mask_name = find_file('(' + '|'.join(lesion_tags) + ')', patient_path)
         if verbose > 1:
