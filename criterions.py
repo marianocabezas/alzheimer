@@ -17,12 +17,12 @@ def normalised_xcor(var_x, var_y):
         # Computation
         var_x_norm = map(lambda v_xi: v_xi - torch.mean(v_xi), var_x)
         var_y_norm = map(lambda v_yi: v_yi - torch.mean(v_yi), var_y)
-        var_xy_norm = torch.cat(
+        var_xy_norm = torch.stack(
             map(lambda (x, y): torch.mean(x * y), zip(var_x_norm, var_y_norm))
         )
 
-        inv_var_x_den = 1 / torch.cat(map(torch.std, var_x))
-        inv_var_y_den = 1 / torch.cat(map(torch.std, var_y))
+        inv_var_x_den = 1 / torch.stack(map(torch.std, var_x))
+        inv_var_y_den = 1 / torch.stack(map(torch.std, var_y))
         xcor = torch.abs(var_xy_norm * inv_var_x_den * inv_var_y_den)
 
         return torch.mean(xcor)
