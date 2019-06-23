@@ -1,3 +1,4 @@
+from operator import mul
 from itertools import product
 import torch
 import torch.nn.functional as F
@@ -12,19 +13,31 @@ def normalised_xcor(var_x, var_y):
         :return: A tensor with the normalised cross correlation
     """
     # Init
-    red_dim = var_x.shape[2:]
-    if var_x.numel() > 1 and var_y.numel() > 1:
+    if isinstance(var_x, list) and isinstance(var_y, list):
         # Computation
-        var_x_norm = var_x - torch.mean(var_x, dim=red_dim)
-        var_y_norm = var_y - torch.mean(var_y, dim=red_dim)
-        var_xy_norm = torch.mean(var_x_norm * var_y_norm, dim=red_dim)
-        inv_var_x_den = 1 / torch.std(var_x, dim=red_dim)
-        inv_var_y_den = 1 / torch.std(var_y, dim=red_dim)
+        var_x_norm = map(lambda v_xi: v_xi - torch.mean(v_xi), var_x)
+        var_y_norm = map(lambda v_yi: v_yi - torch.mean(v_yi), var_y)
+        var_xy_norm = map(mul, zip(var_x_norm, var_y_norm))
+        inv_var_x_den = 1 / torch.cat(map(torch.std, var_x))
+        inv_var_y_den = 1 / torch.cat(map(torch.std, var_y))
         xcor = torch.abs(var_xy_norm * inv_var_x_den * inv_var_y_den)
 
         return torch.mean(xcor)
+
     else:
-        return torch.mean(torch.abs(var_x - var_y))
+        red_dim = var_x.shape[2:]
+        if var_x.numel() > 1 and var_y.numel() > 1:
+            # Computation
+            var_x_norm = var_x - torch.mean(var_x, dim=red_dim)
+            var_y_norm = var_y - torch.mean(var_y, dim=red_dim)
+            var_xy_norm = torch.mean(var_x_norm * var_y_norm, dim=red_dim)
+            inv_var_x_den = 1 / torch.std(var_x, dim=red_dim)
+            inv_var_y_den = 1 / torch.std(var_y, dim=red_dim)
+            xcor = torch.abs(var_xy_norm * inv_var_x_den * inv_var_y_den)
+
+            return torch.mean(xcor)
+        else:
+            return torch.mean(torch.abs(var_x - var_y))
 
 
 def torch_entropy(var_x, var_y=None, bins=100):

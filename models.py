@@ -1554,8 +1554,8 @@ class NewLesionsNet(nn.Module):
     ):
         # Init
         roi = moved > 0
-        moved_roi = moved[roi > 0]
-        target_roi = target[roi > 0]
+        moved_roi = map(lambda m, r: m[r > 0], zip(moved, roi))
+        target_roi = map(lambda t, r: t[r > 0], zip(target, roi))
 
         functions = {
             ' subt ': subtraction_loss,
