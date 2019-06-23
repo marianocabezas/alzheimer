@@ -24,7 +24,7 @@ def normalised_xcor(var_x, var_y):
         std_x = torch.stack(map(torch.std, var_x))
         std_y = torch.stack(map(torch.std, var_y))
 
-        print(std_x, std_y)
+        print(std_x * std_y, var_xy_norm)
 
         xcor = torch.abs(var_xy_norm / (std_x * std_y))
 
