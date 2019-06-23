@@ -45,7 +45,7 @@ def parse_args():
     parser.add_argument(
         '-L', '--losses-list',
         dest='loss_idx',
-        nargs='+', type=int, default=[1],
+        nargs='+', type=int, default=[2],
         help='List of loss indices. '
              '0: Global subtraction gradient\n'
              '1: Global cross-correlation\n'
