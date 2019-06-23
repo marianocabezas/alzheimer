@@ -1553,9 +1553,7 @@ class NewLesionsNet(nn.Module):
             df,
     ):
         # Init
-        roi = moved > 0
-        moved_roi = map(lambda (m, r): m[r > 0], zip(moved, roi))
-        target_roi = map(lambda (t, r): t[r > 0], zip(target, roi))
+        roi = target > 0
 
         functions = {
             ' subt ': subtraction_loss,
@@ -1568,11 +1566,14 @@ class NewLesionsNet(nn.Module):
 
         inputs = {
             ' subt ': (moved, target, roi),
-            ' xcor ': (moved_roi, target_roi),
-            ' mse  ': (moved_roi, target_roi),
+            ' xcor ': (
+                map(lambda (m, r): m[r > 0], zip(moved, roi)),
+                map(lambda (t, r): t[r > 0], zip(target, roi))
+            ),
+            ' mse  ': (moved[roi], target[roi]),
             'deform': (df, roi),
             'modulo': (df, roi),
-            ' n_mi ': (moved_roi, target_roi),
+            ' n_mi ': (moved[roi], target[roi]),
         }
 
         weights = {
