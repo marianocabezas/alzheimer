@@ -12,7 +12,7 @@ import re
 from nibabel import load as load_nii
 import nibabel as nib
 from time import strftime
-from data_manipulation.sitk import itkn4, itkhist_match, itkrigid
+from data_manipulation.sitk import itkn4, itkhist_match
 from data_manipulation.metrics import dsc_det, tp_fraction_det, fp_fraction_det
 from data_manipulation.metrics import dsc_seg, tp_fraction_seg, fp_fraction_seg
 from data_manipulation.metrics import true_positive_det, num_regions, num_voxels
@@ -45,7 +45,7 @@ def parse_args():
     parser.add_argument(
         '-L', '--losses-list',
         dest='loss_idx',
-        nargs='+', type=int, default=[1, 3],
+        nargs='+', type=int, default=[1],
         help='List of loss indices. '
              '0: Global subtraction gradient\n'
              '1: Global cross-correlation\n'
@@ -57,13 +57,13 @@ def parse_args():
     parser.add_argument(
         '-e', '--epochs',
         dest='epochs',
-        type=int,  default=100,
+        type=int,  default=25,
         help='Number of epochs'
     )
     parser.add_argument(
         '-p', '--patience',
         dest='patience',
-        type=int, default=50,
+        type=int, default=10,
         help='Patience for early stopping'
     )
     parser.add_argument(
@@ -90,13 +90,6 @@ def parse_args():
         dest='train_smooth',
         action='store_true', default=False,
         help='Whether or not to make the smoothing trainable'
-    )
-    parser.add_argument(
-        '--hybrid',
-        dest='hybrid',
-        action='store_true', default=False,
-        help='Whether to use the hybrid method (that uses images for '
-             'registration and patches for segmentation.'
     )
     return vars(parser.parse_args())
 
@@ -341,7 +334,6 @@ def new_lesions(
     data_smooth = parse_args()['data_smooth']
     df_smooth = parse_args()['df_smooth']
     train_smooth = parse_args()['train_smooth']
-    hybrid = parse_args()['hybrid']
     smooth_s = '.'.join(
         filter(
             None,
@@ -352,7 +344,7 @@ def new_lesions(
             ]
         )
     )
-    net_name = 'newlesions' if not hybrid else 'mixedlong'
+    net_name = 'newlesions'
     model_name = '%s_model_%s_loss%s_l%.2fe%dp%d.mdl' % (
         net_name,
         smooth_s + '_' if smooth_s else '',
@@ -388,13 +380,13 @@ def new_lesions(
         lesions = map(get_mask, lesion_names)
         norm_source = map(
             lambda (p, mask_i): get_normalised_image(
-                os.path.join(p, source_name), mask_i
+                os.path.join(p, source_name), mask_i, masked=True
             ),
             zip(patient_paths, brains)
         )
         norm_target = map(
             lambda (p, mask_i): get_normalised_image(
-                os.path.join(p, target_name), mask_i
+                os.path.join(p, target_name), mask_i, masked=True
             ),
             zip(patient_paths, brains)
         )
@@ -408,7 +400,6 @@ def new_lesions(
             data_smooth=data_smooth,
             df_smooth=df_smooth,
             trainable_smooth=train_smooth,
-            hybrid=hybrid
         )
         try:
             reg_net.load_model(os.path.join(d_path, patient, model_name))
@@ -418,6 +409,8 @@ def new_lesions(
                 norm_target,
                 lesions,
                 brains,
+                overlap=24,
+                val_split=0.1,
                 epochs=epochs,
                 patience=patience
             )
@@ -477,7 +470,7 @@ def new_lesions(
             np.reshape(norm_target, (1, 1) + norm_target.shape)
         )
 
-        lesion = seg[0] > 0.5
+        lesion = seg[0][1] > 0.5
 
         source_mov = source_mov[0] * source_sigma + source_mu
         source_nii.get_data()[:] = source_mov * brain
@@ -485,7 +478,7 @@ def new_lesions(
             os.path.join(patient_path, 'moved_%s.nii.gz' % sufix)
         )
         mask_nii = nib.Nifti1Image(
-            seg[0],
+            seg[0][1],
             source_nii.get_qform(),
             source_nii.get_header()
         )

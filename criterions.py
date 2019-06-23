@@ -286,24 +286,6 @@ def histogram_loss(var_x, var_y):
     return loss
 
 
-def dsc_bin_loss(var_x, var_y):
-    """
-        Loss function for the binary dice loss. There is no need to binarise
-         the tensors. In fact, we cast the target values to float (for the
-         gradient).
-        :param var_x: Predicted values.
-        :param var_y: Expected values.
-        :return: A tensor with the loss
-    """
-    var_y = var_y.type_as(var_x)
-    intersection = torch.sum(var_x * var_y)
-    sum_x = torch.sum(var_x)
-    sum_y = torch.sum(var_y)
-    sum_vals = sum_x + sum_y
-    dsc_value = (2 * intersection / sum_vals) if sum_vals > 0 else 1.0
-    return 1.0 - dsc_value
-
-
 def gradient(tensor):
     """
         Function to compute the gradient of a multidimensional tensor. We
@@ -335,7 +317,8 @@ def gradient(tensor):
     # the gradient in between these positions. These is the equivalent of
     # computing the gradient between voxels separated one space. 1D ex:
     # [a, b, c, d] -> gradient0.5 = [a - b, b - c, c - d]
-    # gradient1 = 0.5 * [(a - b) + (b - c), (b - c) + (c - d)] = [a - c, b - d]
+    # gradient1 = 0.5 * [(a - b) + (b - c), (b - c) + (c - d)] =
+    # = 0.5 * [a - c, b - d] ~ [a - c, b - d]
     no_pad = (0, 0)
     pad = (1, 1)
     paddings = map(
@@ -421,3 +404,50 @@ def df_modulo(df, mask):
     mean_grad = torch.mean(torch.exp(-modulo[mask]))
 
     return mean_grad
+
+
+def multidsc_loss(pred, target, smooth=1, averaged=True):
+    """
+    Loss function based on a multi-class DSC metric.
+    :param pred: Predicted values. This tensor should have the shape:
+     [batch_size, n_classes, data_shape]
+    :param target: Ground truth values. This tensor can have multiple shapes:
+     - [batch_size, n_classes, data_shape]: This is the expected output since
+       it matches with the predicted tensor.
+     - [batch_size, data_shape]: In this case, the tensor is labeled with
+       values ranging from 0 to n_classes. We need to convert it to
+       categorical.
+    :param smooth: Parameter used to smooth the DSC when there are no positive
+     samples.
+    :param averaged: Parameter to decide whether to return the average DSC or
+     a tensor with the different class DSC values.
+    :return: The mean DSC for the batch
+    """
+    dims = pred.shape
+    n_classes = dims[1]
+    if target.shape != pred.shape:
+        assert torch.max(target) <= n_classes, 'Wrong number of classes for GT'
+        target = torch.cat(
+            map(lambda i: target == i, range(n_classes)), dim=1
+        )
+        target = target.type_as(pred)
+
+    reduce_dims = tuple(range(2, len(dims)))
+    num = (2 * torch.sum(pred * target, dim=reduce_dims)) + smooth
+    den = torch.sum(pred + target, dim=reduce_dims) + smooth
+    dsc_k = num / den
+    if averaged:
+        dsc = 1 - torch.mean(torch.mean(dsc_k, dim=1))
+    else:
+        dsc = 1 - torch.mean(dsc_k, dim=0)
+
+    return dsc
+
+
+class GenericLossLayer(torch.nn.Module):
+    def __init__(self, func_handle):
+        super(GenericLossLayer, self).__init__()
+        self.func = func_handle
+
+    def forward(self, pred, target):
+        return self.func(pred, target)

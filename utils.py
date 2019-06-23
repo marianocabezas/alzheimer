@@ -43,6 +43,27 @@ def color_codes():
     return codes
 
 
+def time_to_string(time_val):
+    """
+
+    :param time_val: Time value in seconds (using functions from the time
+     package)
+    :return: String with a human format for time
+    """
+
+    if time_val < 60:
+        time_s = '%ds' % time_val
+    elif time_val < 3600:
+        time_s = '%dm %ds' % (time_val // 60, time_val % 60)
+    else:
+        time_s = '%dh %dm %ds' % (
+            time_val // 3600,
+            (time_val % 3660) // 60,
+            time_val % 60
+        )
+    return time_s
+
+
 def find_file(name, dirname):
     """
 
@@ -281,14 +302,19 @@ def get_mask(mask_name, dilate=0, dtype=np.uint8):
     return mask_image
 
 
-def get_normalised_image(image_name, mask, dtype=np.float32):
+def get_normalised_image(image_name, mask, dtype=np.float32, masked=False):
     mask_bin = mask > 0
     image = load_nii(image_name).get_data()
     image_mu = np.mean(image[mask_bin])
     image_sigma = np.std(image[mask_bin])
     norm_image = (image - image_mu) / image_sigma
 
-    return norm_image.astype(dtype)
+    if masked:
+        output = norm_image.astype(dtype) * mask_bin.astype(dtype)
+    else:
+        output = norm_image.astype(dtype)
+
+    return output
 
 
 def is_dir(path, name):

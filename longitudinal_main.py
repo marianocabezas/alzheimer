@@ -25,7 +25,7 @@ from data_manipulation.information_theory import normalized_mutual_information
 from data_manipulation.metrics import dsc_det, tp_fraction_det, fp_fraction_det
 from data_manipulation.metrics import dsc_seg, tp_fraction_seg, fp_fraction_seg
 from data_manipulation.metrics import true_positive_det, num_regions, num_voxels
-from models import LongitudinalNet, MaskAtrophyNet
+from models import MaskAtrophyNet
 from utils import color_codes, get_dirs, find_file, run_command, print_message
 from utils import get_mask, get_normalised_image, improve_mask, best_match
 from utils import get_atrophy_cases, get_newlesion_cases
