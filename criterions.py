@@ -20,6 +20,8 @@ def normalised_xcor(var_x, var_y):
         var_xy_norm = torch.cat(
             map(lambda (x, y): x * y, zip(var_x_norm, var_y_norm))
         )
+        print(map(torch.std, var_x))
+        print(map(torch.std, var_y))
         inv_var_x_den = 1 / torch.cat(map(torch.std, var_x))
         inv_var_y_den = 1 / torch.cat(map(torch.std, var_y))
         xcor = torch.abs(var_xy_norm * inv_var_x_den * inv_var_y_den)

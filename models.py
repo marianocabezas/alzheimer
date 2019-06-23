@@ -1556,7 +1556,6 @@ class NewLesionsNet(nn.Module):
         roi = moved > 0
         moved_roi = map(lambda (m, r): m[r > 0], zip(moved, roi))
         target_roi = map(lambda (t, r): t[r > 0], zip(target, roi))
-        print('(%s)' % ', '.join(map(lambda r: str(len(r)), moved_roi)))
 
         functions = {
             ' subt ': subtraction_loss,
