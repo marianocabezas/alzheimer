@@ -633,17 +633,17 @@ class MaskAtrophyNet(nn.Module):
 
         # Extra DF path
         deconv_out = 2 + deconv_filters[unet_filters - 1]
-        zipped_f = zip(
-            [deconv_out] + deconv_filters[unet_filters:-1],
-            deconv_filters[unet_filters:]
-        )
+        extra_filters = map(lambda f: f * 3, deconv_filters[unet_filters:])
         if kernel_size is not None:
             pad = kernel_size // 2
             self.conv = map(
                 lambda (f_in, f_out): nn.Conv3d(
                     f_in, f_out, kernel_size, padding=pad, groups=3,
                 ),
-                zipped_f
+                zip(
+                    [deconv_out] + extra_filters[:-1],
+                    extra_filters
+                )
             )
             for c in self.conv:
                 c.to(device)
@@ -653,7 +653,10 @@ class MaskAtrophyNet(nn.Module):
                 lambda (f_in, f_out): MultiViewBlock3D(
                     f_in, f_out
                 ),
-                zipped_f
+                zip(
+                    [deconv_out] + deconv_filters[unet_filters:-1],
+                    deconv_filters[unet_filters:]
+                )
             )
             for c in self.conv:
                 c.to(device)
