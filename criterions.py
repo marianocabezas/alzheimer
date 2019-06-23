@@ -12,20 +12,16 @@ def normalised_xcor(var_x, var_y):
         :return: A tensor with the normalised cross correlation
     """
     # Init
-    var_x_flat = var_x.view((len(var_x), -1))
-    var_y_flat = var_y.view((len(var_y), -1))
-    if len(var_x_flat) > 1 and len(var_y_flat) > 1:
+    red_dim = var_x.shape[2:]
+    if var_x.numel() > 1 and var_y.numel() > 1:
         # Computation
-        var_x_norm = var_x_flat - torch.mean(var_x_flat, dim=1)
-        var_y_norm = var_y_flat - torch.mean(var_y_flat, dim=1)
-        var_xy_norm = torch.abs(torch.mean(
-            var_x_norm * var_y_norm, dim=1
-        ))
-        print(var_x_flat.shape, var_y_flat.shape)
-        inv_var_x_den = 1 / var_x_flat.std(dim=-1)
-        inv_var_y_den = 1 / var_y_flat.std(dim=-1)
+        var_x_norm = var_x - torch.mean(var_x, dim=red_dim)
+        var_y_norm = var_y - torch.mean(var_y, dim=red_dim)
+        var_xy_norm = torch.mean(var_x_norm * var_y_norm, dim=red_dim)
+        inv_var_x_den = 1 / torch.std(var_x, dim=red_dim)
+        inv_var_y_den = 1 / torch.std(var_y, dim=red_dim)
 
-        return torch.mean(var_xy_norm * inv_var_x_den * inv_var_y_den)
+        return torch.abs(var_xy_norm * inv_var_x_den * inv_var_y_den)
     else:
         return torch.mean(torch.abs(var_x - var_y))
 
