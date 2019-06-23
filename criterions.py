@@ -16,13 +16,13 @@ def normalised_xcor(var_x, var_y):
     var_y_flat = var_y.view((len(var_y), -1))
     if len(var_x_flat) > 1 and len(var_y_flat) > 1:
         # Computation
-        var_x_norm = var_x - torch.mean(var_x_flat, dim=1, keepdim=True)
-        var_y_norm = var_y - torch.mean(var_y_flat, dim=1, keepdim=True)
+        var_x_norm = var_x - torch.mean(var_x_flat, dim=0, keepdim=True)
+        var_y_norm = var_y - torch.mean(var_y_flat, dim=0, keepdim=True)
         var_xy_norm = torch.abs(torch.mean(
-            var_x_norm * var_y_norm, dim=1
+            var_x_norm * var_y_norm, dim=0
         ))
-        inv_var_x_den = 1 / var_x_flat.std(dim=1)
-        inv_var_y_den = 1 / var_y_flat.std(dim=1)
+        inv_var_x_den = 1 / var_x_flat.std(dim=0)
+        inv_var_y_den = 1 / var_y_flat.std(dim=0)
 
         return torch.mean(var_xy_norm * inv_var_x_den * inv_var_y_den)
     else:
