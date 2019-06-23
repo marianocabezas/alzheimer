@@ -1171,7 +1171,7 @@ class NewLesionsNet(nn.Module):
         )
         self.up = map(
             lambda (f_in, f_out): nn.ConvTranspose3d(
-                f_in, f_out, 3, stride=2
+                f_in, f_out, 3, stride=2, groups=2
             ),
             zip(
                 deconv_in,
