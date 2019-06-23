@@ -577,7 +577,6 @@ class MaskAtrophyNet(nn.Module):
             trainable_smooth=False,
     ):
         # Init
-        final_filters = deconv_filters[-1]
         loss_names = list([
                 ' subt ',
                 'subt_l',
@@ -635,6 +634,7 @@ class MaskAtrophyNet(nn.Module):
         deconv_out = 2 + deconv_filters[unet_filters - 1]
         extra_filters = map(lambda f: f * 3, deconv_filters[unet_filters:])
         if kernel_size is not None:
+            final_filters = deconv_filters[-1] * 3
             pad = kernel_size // 2
             self.conv = map(
                 lambda (f_in, f_out): nn.Conv3d(
@@ -649,6 +649,7 @@ class MaskAtrophyNet(nn.Module):
                 c.to(device)
                 nn.init.kaiming_normal_(d.weight)
         else:
+            final_filters = deconv_filters[-1]
             self.conv = map(
                 lambda (f_in, f_out): MultiViewBlock3D(
                     f_in, f_out
