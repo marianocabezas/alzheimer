@@ -37,24 +37,6 @@ def parse_args():
         help='Parameter to store the working directory.'
     )
     parser.add_argument(
-        '-l', '--lambda',
-        dest='lambda',
-        type=float, default=1,
-        help='Parameter to store the working directory.'
-    )
-    parser.add_argument(
-        '-L', '--losses-list',
-        dest='loss_idx',
-        nargs='+', type=int, default=[2],
-        help='List of loss indices. '
-             '0: Global subtraction gradient\n'
-             '1: Global cross-correlation\n'
-             '2: Global mean squared error\n'
-             '3: Deformation regularization\n'
-             '4: Modulo maximisation\n'
-             '5: Global mutual information\n'
-    )
-    parser.add_argument(
         '-e', '--epochs',
         dest='epochs',
         type=int,  default=25,
@@ -327,10 +309,8 @@ def new_lesions(
         c['c'], time_str, c['nc']
     ))
 
-    loss_idx = parse_args()['loss_idx']
     epochs = parse_args()['epochs']
     patience = parse_args()['patience']
-    lambda_v = parse_args()['lambda']
     data_smooth = parse_args()['data_smooth']
     df_smooth = parse_args()['df_smooth']
     train_smooth = parse_args()['train_smooth']
@@ -345,11 +325,8 @@ def new_lesions(
         )
     )
     net_name = 'newlesions'
-    model_name = '%s_model_%s_loss%s_l%.2fe%dp%d.mdl' % (
-        net_name,
-        smooth_s + '_' if smooth_s else '',
-        '+'.join(map(str, loss_idx)),
-        lambda_v, epochs, patience
+    model_name = '%s_model_%s_e%dp%d.mdl' % (
+        net_name, smooth_s + '_' if smooth_s else '', epochs, patience
     )
 
     global_start = time.time()
@@ -394,8 +371,6 @@ def new_lesions(
         training_start = time.time()
 
         reg_net = NewLesionsNet(
-            loss_idx=loss_idx,
-            lambda_d=lambda_v,
             device=device,
             data_smooth=data_smooth,
             df_smooth=df_smooth,

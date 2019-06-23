@@ -568,7 +568,6 @@ class MaskAtrophyNet(nn.Module):
             conv_filters=list([32, 64, 64, 64]),
             deconv_filters=list([64, 64, 64, 64, 64, 64, 64]),
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
-            lambda_d=1,
             leakyness=0.2,
             loss_idx=list([0, 1, 6]),
             kernel_size=3,
@@ -595,7 +594,6 @@ class MaskAtrophyNet(nn.Module):
         self.df_smooth = df_smooth
         self.epoch = 0
         self.optimizer_alg = None
-        self.lambda_d = lambda_d
         self.loss_names = map(lambda idx: loss_names[idx], loss_idx)
         self.device = device
         self.leakyness = leakyness
