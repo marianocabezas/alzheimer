@@ -1227,7 +1227,7 @@ class NewLesionsNet(nn.Module):
             self.init_im(torch.cat([patch_source, target], dim=1))
         )
         input_s = torch.cat([input_im, input_df], dim=1)
-        down_inputs = list([torch.cat([patch_source, target, df])])
+        down_inputs = list([torch.cat([patch_source, target, df], dim=1)])
         for c in self.down:
             input_s = F.relu(c(input_s))
             down_inputs.append(input_s)
