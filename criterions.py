@@ -21,11 +21,16 @@ def normalised_xcor(var_x, var_y):
             map(lambda (x, y): torch.mean(x * y), zip(var_x_norm, var_y_norm))
         )
 
-        inv_var_x_den = 1 / torch.stack(map(torch.std, var_x))
-        inv_var_y_den = 1 / torch.stack(map(torch.std, var_y))
+        std_x = torch.stack(map(torch.std, var_x))
+        std_y = torch.stack(map(torch.std, var_y))
+
+        inv_var_x_den = 1 / std_x
+        inv_var_y_den = 1 / std_y
+
+        valid = (std_x > 0) and (std_y > 0)
         xcor = torch.abs(var_xy_norm * inv_var_x_den * inv_var_y_den)
 
-        return torch.mean(xcor)
+        return torch.mean(xcor[valid])
 
     else:
         red_dim = var_x.shape[2:]
