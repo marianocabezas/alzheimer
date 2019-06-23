@@ -1181,7 +1181,7 @@ class NewLesionsNet(nn.Module):
         for d in self.up:
             d.to(device)
 
-        self.seg = nn.Conv3d(conv_filters_s[0] * 3, 2, 1)
+        self.seg = nn.Conv3d(conv_filters_s[0] + 5, 2, 1)
         self.seg.to(device)
 
     def forward(self, patch_source, target, mesh=None, source=None):
@@ -1227,10 +1227,10 @@ class NewLesionsNet(nn.Module):
             self.init_df(torch.cat([patch_source, target], dim=1))
         )
         input_s = torch.cat([input_im, input_df], dim=1)
-        down_inputs = list()
+        down_inputs = list([torch.cat([patch_source, target, df])])
         for c in self.down:
-            down_inputs.append(input_s)
             input_s = F.relu(c(input_s))
+            down_inputs.append(input_s)
 
         for d, i in zip(self.up, down_inputs[::-1]):
             up = F.relu(d(input_s, output_size=i.size()))
