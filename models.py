@@ -1129,7 +1129,6 @@ class NewLesionsNet(nn.Module):
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             lambda_d=1,
             leakyness=0.2,
-            loss_idx=list([0, 1, 7]),
             data_smooth=False,
             df_smooth=False,
             trainable_smooth=False,
@@ -1146,23 +1145,12 @@ class NewLesionsNet(nn.Module):
             device=device,
             lambda_d=lambda_d,
             leakyness=leakyness,
-            loss_idx=loss_idx,
             data_smooth=data_smooth,
             df_smooth=df_smooth,
             trainable_smooth=trainable_smooth
         )
         self.lambda_d = lambda_d
         self.device = device
-
-        loss_names = list([
-                ' subt ',
-                ' xcor ',
-                ' mse  ',
-                'deform',
-                'modulo',
-                ' n_mi ',
-            ])
-        self.loss_names = map(lambda idx: loss_names[idx], loss_idx)
 
         # Down path of the unet
         conv_in = [5] + conv_filters_s[:-1]
@@ -1243,8 +1231,6 @@ class NewLesionsNet(nn.Module):
             input_s = torch.cat((up, i), dim=1)
 
         multi_seg = torch.softmax(self.seg(input_s), dim=1)
-
-        # seg = torch.split(multi_seg, 1, dim=1)[1]
 
         return multi_seg, source_mov, df
 
@@ -1364,7 +1350,7 @@ class NewLesionsNet(nn.Module):
                 val_dataset, batch_size, num_workers=num_workers
             )
 
-        l_names = [' loss '] + self.loss_names + ['  dsc ']
+        l_names = [' loss ', '  mse ', '  dsc ']
         best_losses = [np.inf] * (len(l_names))
         best_e = 0
         e = 0
@@ -1501,16 +1487,17 @@ class NewLesionsNet(nn.Module):
         b_pred_lesion, b_moved, b_df = self(*b_inputs)
 
         b_dsc_loss = multidsc_loss(b_pred_lesion, b_lesion, averaged=train)
-        b_reg_losses = self.longitudinal_loss(b_moved, b_target, b_df)
+        roi = b_target > 0
+        b_reg_loss = torch.nn.MSELoss(b_moved[roi], b_target[roi])
         if train:
-            b_losses = b_reg_losses + (b_dsc_loss,)
+            b_losses = (b_reg_loss, b_dsc_loss)
             b_loss = sum(b_losses)
             self.optimizer_alg.zero_grad()
             b_loss.backward()
             self.optimizer_alg.step()
         else:
-            b_losses = b_reg_losses + (b_dsc_loss[1],)
-            b_loss = sum(b_reg_losses + (torch.mean(b_dsc_loss),))
+            b_losses = (b_reg_loss, b_dsc_loss[1])
+            b_loss = b_reg_loss + torch.mean(b_dsc_loss)
 
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
@@ -1545,54 +1532,6 @@ class NewLesionsNet(nn.Module):
         print('\033[K', end='')
         print(batch_s, end='\r')
         sys.stdout.flush()
-
-    def longitudinal_loss(
-            self,
-            moved,
-            target,
-            df,
-    ):
-        # Init
-        roi = target > 0
-
-        functions = {
-            ' subt ': subtraction_loss,
-            ' xcor ': normalised_xcor_loss,
-            ' mse  ': torch.nn.MSELoss(),
-            'deform': df_loss,
-            'modulo': df_modulo,
-            ' n_mi ': normalised_mi_loss,
-        }
-
-        inputs = {
-            ' subt ': (moved, target, roi),
-            ' xcor ': (
-                map(lambda (m, r): m[r > 0], zip(moved, roi)),
-                map(lambda (t, r): t[r > 0], zip(target, roi))
-            ),
-            ' mse  ': (moved[roi], target[roi]),
-            'deform': (df, roi),
-            'modulo': (df, roi),
-            ' n_mi ': (moved[roi], target[roi]),
-        }
-
-        weights = {
-            ' subt ': 1.0,
-            ' xcor ': 1.0,
-            ' mse  ': 1.0,
-            'deform': self.lambda_d,
-            'modulo': 1.0,
-            ' n_mi ': 1.0,
-        }
-
-        losses = tuple(
-            map(
-                lambda l: weights[l] * functions[l](*inputs[l]),
-                self.loss_names
-            )
-        )
-
-        return losses
 
     def save_model(self, net_name):
         torch.save(self.state_dict(), net_name)
