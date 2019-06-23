@@ -1141,7 +1141,6 @@ class NewLesionsNet(nn.Module):
             conv_filters=conv_filters_r,
             deconv_filters=deconv_filters_r,
             device=device,
-            lambda_d=lambda_d,
             leakyness=leakyness,
             data_smooth=data_smooth,
             df_smooth=df_smooth,
