@@ -26,7 +26,7 @@ def normalised_xcor(var_x, var_y):
 
         xcor = torch.abs(var_xy_norm / (std_x * std_y))
 
-        return torch.mean(xcor[!torch.isnan(xcor)])
+        return torch.mean(xcor[xcor != xcor])
 
     else:
         red_dim = var_x.shape[2:]
