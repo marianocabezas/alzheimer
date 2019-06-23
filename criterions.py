@@ -21,8 +21,15 @@ def normalised_xcor(var_x, var_y):
             map(lambda (x, y): torch.sum(x * y), zip(var_x_norm, var_y_norm))
         )
 
-        inv_var_x_den = torch.rsqrt(torch.sum(var_x_norm * var_x_norm))
-        inv_var_y_den = torch.rsqrt(torch.sum(var_y_norm * var_y_norm))
+        var_x_var = torch.stack(
+            map(lambda v_xi: torch.sum(v_xi * v_xi), var_x_norm)
+        )
+        var_y_var = torch.stack(
+            map(lambda v_yi: torch.sum(v_yi * v_yi), var_y_norm)
+        )
+
+        inv_var_x_den = torch.rsqrt(var_x_var)
+        inv_var_y_den = torch.rsqrt(var_y_var)
 
         xcor = torch.abs(var_xy_norm * inv_var_x_den * inv_var_y_den)
 
