@@ -1150,10 +1150,13 @@ class NewLesionsNet(nn.Module):
         self.device = device
 
         # Down path of the unet
-        conv_in = [5] + conv_filters_s[:-1]
+        conv_in = [2 * conv_filters_s[0]] + conv_filters_s[:-1]
+        self.init_df = nn.Conv3d(3, conv_filters_s[0], 3, stride=2)
+        self.init_im = nn.Conv3d(2, conv_filters_s[0], 3, stride=2)
+
         self.down = map(
             lambda (f_in, f_out): nn.Conv3d(
-                f_in, f_out, 3, stride=2
+                f_in, f_out, 3, stride=2, groups=2
             ),
             zip(conv_in, conv_filters_s)
         )
@@ -1176,7 +1179,7 @@ class NewLesionsNet(nn.Module):
         for d in self.up:
             d.to(device)
 
-        self.seg = nn.Conv3d(conv_filters_s[0] + 5, 2, 1)
+        self.seg = nn.Conv3d(conv_filters_s[0] * 3, 2, 1)
         self.seg.to(device)
 
     def forward(self, patch_source, target, mesh=None, source=None):
@@ -1217,7 +1220,11 @@ class NewLesionsNet(nn.Module):
             )
 
         # Now we actually need to give a segmentation result.
-        input_s = torch.cat([patch_source, target, df], dim=1)
+        input_df = F.relu(self.init_df(df))
+        input_im = F.relu(
+            self.init_df(torch.cat([patch_source, target], dim=1))
+        )
+        input_s = torch.cat([input_im, input_df], dim=1)
         down_inputs = list()
         for c in self.down:
             down_inputs.append(input_s)
