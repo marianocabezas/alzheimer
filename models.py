@@ -1466,7 +1466,7 @@ class NewLesionsNet(nn.Module):
                 )
 
             mid_losses = np.mean(zip(*losses_list), axis=1)
-            loss_value = np.sum(mid_losses)
+            loss_value = np.mean(loss_list)
             return loss_value, mid_losses
 
     def batch_step(
@@ -1493,7 +1493,6 @@ class NewLesionsNet(nn.Module):
             b_loss.backward()
             self.optimizer_alg.step()
         else:
-            print(torch.mean(b_dsc_loss))
             b_losses = (b_reg_loss, b_dsc_loss[1])
             b_loss = b_reg_loss + torch.mean(b_dsc_loss)
 
