@@ -641,7 +641,7 @@ class MaskAtrophyNet(nn.Module):
             pad = kernel_size // 2
             self.conv = map(
                 lambda (f_in, f_out): nn.Conv3d(
-                    f_in, f_out, kernel_size, padding=pad
+                    f_in, f_out, kernel_size, padding=pad, groups=3,
                 ),
                 zipped_f
             )
@@ -659,7 +659,7 @@ class MaskAtrophyNet(nn.Module):
                 c.to(device)
 
         # Final DF computation
-        self.to_df = nn.Conv3d(final_filters, 3, 1)
+        self.to_df = nn.Conv3d(final_filters, 3, 1, groups=3)
         self.to_df.to(device)
         nn.init.normal_(self.to_df.weight, 0.0, 1e-5)
 
@@ -695,7 +695,7 @@ class MaskAtrophyNet(nn.Module):
         for c in self.conv:
             data = F.leaky_relu(c(data), self.leakyness)
 
-        df = self.to_df(data)
+        df = F.leaky_relu(self.to_df(data), self.leakyness)
 
         if self.df_smooth:
             df = self.smooth(df)

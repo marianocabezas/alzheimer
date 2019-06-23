@@ -90,7 +90,7 @@ class ScalingLayer(nn.Module):
 
 class SpatialTransformer(nn.Module):
     """
-    N-D Spatial Transformer Tensorflow / Keras Layer
+    N-D Spatial Transformer pytorch
 
     The Layer can handle dense transforms that are meant to give a 'shift'
     from the current position. Therefore, a dense transform gives displacements
