@@ -1485,7 +1485,7 @@ class NewLesionsNet(nn.Module):
 
         b_dsc_loss = multidsc_loss(b_pred_lesion, b_lesion, averaged=train)
         roi = b_target > 0
-        b_reg_loss = torch.nn.MSELoss(b_moved[roi], b_target[roi])
+        b_reg_loss = torch.nn.MSELoss()(b_moved[roi], b_target[roi])
         if train:
             b_losses = (b_reg_loss, b_dsc_loss)
             b_loss = sum(b_losses)
