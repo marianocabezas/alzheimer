@@ -1496,6 +1496,7 @@ class NewLesionsNet(nn.Module):
             b_loss.backward()
             self.optimizer_alg.step()
         else:
+            print(b_dsc_loss)
             b_losses = (b_reg_loss, b_dsc_loss[1])
             b_loss = b_reg_loss + torch.mean(b_dsc_loss)
 

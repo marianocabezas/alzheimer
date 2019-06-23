@@ -463,7 +463,7 @@ def multidsc_loss(pred, target, smooth=1, averaged=True):
     if averaged:
         dsc = 1 - torch.mean(torch.mean(dsc_k, dim=1))
     else:
-        dsc = 1 - torch.mean(dsc_k, dim=1)
+        dsc = 1 - torch.mean(dsc_k, dim=0)
 
     return dsc
 
