@@ -1150,7 +1150,7 @@ class NewLesionsNet(nn.Module):
         self.device = device
 
         # Down path of the unet
-        conv_in = [conv_filters_s[0]] + conv_filters_s[:-1]
+        conv_in = conv_filters_s[:-1]
         self.init_df = nn.Conv3d(3, conv_filters_s[0] / 2, 3, padding=1)
         self.init_df.to(device)
         self.init_im = nn.Conv3d(2, conv_filters_s[0] / 2, 3, padding=1)
@@ -1160,7 +1160,7 @@ class NewLesionsNet(nn.Module):
             lambda (f_in, f_out): nn.Conv3d(
                 f_in, f_out, 3, stride=2, groups=2
             ),
-            zip(conv_in, conv_filters_s)
+            zip(conv_in, conv_filters_s[1:])
         )
         for c in self.down:
             c.to(device)
@@ -1229,8 +1229,8 @@ class NewLesionsNet(nn.Module):
         input_s = torch.cat([input_im, input_df], dim=1)
         down_inputs = list([torch.cat([patch_source, target, df], dim=1)])
         for c in self.down:
-            input_s = F.relu(c(input_s))
             down_inputs.append(input_s)
+            input_s = F.relu(c(input_s))
 
         for d, i in zip(self.up, down_inputs[::-1]):
             up = F.relu(d(input_s, output_size=i.size()))
