@@ -20,8 +20,9 @@ def normalised_xcor(var_x, var_y):
         var_xy_norm = torch.mean(var_x_norm * var_y_norm, dim=red_dim)
         inv_var_x_den = 1 / torch.std(var_x, dim=red_dim)
         inv_var_y_den = 1 / torch.std(var_y, dim=red_dim)
+        xcor = torch.abs(var_xy_norm * inv_var_x_den * inv_var_y_den)
 
-        return torch.abs(var_xy_norm * inv_var_x_den * inv_var_y_den)
+        return torch.mean(xcor)
     else:
         return torch.mean(torch.abs(var_x - var_y))
 
