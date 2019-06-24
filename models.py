@@ -1234,7 +1234,6 @@ class NewLesionsNet(nn.Module):
                 u(d(input_r), output_size=i.size()),
                 self.atrophy.leakyness
             )
-            print(up.shape)
             input_r = torch.cat((up, i), dim=1)
 
         for c in self.atrophy.conv:
@@ -1244,7 +1243,6 @@ class NewLesionsNet(nn.Module):
             )
 
         df = self.atrophy.to_df(input_r)
-        print(df.shape)
 
         if mesh is None and source is None:
             source_mov = self.atrophy.trans_im(
