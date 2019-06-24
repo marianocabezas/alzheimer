@@ -605,7 +605,7 @@ class MaskAtrophyNet(nn.Module):
                     f_in, f_out, 3, padding=1,
                 ),
                 nn.Conv3d(
-                    f_out, f_out, 2, stride=2, groups=f_out,
+                    f_out, f_out, 2, stride=2, groups=f_out, padding=1
                 ),
             ),
             zip(conv_in, conv_filters)
@@ -632,7 +632,7 @@ class MaskAtrophyNet(nn.Module):
         )
         self.unpool = map(
             lambda f_out: nn.ConvTranspose3d(
-                f_out, f_out, 2, stride=2, groups=f_out,
+                f_out, f_out, 2, stride=2, groups=f_out, padding=1
             ),
             deconv_filters[:unet_filters]
         )
@@ -1176,7 +1176,7 @@ class NewLesionsNet(nn.Module):
                     f_in, f_out, 3, padding=1, groups=2
                 ),
                 nn.Conv3d(
-                    f_out, f_out, 2, stride=2, groups=f_out,
+                    f_out, f_out, 2, stride=2, groups=f_out, padding=1
                 ),
             ),
             zip(conv_in, conv_filters_s[1:])
@@ -1199,7 +1199,7 @@ class NewLesionsNet(nn.Module):
         )
         self.unpool = map(
             lambda f_out: nn.ConvTranspose3d(
-                f_out, f_out, 2, stride=2, groups=f_out,
+                f_out, f_out, 2, stride=2, groups=f_out, padding=1
             ),
             conv_filters_s[::-1]
         )
