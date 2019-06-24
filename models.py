@@ -600,8 +600,13 @@ class MaskAtrophyNet(nn.Module):
         # Down path of the unet
         conv_in = [2] + conv_filters[:-1]
         self.conv_u = map(
-            lambda (f_in, f_out): nn.Conv3d(
-                f_in, f_out, 3, padding=1, stride=2
+            lambda (f_in, f_out): nn.Sequential(
+                nn.Conv3d(
+                    f_in, f_out, 3, padding=1,
+                ),
+                nn.Conv3d(
+                    f_out, f_out, 2, stride=2, groups=f_out,
+                ),
             ),
             zip(conv_in, conv_filters)
         )
@@ -616,8 +621,13 @@ class MaskAtrophyNet(nn.Module):
             sum, zip(deconv_filters[:unet_filters - 1], conv_in[::-1])
         )
         self.deconv_u = map(
-            lambda (f_in, f_out): nn.ConvTranspose3d(
-                f_in, f_out, 3, padding=1, stride=2
+            lambda (f_in, f_out): nn.Sequential(
+                nn.ConvTranspose3d(
+                    f_in, f_out, 3, padding=1,
+                ),
+                nn.ConvTranspose3d(
+                    f_out, f_out, 2, stride=2, groups=f_out,
+                ),
             ),
             zip(
                 deconv_in,
@@ -1157,8 +1167,13 @@ class NewLesionsNet(nn.Module):
         self.init_im.to(device)
 
         self.down = map(
-            lambda (f_in, f_out): nn.Conv3d(
-                f_in, f_out, 3, stride=2, groups=2
+            lambda (f_in, f_out): nn.Sequential(
+                nn.Conv3d(
+                    f_in, f_out, 3, padding=1, groups=2
+                ),
+                nn.Conv3d(
+                    f_out, f_out, 2, stride=2, groups=f_out,
+                ),
             ),
             zip(conv_in, conv_filters_s[1:])
         )
@@ -1170,8 +1185,13 @@ class NewLesionsNet(nn.Module):
             sum, zip(conv_filters_s[-2::-1], conv_filters_s[:0:-1])
         )
         self.up = map(
-            lambda (f_in, f_out): nn.ConvTranspose3d(
-                f_in, f_out, 3, stride=2
+            lambda (f_in, f_out): nn.Sequential(
+                nn.ConvTranspose3d(
+                    f_in, f_out, 3, padding=1
+                ),
+                nn.ConvTranspose3d(
+                    f_out, f_out, 2, stride=2, groups=f_out,
+                ),
             ),
             zip(
                 deconv_in,
