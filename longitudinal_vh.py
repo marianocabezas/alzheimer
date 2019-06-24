@@ -434,9 +434,8 @@ def new_lesions(
             os.path.join(patient_path, source_name), brain
         )
 
-        sufix = '%s%sloss%s_l%.2fe%dp%d' % (
-            smooth_s + '_' if smooth_s else '', net_name,
-            '+'.join(map(str, loss_idx)), lambda_v, epochs, patience
+        sufix = '%s%s.e%dp%d' % (
+            smooth_s + '_' if smooth_s else '', net_name, epochs, patience
         )
 
         # Test the network

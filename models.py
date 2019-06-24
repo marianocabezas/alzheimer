@@ -657,7 +657,7 @@ class MaskAtrophyNet(nn.Module):
             )
             for c in self.conv:
                 c.to(device)
-                nn.init.kaiming_normal_(d.weight)
+                nn.init.kaiming_normal_(c.weight)
         else:
             final_filters = deconv_filters[-1]
             self.conv = map(
