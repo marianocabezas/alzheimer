@@ -1221,7 +1221,7 @@ class NewLesionsNet(nn.Module):
 
         for d, i in zip(self.atrophy.deconv_u, down_inputs[::-1]):
             up = F.leaky_relu(
-                d(input_r, output_size=i.size()),
+                d(input_r),
                 self.atrophy.leakyness
             )
             input_r = torch.cat((up, i), dim=1)
@@ -1255,7 +1255,7 @@ class NewLesionsNet(nn.Module):
             input_s = F.relu(c(input_s))
 
         for d, i in zip(self.up, down_inputs[::-1]):
-            up = F.relu(d(input_s, output_size=i.size()))
+            up = F.relu(d(input_s))
             input_s = torch.cat((up, i), dim=1)
 
         multi_seg = torch.softmax(self.seg(input_s), dim=1)
