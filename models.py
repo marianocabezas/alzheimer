@@ -1165,9 +1165,13 @@ class NewLesionsNet(nn.Module):
 
         # Down path of the unet
         conv_in = conv_filters_s[:-1]
-        self.init_df = nn.Conv3d(3, conv_filters_s[0] / 2, 3, stride=2)
+        self.init_df = nn.Conv3d(
+            3, conv_filters_s[0] / 2, 3, stride=2, padding=1
+        )
         self.init_df.to(device)
-        self.init_im = nn.Conv3d(2, conv_filters_s[0] / 2, 3, stride=2)
+        self.init_im = nn.Conv3d(
+            2, conv_filters_s[0] / 2, 3, stride=2, padding=1
+        )
         self.init_im.to(device)
 
         self.down = map(
@@ -1230,6 +1234,7 @@ class NewLesionsNet(nn.Module):
                 u(d(input_r), output_size=i.size()),
                 self.atrophy.leakyness
             )
+            print(up.shape)
             input_r = torch.cat((up, i), dim=1)
 
         for c in self.atrophy.conv:
@@ -1239,6 +1244,7 @@ class NewLesionsNet(nn.Module):
             )
 
         df = self.atrophy.to_df(input_r)
+        print(df.shape)
 
         if mesh is None and source is None:
             source_mov = self.atrophy.trans_im(
