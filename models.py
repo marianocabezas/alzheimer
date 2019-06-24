@@ -636,7 +636,7 @@ class MaskAtrophyNet(nn.Module):
             ),
             deconv_filters[:unet_filters]
         )
-        for d, u in zip(self.deconv_u, self.unpol):
+        for d, u in zip(self.deconv_u, self.unpool):
             d.to(device)
             u.to(device)
             nn.init.kaiming_normal_(d.weight)
