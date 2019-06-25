@@ -1200,14 +1200,14 @@ class NewLesionsNet(nn.Module):
 
         for d, i in zip(self.atrophy.deconv_u, down_inputs[::-1]):
             up = F.leaky_relu(
-                d(input_r),
+                F.interpolate(d(input_r), size=i.size()),
                 self.atrophy.leakyness
             )
             input_r = torch.cat((up, i), dim=1)
 
         for c in self.atrophy.conv:
             input_r = F.leaky_relu(
-                F.interpolate(c(input_r), size=i.size()),
+                c(input_r),
                 self.atrophy.leakyness
             )
 
