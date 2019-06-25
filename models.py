@@ -600,16 +600,13 @@ class MaskAtrophyNet(nn.Module):
         # Down path of the unet
         conv_in = [2] + conv_filters[:-1]
         self.conv_u = map(
-            lambda (f_in, f_out): nn.Sequential(
-                nn.Conv3d(f_in, f_out, 3, padding=1),
-                nn.AvgPool3d(2),
-            ),
+            lambda (f_in, f_out): nn.Conv3d(f_in, f_out, 3, padding=1),
             zip(conv_in, conv_filters)
         )
         unet_filters = len(conv_filters)
         for c in self.conv_u:
             c.to(device)
-            nn.init.kaiming_normal_(c[0].weight)
+            nn.init.kaiming_normal_(c.weight)
 
         # Up path of the unet
         conv_out = conv_filters[-1]
@@ -617,11 +614,8 @@ class MaskAtrophyNet(nn.Module):
             sum, zip(deconv_filters[:unet_filters - 1], conv_in[::-1])
         )
         self.deconv_u = map(
-            lambda (f_in, f_out): nn.Sequential(
-                nn.ConvTranspose3d(
-                    f_in, f_out, 3, padding=1,
-                ),
-                nn.Upsample(scale_factor=2)
+            lambda (f_in, f_out): nn.ConvTranspose3d(
+                f_in, f_out, 3, padding=1,
             ),
             zip(
                 deconv_in,
@@ -630,7 +624,7 @@ class MaskAtrophyNet(nn.Module):
         )
         for d in self.deconv_u:
             d.to(device)
-            nn.init.kaiming_normal_(d[0].weight)
+            nn.init.kaiming_normal_(d.weight)
 
         # Extra DF path
         deconv_out = 2 + deconv_filters[unet_filters - 1]
@@ -692,10 +686,12 @@ class MaskAtrophyNet(nn.Module):
         down_inputs = list()
         for c in self.conv_u:
             down_inputs.append(data)
-            data = F.leaky_relu(c(data), self.leakyness)
+            data = F.leaky_relu(F.max_pool3d(c(data), 2), self.leakyness)
 
         for d, i in zip(self.deconv_u, down_inputs[::-1]):
-            up = F.leaky_relu(d(data), self.leakyness)
+            up = F.leaky_relu(
+                F.interpolate(d(data), size=i.size()), self.leakyness
+            )
             data = torch.cat((up, i), dim=1)
 
         for c in self.conv:
@@ -1156,23 +1152,14 @@ class NewLesionsNet(nn.Module):
         # Down path of the unet
         conv_in = conv_filters_s[:-1]
         init_out = conv_filters_s[0] / 2
-        self.init_df = nn.Sequential(
-            nn.Conv3d(3, init_out, 3, padding=1),
-            nn.AvgPool3d(2)
-        )
+        self.init_df = nn.Conv3d(3, init_out, 3, padding=1),
         self.init_df.to(device)
-        self.init_im = nn.Sequential(
-            nn.Conv3d(2, init_out, 3, padding=1),
-            nn.AvgPool3d(2)
-        )
+        self.init_im = nn.Conv3d(2, init_out, 3, padding=1),
         self.init_im.to(device)
 
         self.down = map(
-            lambda (f_in, f_out): nn.Sequential(
-                nn.Conv3d(
-                    f_in, f_out, 3, padding=1, groups=2
-                ),
-                nn.AvgPool3d(2),
+            lambda (f_in, f_out): nn.Conv3d(
+                f_in, f_out, 3, padding=1, groups=2
             ),
             zip(conv_in, conv_filters_s[1:])
         )
@@ -1184,11 +1171,8 @@ class NewLesionsNet(nn.Module):
             sum, zip(conv_filters_s[-2::-1], conv_filters_s[:0:-1])
         )
         self.up = map(
-            lambda (f_in, f_out): nn.Sequential(
-                nn.ConvTranspose3d(
-                    f_in, f_out, 3, padding=1
-                ),
-                nn.Upsample(scale_factor=2),
+            lambda (f_in, f_out): nn.ConvTranspose3d(
+                f_in, f_out, 3, padding=1
             ),
             zip(
                 deconv_in,
@@ -1210,7 +1194,7 @@ class NewLesionsNet(nn.Module):
         for c in self.atrophy.conv_u:
             down_inputs.append(input_r)
             input_r = F.leaky_relu(
-                c(input_r),
+                F.max_pool3d(c(input_r), 2),
                 self.atrophy.leakyness
             )
 
@@ -1223,7 +1207,7 @@ class NewLesionsNet(nn.Module):
 
         for c in self.atrophy.conv:
             input_r = F.leaky_relu(
-                c(input_r),
+                F.interpolate(c(input_r), size=i.size()),
                 self.atrophy.leakyness
             )
 
@@ -1239,18 +1223,21 @@ class NewLesionsNet(nn.Module):
             )
 
         # Now we actually need to give a segmentation result.
-        input_df = F.relu(self.init_df(df))
+        input_df = F.relu(F.max_pool3d(self.init_df(df), 2))
         input_im = F.relu(
-            self.init_im(torch.cat([patch_source, target], dim=1))
+            F.max_pool3d(
+                self.init_im(torch.cat([patch_source, target], dim=1)),
+                2
+            )
         )
         input_s = torch.cat([input_im, input_df], dim=1)
         down_inputs = list([torch.cat([patch_source, target, df], dim=1)])
         for c in self.down:
             down_inputs.append(input_s)
-            input_s = F.relu(c(input_s))
+            input_s = F.relu(F.max_pool3d(c(input_s), 2))
 
         for d, i in zip(self.up, down_inputs[::-1]):
-            up = F.relu(d(input_s))
+            up = F.relu(F.interpolate(d(input_s), size=i.size()))
             input_s = torch.cat((up, i), dim=1)
 
         multi_seg = torch.softmax(self.seg(input_s), dim=1)
