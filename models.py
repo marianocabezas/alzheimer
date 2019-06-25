@@ -1208,11 +1208,11 @@ class NewLesionsNet(nn.Module):
         # This is exactly like the MaskAtrophy net
         down_inputs = list()
         for c in self.atrophy.conv_u:
+            down_inputs.append(input_r)
             input_r = F.leaky_relu(
                 c(input_r),
                 self.atrophy.leakyness
             )
-            down_inputs.append(input_r)
 
         for d, i in zip(self.atrophy.deconv_u, down_inputs[::-1]):
             up = F.leaky_relu(
