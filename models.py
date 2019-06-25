@@ -621,7 +621,7 @@ class MaskAtrophyNet(nn.Module):
                 nn.ConvTranspose3d(
                     f_in, f_out, 3, padding=1,
                 ),
-                nn.Upsample(2)
+                nn.Upsample(scale=2)
             ),
             zip(
                 deconv_in,
@@ -1188,7 +1188,7 @@ class NewLesionsNet(nn.Module):
                 nn.ConvTranspose3d(
                     f_in, f_out, 3, padding=1
                 ),
-                nn.Upsample(2),
+                nn.Upsample(scale=2),
             ),
             zip(
                 deconv_in,
