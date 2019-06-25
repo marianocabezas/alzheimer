@@ -621,7 +621,7 @@ class MaskAtrophyNet(nn.Module):
                 nn.ConvTranspose3d(
                     f_in, f_out, 3, padding=1,
                 ),
-                nn.Upsample(scale=2)
+                nn.Upsample(scale_factor=2)
             ),
             zip(
                 deconv_in,
@@ -1188,7 +1188,7 @@ class NewLesionsNet(nn.Module):
                 nn.ConvTranspose3d(
                     f_in, f_out, 3, padding=1
                 ),
-                nn.Upsample(scale=2),
+                nn.Upsample(scale_factor=2),
             ),
             zip(
                 deconv_in,
@@ -1208,7 +1208,6 @@ class NewLesionsNet(nn.Module):
         # This is exactly like the MaskAtrophy net
         down_inputs = list()
         for c in self.atrophy.conv_u:
-            print('c (%s)' % ', '.join(map(str, input_r.shape)))
             down_inputs.append(input_r)
             input_r = F.leaky_relu(
                 c(input_r),
@@ -1216,7 +1215,6 @@ class NewLesionsNet(nn.Module):
             )
 
         for d, i in zip(self.atrophy.deconv_u, down_inputs[::-1]):
-            print('d (%s)' % ', '.join(map(str, input_r.shape)))
             up = F.leaky_relu(
                 d(input_r),
                 self.atrophy.leakyness
