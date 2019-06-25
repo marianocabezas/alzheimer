@@ -1292,7 +1292,7 @@ class NewLesionsNet(nn.Module):
             new_lesion,
             masks=None,
             patch_size=32,
-            overlap=28,
+            overlap=32,
             val_split=0,
             batch_size=32,
             optimizer='adam',
