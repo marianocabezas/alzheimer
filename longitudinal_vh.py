@@ -384,7 +384,7 @@ def new_lesions(
                 norm_target,
                 lesions,
                 brains,
-                overlap=24,
+                overlap=32,
                 val_split=0.1,
                 epochs=epochs,
                 patience=patience
