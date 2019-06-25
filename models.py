@@ -609,8 +609,7 @@ class MaskAtrophyNet(nn.Module):
         unet_filters = len(conv_filters)
         for c in self.conv_u:
             c.to(device)
-            for c_i in c:
-                nn.init.kaiming_normal_(c_i.weight)
+            nn.init.kaiming_normal_(c[0].weight)
 
         # Up path of the unet
         conv_out = conv_filters[-1]
@@ -631,8 +630,7 @@ class MaskAtrophyNet(nn.Module):
         )
         for d in self.deconv_u:
             d.to(device)
-            for d_i in d:
-                nn.init.kaiming_normal_(d_i.weight)
+            nn.init.kaiming_normal_(d[0].weight)
 
         # Extra DF path
         deconv_out = 2 + deconv_filters[unet_filters - 1]
