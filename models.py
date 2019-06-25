@@ -601,12 +601,8 @@ class MaskAtrophyNet(nn.Module):
         conv_in = [2] + conv_filters[:-1]
         self.conv_u = map(
             lambda (f_in, f_out): nn.Sequential(
-                nn.Conv3d(
-                    f_in, f_out, 3, padding=1,
-                ),
-                nn.Conv3d(
-                    f_out, f_out, 2, stride=2, groups=f_out
-                ),
+                nn.Conv3d(f_in, f_out, 3, padding=1),
+                nn.AvgPool3d(2),
             ),
             zip(conv_in, conv_filters)
         )
@@ -622,25 +618,21 @@ class MaskAtrophyNet(nn.Module):
             sum, zip(deconv_filters[:unet_filters - 1], conv_in[::-1])
         )
         self.deconv_u = map(
-            lambda (f_in, f_out): nn.ConvTranspose3d(
-                f_in, f_out, 3, padding=1,
+            lambda (f_in, f_out): nn.Sequential(
+                nn.ConvTranspose3d(
+                    f_in, f_out, 3, padding=1,
+                ),
+                nn.Upsample(2)
             ),
             zip(
                 deconv_in,
                 deconv_filters[:unet_filters]
             )
         )
-        self.unpool = map(
-            lambda f_out: nn.ConvTranspose3d(
-                f_out, f_out, 2, stride=2, groups=f_out
-            ),
-            deconv_filters[:unet_filters]
-        )
-        for d, u in zip(self.deconv_u, self.unpool):
+        for d in self.deconv_u:
             d.to(device)
-            u.to(device)
-            nn.init.kaiming_normal_(d.weight)
-            nn.init.kaiming_normal_(u.weight)
+            for d_i in d:
+                nn.init.kaiming_normal_(d_i.weight)
 
         # Extra DF path
         deconv_out = 2 + deconv_filters[unet_filters - 1]
@@ -705,7 +697,7 @@ class MaskAtrophyNet(nn.Module):
             data = F.leaky_relu(c(data), self.leakyness)
 
         for d, i in zip(self.deconv_u, down_inputs[::-1]):
-            up = F.leaky_relu(d(data, output_size=i.size()), self.leakyness)
+            up = F.leaky_relu(d(data), self.leakyness)
             data = torch.cat((up, i), dim=1)
 
         for c in self.conv:
@@ -1182,9 +1174,7 @@ class NewLesionsNet(nn.Module):
                 nn.Conv3d(
                     f_in, f_out, 3, padding=1, groups=2
                 ),
-                nn.Conv3d(
-                    f_out, f_out, 2, stride=2, groups=f_out
-                ),
+                nn.AvgPool3d(2),
             ),
             zip(conv_in, conv_filters_s[1:])
         )
@@ -1196,23 +1186,19 @@ class NewLesionsNet(nn.Module):
             sum, zip(conv_filters_s[-2::-1], conv_filters_s[:0:-1])
         )
         self.up = map(
-            lambda (f_in, f_out): nn.ConvTranspose3d(
-                f_in, f_out, 3, padding=1
+            lambda (f_in, f_out): nn.Sequential(
+                nn.ConvTranspose3d(
+                    f_in, f_out, 3, padding=1
+                ),
+                nn.Upsample(2),
             ),
             zip(
                 deconv_in,
                 conv_filters_s[::-1]
             )
         )
-        self.unpool = map(
-            lambda f_out: nn.ConvTranspose3d(
-                f_out, f_out, 2, stride=2, groups=f_out
-            ),
-            conv_filters_s[::-1]
-        )
-        for d, u in zip(self.up, self.unpool):
+        for d in self.up:
             d.to(device)
-            u.to(device)
 
         self.seg = nn.Conv3d(conv_filters_s[0] + 5, 2, 1)
         self.seg.to(device)
@@ -1230,11 +1216,9 @@ class NewLesionsNet(nn.Module):
                 self.atrophy.leakyness
             )
 
-        for d, u, i in zip(
-                self.atrophy.deconv_u, self.atrophy.unpool, down_inputs[::-1]
-        ):
+        for d, i in zip(self.atrophy.deconv_u, down_inputs[::-1]):
             up = F.leaky_relu(
-                u(d(input_r), output_size=i.size()),
+                d(input_r),
                 self.atrophy.leakyness
             )
             input_r = torch.cat((up, i), dim=1)
@@ -1267,8 +1251,8 @@ class NewLesionsNet(nn.Module):
             down_inputs.append(input_s)
             input_s = F.relu(c(input_s))
 
-        for d, u, i in zip(self.up, self.unpool, down_inputs[::-1]):
-            up = F.relu(u(d(input_s), output_size=i.size()))
+        for d, i in zip(self.up, down_inputs[::-1]):
+            up = F.relu(d(input_s))
             input_s = torch.cat((up, i), dim=1)
 
         multi_seg = torch.softmax(self.seg(input_s), dim=1)
