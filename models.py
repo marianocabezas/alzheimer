@@ -1292,13 +1292,13 @@ class NewLesionsNet(nn.Module):
             new_lesion,
             masks=None,
             patch_size=32,
-            overlap=32,
+            overlap=28,
             val_split=0,
             batch_size=32,
             optimizer='adam',
             epochs=100,
             patience=10,
-            num_workers=10,
+            num_workers=32,
             verbose=True
     ):
         # Init
