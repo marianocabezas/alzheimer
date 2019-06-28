@@ -140,6 +140,7 @@ class SpatialTransformer(nn.Module):
             vol, df = inputs
         df_shape = df.shape[2:]
         final_shape = vol.shape[:2] + df_shape
+        weights_shape = (vol.shape[0], 1) + df_shape
         nb_dims = len(df_shape)
         max_loc = map(lambda s: s - 1, vol.shape[2:])
 
@@ -204,18 +205,20 @@ class SpatialTransformer(nn.Module):
                 subs = map(lambda (i, cd): locs[cd][i], enumerate(point))
                 loc_list_p = map(lambda (s, l): s * l, zip(subs, d_size))
                 idx_p = torch.sum(torch.stack(loc_list_p, dim=0), dim=0)
+                if len(idx_p.shape) < len(vol.shape):
+                    idx_p = torch.unsqueeze(idx_p, 0)
                 vol_val_flat = torch.stack(
                     map(
-                        lambda vol_i: torch.stack(
+                        lambda (vol_i, idx_i): torch.stack(
                             map(
-                                lambda (idx_i, vol_ij): torch.take(
+                                lambda vol_ij: torch.take(
                                     vol_ij, idx_i
                                 ),
-                                zip(idx_p, vol_i)
+                                vol_i
                             ),
                             dim=0
                         ),
-                        vol
+                        zip(vol, idx_p)
                     ),
                     dim=0
                 )
@@ -230,7 +233,7 @@ class SpatialTransformer(nn.Module):
                 else:
                     wt = reduce(mul, wts_lst)
 
-                wt = torch.reshape(wt, final_shape)
+                wt = torch.reshape(wt, weights_shape)
                 return wt * vol_val
 
             values = map(get_point_value, cube_pts)

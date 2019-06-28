@@ -3,6 +3,7 @@ import itertools
 import numpy as np
 from torch.utils.data.dataset import Dataset
 from nibabel import load as load_nii
+from data_manipulation.generate_features import get_mask_voxels
 
 
 def get_image(name_or_image):
@@ -15,7 +16,7 @@ def get_image(name_or_image):
         return name_or_image
 
 
-def get_slices_bb(masks, patch_size, overlap, filtered=False):
+def get_slices_bb(masks, patch_size, overlap, filtered=False, min_size=0):
     patch_half = map(lambda p_length: p_length // 2, patch_size)
     steps = map(lambda p_length: max(p_length - overlap, 1), patch_size)
 
@@ -47,21 +48,15 @@ def get_slices_bb(masks, patch_size, overlap, filtered=False):
         )
 
         patch_slices = map(
-            lambda dim_range: map(
-                lambda voxel: tuple(map(
-                    lambda (idx, p_len): (idx - p_len, idx + p_len),
-                    zip(voxel, patch_half)
-                )),
-                itertools.product(*dim_range)
+            lambda dim_range: centers_to_slice(
+                itertools.product(*dim_range), patch_half
             ),
             dim_ranges
         )
 
         if filtered:
             patch_slices = map(
-                lambda (s, m): filter(
-                    lambda s_i: np.sum(m[s_i] > 0) > 0, s
-                ),
+                lambda (slices, mask): filter_size(slices, mask, min_size),
                 zip(patch_slices, masks)
             )
 
@@ -79,19 +74,120 @@ def get_slices_bb(masks, patch_size, overlap, filtered=False):
         )
 
         dim_range = map(lambda t: np.arange(*t), zip(min_bb, max_bb, steps))
-        patch_slices = map(
-            lambda voxel: tuple(map(
-                lambda (idx, p_len): (idx - p_len, idx + p_len),
-                zip(voxel, patch_half)
-            )),
-            itertools.product(*dim_range)
+        patch_slices = centers_to_slice(
+            itertools.product(*dim_range), patch_half
         )
 
         if filtered:
-            patch_slices = filter(
-                lambda s_i: np.sum(masks[s_i] > 0) > 0,
-                patch_slices
+            patch_slices = filter_size(patch_slices, masks, min_size)
+
+    return patch_slices
+
+
+def centers_to_slice(voxels, patch_half):
+    slices = map(
+        lambda voxel: tuple(
+            map(
+                lambda (idx, p_len): slice(idx - p_len, idx + p_len),
+                zip(voxel, patch_half)
             )
+        ),
+        voxels
+    )
+    return slices
+
+
+def filter_bounds(voxels, min_bounds, max_bounds):
+    filtered_voxels = filter(
+        lambda v: reduce(
+            and_, map(
+                lambda (v_i, min_i, max_i): (v_i >= min_i) & (v_i <= max_i),
+                zip(v, min_bounds, max_bounds)
+            )
+        ),
+        voxels,
+    )
+
+    return filtered_voxels
+
+
+def filter_size(slices, mask, min_size):
+    filtered_slices = filter(
+        lambda s_i: np.sum(mask[s_i] > 0) > min_size, slices
+    )
+
+    return filtered_slices
+
+
+def get_balanced_slides(masks, patch_size, min_size=0):
+    patch_half = map(lambda p_length: p_length // 2, patch_size)
+
+    masks = map(get_image, masks)
+    print('Getting lesion voxels')
+    lesion_voxels = map(get_mask_voxels, masks)
+    print('Getting other voxels')
+    min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), masks)
+    max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), masks)
+
+    dim_ranges = map(
+        lambda (min_bb_i, max_bb_i): map(
+            lambda t: np.concatenate([np.arange(*t), [t[1]]]),
+            zip(min_bb_i, max_bb_i, (1,) * 3)
+        ),
+        zip(min_bb, max_bb)
+    )
+    all_voxels = map(
+        lambda dim_range: itertools.product(*dim_range), dim_ranges
+    )
+
+    min_shape = np.array(patch_half)
+    max_shape = np.array(
+        map(
+            lambda (max_i, p_len): max_i - p_len,
+            zip(masks[0].shape, patch_half)
+        )
+    )
+
+    print('Filtering lesion bounds')
+    flesion_voxels = map(
+        lambda vox: filter_bounds(vox, min_shape, max_shape), lesion_voxels
+    )
+
+    print('Filtering other bounds')
+    fall_voxells = map(
+        lambda vox: filter_bounds(vox, min_shape, max_shape), all_voxels
+    )
+    fbck_voxels = map(
+        lambda (vox, mask): filter(
+            lambda vox_i: mask[vox_i] > 0,
+            vox
+        ),
+        zip(fall_voxells, masks)
+    )
+
+    print('Slicing lesions')
+    lesion_slices = map(
+        lambda vox: centers_to_slice(vox, patch_half), flesion_voxels
+    )
+    print('Slicing other')
+    bck_slices = map(
+        lambda vox: centers_to_slice(vox, patch_half), fbck_voxels
+    )
+
+    print('Filtering other size')
+    fbck_slices = map(
+        lambda (slices, mask): filter_size(slices, mask, min_size),
+        zip(bck_slices, masks)
+    )
+
+    print('Merging lesions and other')
+    patch_slices = map(
+        lambda (pos_s, neg_s): pos_s + map(
+            lambda idx: neg_s[idx],
+            np.random.permutation(len(neg_s))[:len(pos_s)]
+        ),
+        zip(lesion_slices, fbck_slices)
+    )
 
     return patch_slices
 
@@ -189,14 +285,8 @@ class GenericCroppingDataset(Dataset):
         case_slices = self.patch_slices[case_idx]
 
         # We get the slice indexes
-        slice_tuple = case_slices[patch_idx]
+        slice_i = case_slices[patch_idx]
 
-        slice_i = tuple(
-            map(
-                lambda (p_ini, p_end): slice(p_ini, p_end),
-                slice_tuple
-            )
-        )
         inputs = np.expand_dims(case[slice_i], 0)
 
         if self.labels is not None:
@@ -205,7 +295,7 @@ class GenericCroppingDataset(Dataset):
 
             return inputs, labels
         else:
-            return inputs, case_idx, slice_tuple
+            return inputs, case_idx, slice_i
 
     def __len__(self):
         return self.max_slice[-1]
@@ -214,13 +304,12 @@ class GenericCroppingDataset(Dataset):
 class LongitudinalCroppingDataset(Dataset):
     def __init__(
             self,
-            source, target, lesions, masks=None,
-            patch_size=32, overlap=32
+            source, target, lesions, patch_size=32
     ):
         # Init
         # Image and mask should be numpy arrays
         shape_comparisons = map(
-            lambda (x, y, l): x.shape == y.shape and x.shape == l.shape,
+            lambda (x, y, l): x.shape == y.shape and x.shape[1:] == l.shape,
             zip(source, target, lesions)
         )
 
@@ -235,14 +324,10 @@ class LongitudinalCroppingDataset(Dataset):
         if type(patch_size) is not tuple:
             patch_size = (patch_size,) * len(self.lesions[0].shape)
 
-        if masks is not None:
-            self.patch_slices = get_slices_bb(
-                masks, patch_size, overlap, filtered=True
-            )
-        else:
-            self.patch_slices = get_slices_bb(
-                lesions, patch_size, overlap, filtered=True
-            )
+        self.patch_slices = get_balanced_slides(
+            lesions, patch_size, min_size=10
+        )
+
         self.max_slice = np.cumsum(map(len, self.patch_slices))
 
     def __getitem__(self, index):
@@ -256,27 +341,25 @@ class LongitudinalCroppingDataset(Dataset):
         # Now we just need to look for the desired slice
         slices = [0] + self.max_slice.tolist()
         patch_idx = index - slices[case]
-        case_tuple = tuple(
-            map(
-                lambda (p_ini, p_end): slice(p_ini, p_end),
-                case_slices[patch_idx]
-            )
-        )
+        case_tuple = case_slices[patch_idx]
 
         # DF's initial mesh to generate a final deformation field.
-        mesh = self.mesh[(slice(None, None),) + case_tuple]
+        none_slice = (slice(None, None),)
+        mesh = self.mesh[none_slice + case_tuple]
+        source = case_source[none_slice + case_tuple]
+        target = case_target[none_slice + case_tuple]
 
         inputs_p = (
-            np.expand_dims(case_source[case_tuple], 0),
-            np.expand_dims(case_target[case_tuple], 0),
+            source,
+            target,
             mesh,
-            np.expand_dims(case_source, 0)
+            case_source
 
         )
 
         targets_p = (
             np.expand_dims(case_lesion[case_tuple], 0),
-            np.expand_dims(case_target[case_tuple], 0),
+            target
         )
 
         return inputs_p, targets_p
@@ -330,13 +413,8 @@ class ImageListCroppingDataset(Dataset):
 
         case_source = self.cases[case][combo[combo_idx, 0]]
         case_target = self.cases[case][combo[combo_idx, 1]]
-        slice_tuple = case_slices[patch_idx]
-        slice_i = tuple(
-            map(
-                lambda (p_ini, p_end): slice(p_ini, p_end),
-                slice_tuple
-            )
-        )
+        slice_i = case_slices[patch_idx]
+
         case_lesion = self.lesions[case]
         case_mask = self.masks[case]
 

@@ -15,7 +15,7 @@ from criterions import histogram_loss, mahalanobis_loss
 from criterions import GenericLossLayer, multidsc_loss
 from datasets import ImageListDataset
 from datasets import LongitudinalCroppingDataset, ImageListCroppingDataset
-from datasets import GenericCroppingDataset, get_image
+from datasets import GenericCroppingDataset, get_image, get_mesh
 from optimizers import AdaBound
 from utils import time_to_string
 
@@ -565,11 +565,12 @@ class MultiViewBlock3D(nn.Module):
 class MaskAtrophyNet(nn.Module):
     def __init__(
             self,
-            conv_filters=list([32, 64, 64, 64]),
+            conv_filters=list([32, 64, 64, 64, 64]),
             deconv_filters=list([64, 64, 64, 64, 64, 64, 64]),
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             leakyness=0.2,
             loss_idx=list([0, 1, 6]),
+            n_images=1,
             kernel_size=3,
             data_smooth=False,
             df_smooth=False,
@@ -598,36 +599,39 @@ class MaskAtrophyNet(nn.Module):
         self.device = device
         self.leakyness = leakyness
         # Down path of the unet
-        conv_in = [2] + conv_filters[:-1]
+        conv_in = [n_images * 2] + conv_filters[:-2]
         self.conv_u = map(
             lambda (f_in, f_out): nn.Conv3d(f_in, f_out, 3, padding=1),
-            zip(conv_in, conv_filters)
+            zip(conv_in, conv_filters[:-1])
         )
-        unet_filters = len(conv_filters)
+        unet_filters = len(conv_filters) - 1
         for c in self.conv_u:
             c.to(device)
             nn.init.kaiming_normal_(c.weight)
 
+        self.u = nn.Conv3d(conv_filters[-2], conv_filters[-1], 3, padding=1)
+        self.u.to(device)
+        nn.init.kaiming_normal_(self.u.weight)
+
         # Up path of the unet
-        conv_out = conv_filters[-1]
-        deconv_in = [conv_out] + map(
-            sum, zip(deconv_filters[:unet_filters - 1], conv_in[::-1])
-        )
+        down_out = conv_filters[-2::-1]
+        up_out = [conv_in[-1]] + deconv_filters[:unet_filters - 1]
+        deconv_in = map(sum, zip(down_out, up_out))
+        deconv_unet = deconv_filters[:unet_filters]
+        if deconv_unet[-1] % 3 != 0:
+            deconv_unet[-1] = deconv_unet[-1] * 3
         self.deconv_u = map(
             lambda (f_in, f_out): nn.ConvTranspose3d(
                 f_in, f_out, 3, padding=1,
             ),
-            zip(
-                deconv_in,
-                deconv_filters[:unet_filters]
-            )
+            zip(deconv_in, deconv_unet)
         )
         for d in self.deconv_u:
             d.to(device)
             nn.init.kaiming_normal_(d.weight)
 
         # Extra DF path
-        deconv_out = 2 + deconv_filters[unet_filters - 1]
+        deconv_out = deconv_unet[-1]
         extra_filters = map(lambda f: f * 3, deconv_filters[unet_filters:])
         if kernel_size is not None:
             final_filters = deconv_filters[-1] * 3
@@ -671,28 +675,27 @@ class MaskAtrophyNet(nn.Module):
         self.trans_mask = SpatialTransformer('nearest')
         self.trans_mask.to(device)
 
-    def forward(self, inputs):
-        n_inputs = len(inputs)
-        if n_inputs > 3:
-            patch_source, target, mask, mesh, source = inputs
-            data = torch.cat([patch_source, target], dim=1)
-        else:
-            source, target, mask = inputs
-            data = torch.cat([source, target], dim=1)
+    def forward(self, patch_source, target, mask=None, mesh=None, source=None):
+        data = torch.cat([patch_source, target], dim=1)
 
         if self.data_smooth:
             data = self.smooth(data)
 
         down_inputs = list()
         for c in self.conv_u:
+            data = F.leaky_relu(c(data), self.leakyness)
             down_inputs.append(data)
-            data = F.leaky_relu(F.max_pool3d(c(data), 2), self.leakyness)
+            data = F.max_pool3d(data, 2)
+
+        data = F.leaky_relu(self.u(data), self.leakyness)
 
         for d, i in zip(self.deconv_u, down_inputs[::-1]):
-            up = F.leaky_relu(
-                F.interpolate(d(data), size=i.size()), self.leakyness
+            data = torch.cat(
+                [F.interpolate(data, size=i.size()[2:]), i], dim=1
             )
-            data = torch.cat((up, i), dim=1)
+            data = F.leaky_relu(
+                d(data), self.leakyness
+            )
 
         for c in self.conv:
             data = F.leaky_relu(c(data), self.leakyness)
@@ -702,24 +705,28 @@ class MaskAtrophyNet(nn.Module):
         if self.df_smooth:
             df = self.smooth(df)
 
-        if n_inputs > 3:
+        if source is not None and mesh is not None:
             source_mov = self.trans_im(
                 [source, df, mesh]
             )
 
-            mask_mov = self.trans_mask(
-                [mask, df, mesh]
-            )
         else:
             source_mov = self.trans_im(
-                [source, df]
+                [patch_source, df]
             )
 
-            mask_mov = self.trans_mask(
-                [mask, df]
-            )
-
-        return source_mov, mask_mov, df
+        if mask is not None:
+            if mesh is not None:
+                mask_mov = self.trans_mask(
+                    [mask, df, mesh]
+                )
+            else:
+                mask_mov = self.trans_mask(
+                    [mask, df]
+                )
+            return source_mov, mask_mov, df
+        else:
+            return source_mov, df
 
     def register(
             self,
@@ -949,7 +956,9 @@ class MaskAtrophyNet(nn.Module):
 
             b_gt = output.to(self.device)
 
-            b_inputs = (b_source, b_target, b_m, b_mesh, b_im)
+            b_moved, b_moved_lesion, b_df = self(
+                b_source, b_target, b_m, b_mesh, b_im
+            )
 
         else:
             b_source, b_target, b_lesion, b_mask = inputs
@@ -960,10 +969,9 @@ class MaskAtrophyNet(nn.Module):
 
             b_gt = output.to(self.device)
 
-            b_inputs = (b_source, b_target, b_lesion)
+            b_moved, b_moved_lesion, b_df = self(b_source, b_target, b_lesion)
 
         torch.cuda.synchronize()
-        b_moved, b_moved_lesion, b_df = self(b_inputs)
 
         b_losses = self.longitudinal_loss(
             b_source,
@@ -1121,12 +1129,13 @@ class MaskAtrophyNet(nn.Module):
 class NewLesionsNet(nn.Module):
     def __init__(
             self,
-            conv_filters_s=list([32, 64, 64, 64]),
+            conv_filters_s=list([32, 64, 64]),
             conv_filters_r=list([32, 64, 64, 64]),
-            deconv_filters_r=list([64, 64, 64, 64, 64, 32, 32]),
+            deconv_filters_r=list([64, 64, 66, 64, 32, 32]),
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             lambda_d=1,
             leakyness=0.2,
+            n_images=1,
             data_smooth=False,
             df_smooth=False,
             trainable_smooth=False,
@@ -1142,6 +1151,7 @@ class NewLesionsNet(nn.Module):
             deconv_filters=deconv_filters_r,
             device=device,
             leakyness=leakyness,
+            n_images=n_images,
             data_smooth=data_smooth,
             df_smooth=df_smooth,
             trainable_smooth=trainable_smooth
@@ -1150,95 +1160,71 @@ class NewLesionsNet(nn.Module):
         self.device = device
 
         # Down path of the unet
-        conv_in = conv_filters_s[:-1]
+        conv_in = conv_filters_s[:-2]
         init_out = conv_filters_s[0] / 2
         self.init_df = nn.Conv3d(3, init_out, 3, padding=1)
         self.init_df.to(device)
-        self.init_im = nn.Conv3d(2, init_out, 3, padding=1)
+        self.init_im = nn.Conv3d(n_images * 2, init_out, 3, padding=1)
         self.init_im.to(device)
 
         self.down = map(
             lambda (f_in, f_out): nn.Conv3d(
                 f_in, f_out, 3, padding=1, groups=2
             ),
-            zip(conv_in, conv_filters_s[1:])
+            zip(conv_in, conv_filters_s[1:-1])
         )
         for c in self.down:
             c.to(device)
 
-        # Up path of the unet
-        deconv_in = [conv_filters_s[-1]] + map(
-            sum, zip(conv_filters_s[-2::-1], conv_filters_s[:0:-1])
+        self.u = nn.Conv3d(
+            conv_filters_s[-2], conv_filters_s[-1], 3, padding=1, groups=2
         )
+        self.u.to(self.device)
+
+        # Up path of the unet
+        down_out = conv_filters_s[-2::-1]
+        up_out = conv_filters_s[:0:-1]
+        deconv_in = map(sum, zip(down_out, up_out))
         self.up = map(
             lambda (f_in, f_out): nn.ConvTranspose3d(
-                f_in, f_out, 3, padding=1
+                f_in, f_out, 3, padding=1, groups=2
             ),
             zip(
                 deconv_in,
-                conv_filters_s[::-1]
+                conv_filters_s[-1::-1]
             )
         )
         for d in self.up:
             d.to(device)
 
-        self.seg = nn.Conv3d(conv_filters_s[0] + 5, 2, 1)
+        self.seg = nn.Conv3d(conv_filters_s[-1], 2, 1)
         self.seg.to(device)
 
     def forward(self, patch_source, target, mesh=None, source=None):
-        # Init
-        input_r = torch.cat([patch_source, target], dim=1)
-
-        # This is exactly like the MaskAtrophy net
-        down_inputs = list()
-        for c in self.atrophy.conv_u:
-            down_inputs.append(input_r)
-            input_r = F.leaky_relu(
-                F.max_pool3d(c(input_r), 2),
-                self.atrophy.leakyness
-            )
-
-        for d, i in zip(self.atrophy.deconv_u, down_inputs[::-1]):
-            up = F.leaky_relu(
-                F.interpolate(d(input_r), size=i.size()),
-                self.atrophy.leakyness
-            )
-            input_r = torch.cat((up, i), dim=1)
-
-        for c in self.atrophy.conv:
-            input_r = F.leaky_relu(
-                c(input_r),
-                self.atrophy.leakyness
-            )
-
-        df = self.atrophy.to_df(input_r)
-
-        if mesh is None and source is None:
-            source_mov = self.atrophy.trans_im(
-                [patch_source, df]
-            )
-        else:
-            source_mov = self.atrophy.trans_im(
-                [source, df, mesh]
-            )
+        # Atrophy network
+        source_mov, df = self.atrophy(
+            patch_source, target, mesh=mesh, source=source
+        )
 
         # Now we actually need to give a segmentation result.
-        input_df = F.relu(F.max_pool3d(self.init_df(df), 2))
+        input_df = F.relu(self.init_df(df))
         input_im = F.relu(
-            F.max_pool3d(
-                self.init_im(torch.cat([patch_source, target], dim=1)),
-                2
-            )
+            self.init_im(torch.cat([patch_source, target], dim=1)),
         )
         input_s = torch.cat([input_im, input_df], dim=1)
-        down_inputs = list([torch.cat([patch_source, target, df], dim=1)])
+        down_inputs = [input_s]
         for c in self.down:
+            input_s = F.relu(c(input_s))
             down_inputs.append(input_s)
-            input_s = F.relu(F.max_pool3d(c(input_s), 2))
+            input_s = F.max_pool3d(input_s, 2)
+
+        input_s = F.relu(self.u(input_s))
 
         for d, i in zip(self.up, down_inputs[::-1]):
-            up = F.relu(F.interpolate(d(input_s), size=i.size()))
-            input_s = torch.cat((up, i), dim=1)
+            input_s = torch.cat(
+                (F.interpolate(input_s, size=i.size()[2:]), i), dim=1
+            )
+            input_s = F.relu(d(input_s))
 
         multi_seg = torch.softmax(self.seg(input_s), dim=1)
 
@@ -1258,7 +1244,9 @@ class NewLesionsNet(nn.Module):
 
         with torch.no_grad():
             torch.cuda.synchronize()
-            seg, source_mov, df = self(source_tensor, target_tensor)
+            seg, source_mov, df = self(
+                source_tensor, target_tensor
+            )
             torch.cuda.synchronize()
             torch.cuda.empty_cache()
 
@@ -1277,9 +1265,7 @@ class NewLesionsNet(nn.Module):
             source,
             target,
             new_lesion,
-            masks=None,
             patch_size=32,
-            overlap=32,
             val_split=0,
             batch_size=32,
             optimizer='adam',
@@ -1322,32 +1308,22 @@ class NewLesionsNet(nn.Module):
             l_train = new_lesion[:n_t_samples]
             l_val = new_lesion[n_t_samples:]
 
-            if masks is not None:
-                m_train = source[:n_t_samples]
-                m_val = source[n_t_samples:]
-            else:
-                m_train = None
-                m_val = None
-
             train_dataset = LongitudinalCroppingDataset(
-                s_train, t_train, l_train, masks=m_train,
-                patch_size=patch_size, overlap=overlap
+                s_train, t_train, l_train, patch_size=patch_size,
             )
             train_dataloader = DataLoader(
                 train_dataset, batch_size, True, num_workers=num_workers
             )
 
             val_dataset = LongitudinalCroppingDataset(
-                s_val, t_val, l_val, masks=m_val,
-                patch_size=patch_size, overlap=overlap
+                s_val, t_val, l_val, patch_size=patch_size,
             )
             val_dataloader = DataLoader(
                 val_dataset, batch_size, num_workers=num_workers
             )
         else:
             train_dataset = LongitudinalCroppingDataset(
-                source, target, new_lesion, masks=masks,
-                patch_size=patch_size, overlap=overlap
+                source, target, new_lesion, patch_size=patch_size,
             )
             train_dataloader = DataLoader(
                 train_dataset, batch_size, True, num_workers=num_workers
@@ -1361,6 +1337,7 @@ class NewLesionsNet(nn.Module):
             )
 
         l_names = [' loss ', '  mse ', '  dsc ']
+        # l_names = [' loss ', ' subt ', '  dsc ']
         best_losses = [np.inf] * (len(l_names))
         best_e = 0
         e = 0
@@ -1497,8 +1474,8 @@ class NewLesionsNet(nn.Module):
         b_pred_lesion, b_moved, b_df = self(*b_inputs)
 
         b_dsc_loss = multidsc_loss(b_pred_lesion, b_lesion, averaged=train)
-        roi = b_target > 0
-        b_reg_loss = torch.nn.MSELoss()(b_moved[roi], b_target[roi])
+        b_reg_loss = nn.MSELoss()(b_moved, b_target)
+        # b_reg_loss = subtraction_loss(b_moved, b_target, roi)
         if train:
             b_losses = (b_reg_loss, b_dsc_loss)
             b_loss = sum(b_losses)

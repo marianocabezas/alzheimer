@@ -115,7 +115,7 @@ def normalised_mi_loss(var_x, var_y):
         return torch.tensor(0)
 
 
-def subtraction_loss(var_x, var_y, mask):
+def subtraction_loss(var_x, var_y, mask=None):
     """
         Loss function based on the mean gradient of the subtraction between two
         tensors.
@@ -173,9 +173,15 @@ def weighted_subtraction_loss(var_x, var_y, mask):
         sum_w = sum_w.reshape((-1,) + (1,) * (n_dim + 1))
         sum_w = sum_w.repeat((1, 1) + patch_shape)
         weighted_sub = sub_gradient * weights / sum_w
-        sub_loss = torch.sum(weighted_sub[mask]) / patches
+        if mask is not None:
+            sub_loss = torch.sum(weighted_sub[mask]) / patches
+        else:
+            sub_loss = torch.sum(weighted_sub) / patches
     else:
-        sub_loss = torch.mean(sub_gradient[mask])
+        if mask is not None:
+            sub_loss = torch.mean(sub_gradient[mask])
+        else:
+            sub_loss = torch.mean(sub_gradient)
 
     return sub_loss
 
@@ -461,7 +467,7 @@ def multidsc_loss(pred, target, smooth=1, averaged=True):
     den = torch.sum(pred + target, dim=reduce_dims) + smooth
     dsc_k = num / den
     if averaged:
-        dsc = 1 - torch.mean(torch.mean(dsc_k, dim=1))
+        dsc = 1 - torch.mean(dsc_k)
     else:
         dsc = 1 - torch.mean(dsc_k, dim=0)
 

@@ -33,7 +33,7 @@ def parse_args():
     parser.add_argument(
         '-d', '--dataset-path',
         dest='dataset_path',
-        default='/home/mariano/DATA/VH',
+        default='/home/mariano/DATA/Longitudinal',
         help='Parameter to store the working directory.'
     )
     parser.add_argument(
@@ -268,10 +268,20 @@ def initial_analysis(
 
 def new_lesions(
         d_path=None,
-        source_name='flair_moved.nii.gz',
-        target_name='flair_processed.nii.gz',
+        source_names=[
+            'pd_basal.nii.gz',
+            't2_basal.nii.gz',
+            't1_basal.nii.gz',
+            'flair_basal.nii.gz'
+        ],
+        target_names=[
+            'pd_followup.nii.gz',
+            't2_followup.nii.gz',
+            't1_followup.nii.gz',
+            'flair_followup.nii.gz'
+        ],
         brain_name='brainmask.nii.gz',
-        lesion_name='gt_mask.nii',
+        lesion_name='lesionMask_followup.nii.gz',
         verbose=1,
 ):
     """
@@ -356,14 +366,26 @@ def new_lesions(
         )
         lesions = map(get_mask, lesion_names)
         norm_source = map(
-            lambda (p, mask_i): get_normalised_image(
-                os.path.join(p, source_name), mask_i, masked=True
+            lambda (p, mask_i): np.stack(
+                map(
+                    lambda im: get_normalised_image(
+                        os.path.join(p, im), mask_i, masked=True
+                    ),
+                    source_names
+                ),
+                axis=0
             ),
             zip(patient_paths, brains)
         )
         norm_target = map(
-            lambda (p, mask_i): get_normalised_image(
-                os.path.join(p, target_name), mask_i, masked=True
+            lambda (p, mask_i): np.stack(
+                map(
+                    lambda im: get_normalised_image(
+                        os.path.join(p, im), mask_i, masked=True
+                    ),
+                    target_names
+                ),
+                axis=0
             ),
             zip(patient_paths, brains)
         )
@@ -375,6 +397,7 @@ def new_lesions(
             data_smooth=data_smooth,
             df_smooth=df_smooth,
             trainable_smooth=train_smooth,
+            n_images=4
         )
         try:
             reg_net.load_model(os.path.join(d_path, patient, model_name))
@@ -383,8 +406,7 @@ def new_lesions(
                 norm_source,
                 norm_target,
                 lesions,
-                brains,
-                overlap=28,
+                num_workers=16,
                 val_split=0.1,
                 epochs=epochs,
                 patience=patience
@@ -421,17 +443,31 @@ def new_lesions(
         gt = get_mask(os.path.join(patient_path, lesion_name))
 
         # Baseline image (testing)
-        source_nii = load_nii(os.path.join(patient_path, source_name))
-        source_image = source_nii.get_data()
-        source_mu = np.mean(source_image[brain])
-        source_sigma = np.std(source_image[brain])
-        norm_source = get_normalised_image(
-            os.path.join(patient_path, source_name), brain
+        source_niis = map(
+            lambda name: load_nii(os.path.join(patient_path, name)),
+            source_names
         )
+        source_images = map(lambda nii: nii.get_data(), source_niis)
+        source_mus = map(lambda im: np.mean(im[brain]), source_images)
+        source_sigmas = map(lambda im: np.std(im[brain]), source_images)
 
-        # Follow-up image (testing)
-        norm_target = get_normalised_image(
-            os.path.join(patient_path, source_name), brain
+        norm_source = np.stack(
+            map(
+                lambda im: get_normalised_image(
+                    os.path.join(patient_path, im), brain, masked=True
+                ),
+                source_names
+            ),
+            axis=0
+        )
+        norm_target = np.stack(
+            map(
+                lambda im: get_normalised_image(
+                    os.path.join(patient_path, im), brain, masked=True
+                ),
+                target_names
+            ),
+            axis=0
         )
 
         sufix = '%s%s.e%dp%d' % (
@@ -440,31 +476,37 @@ def new_lesions(
 
         # Test the network
         seg, source_mov, df = reg_net.new_lesions(
-            np.reshape(norm_source, (1, 1) + norm_source.shape),
-            np.reshape(norm_target, (1, 1) + norm_target.shape)
+            np.expand_dims(norm_source, axis=0),
+            np.expand_dims(norm_target, axis=0)
         )
 
         lesion = seg[0][1] > 0.5
 
-        source_mov = source_mov[0] * source_sigma + source_mu
-        source_nii.get_data()[:] = source_mov * brain
-        source_nii.to_filename(
-            os.path.join(patient_path, 'moved_%s.nii.gz' % sufix)
-        )
-        mask_nii = nib.Nifti1Image(
-            seg[0][1],
-            source_nii.get_qform(),
-            source_nii.get_header()
-        )
-        mask_nii.to_filename(
-            os.path.join(patient_path, 'lesion_mask_%s.nii.gz' % sufix)
-        )
+        for j, (nii, mov, mu, sigma) in enumerate(
+                zip(source_niis, source_mov[0], source_mus, source_sigmas)
+        ):
+            source_mov = mov * sigma + mu
+            nii.get_data()[:] = source_mov * brain
+            nii.to_filename(
+                os.path.join(patient_path, 'moved_%s_im%d.nii.gz' % sufix, j)
+            )
+        for j, s_i in enumerate(seg[0]):
+            mask_nii = nib.Nifti1Image(
+                s_i,
+                source_niis[0].get_qform(),
+                source_niis[0].get_header()
+            )
+            mask_nii.to_filename(
+                os.path.join(
+                    patient_path, 'lesion_mask_%s_s%d.nii.gz' % (sufix, j)
+                )
+            )
 
         df_mask = np.repeat(np.expand_dims(brain, -1), 3, -1)
         df_nii = nib.Nifti1Image(
             np.moveaxis(df[0], 0, -1) * df_mask,
-            source_nii.get_qform(),
-            source_nii.get_header()
+            source_niis[0].get_qform(),
+            source_niis[0].get_header()
         )
         df_nii.to_filename(
             os.path.join(patient_path, 'deformation _%s.nii.gz' % sufix)
