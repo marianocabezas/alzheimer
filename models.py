@@ -618,6 +618,8 @@ class MaskAtrophyNet(nn.Module):
         up_out = [conv_in[-1]] + deconv_filters[:unet_filters - 1]
         deconv_in = map(sum, zip(down_out, up_out))
         deconv_unet = deconv_filters[:unet_filters]
+        if deconv_unet[-1] % 3 != 0:
+            deconv_unet[-1] = deconv_unet[-1] * 3
         self.deconv_u = map(
             lambda (f_in, f_out): nn.ConvTranspose3d(
                 f_in, f_out, 3, padding=1,
@@ -630,13 +632,13 @@ class MaskAtrophyNet(nn.Module):
 
         # Extra DF path
         deconv_out = deconv_unet[-1]
-        extra_filters = deconv_filters[unet_filters:]
+        extra_filters = map(lambda f: f * 3, deconv_filters[unet_filters:])
         if kernel_size is not None:
-            final_filters = deconv_filters[-1]
+            final_filters = deconv_filters[-1] * 3
             pad = kernel_size // 2
             self.conv = map(
                 lambda (f_in, f_out): nn.Conv3d(
-                    f_in, f_out, kernel_size, padding=pad,
+                    f_in, f_out, kernel_size, padding=pad, groups=3,
                 ),
                 zip(
                     [deconv_out] + extra_filters[:-1],
@@ -661,7 +663,7 @@ class MaskAtrophyNet(nn.Module):
                 c.to(device)
 
         # Final DF computation
-        self.to_df = nn.Conv3d(final_filters, 3, 1)
+        self.to_df = nn.Conv3d(final_filters, 3, 1, groups=3)
         self.to_df.to(device)
         nn.init.normal_(self.to_df.weight, 0.0, 1e-5)
 
@@ -1127,9 +1129,9 @@ class MaskAtrophyNet(nn.Module):
 class NewLesionsNet(nn.Module):
     def __init__(
             self,
-            conv_filters_s=list([64, 128, 128]),
+            conv_filters_s=list([32, 64, 64]),
             conv_filters_r=list([32, 64, 64, 64]),
-            deconv_filters_r=list([64, 64, 64, 64, 32, 32]),
+            deconv_filters_r=list([64, 64, 66, 64, 32, 32]),
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             lambda_d=1,
             leakyness=0.2,
