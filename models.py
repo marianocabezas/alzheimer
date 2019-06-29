@@ -1038,7 +1038,7 @@ class MaskAtrophyNet(nn.Module):
 class NewLesionsUNet(nn.Module):
     def __init__(
             self,
-            conv_filters=list([32, 64, 64, 64]),
+            conv_filters=list([32, 64, 64, 64, 64]),
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             n_images=1,
             data_smooth=False,
@@ -1086,7 +1086,10 @@ class NewLesionsUNet(nn.Module):
         for d in self.up:
             d.to(device)
 
-        self.seg = nn.Conv3d(conv_filters[-1], 2, 1)
+        self.seg = nn.Sequential(
+            nn.Conv3d(conv_filters[-1], conv_filters[-1], 1),
+            nn.Conv3d(conv_filters[-1], 2, 1, groups=2)
+        )
         self.seg.to(device)
 
     def forward(self, source, target):
@@ -1462,10 +1465,7 @@ class NewLesionsNet(nn.Module):
         for d in self.up:
             d.to(device)
 
-        self.seg = nn.Sequential(
-            nn.Conv3d(conv_filters_s[-1], conv_filters_s[-1], 1),
-            nn.Conv3d(conv_filters_s[-1], 2, 1, groups=2)
-        )
+        self.seg = nn.Conv3d(conv_filters_s[-1], 2, 1)
         self.seg.to(device)
 
     def forward(self, patch_source, target, mesh=None, source=None):
