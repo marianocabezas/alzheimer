@@ -1351,12 +1351,11 @@ class NewLesionsUNet(nn.Module):
         b_dsc_losses = multidsc_loss(b_pred_lesion, b_lesion, averaged=False)
         if train:
             sum_class = map(lambda c: torch.sum(b_lesion == c), range(2))
-            b_loss = torch.sum(
+            b_loss = sum(
                 map(
                     lambda (loss, s): loss * s / sum(sum_class),
-                    zip(b_dsc_losses, sum_class[::-1]
-                        )
-                    )
+                    zip(b_dsc_losses, sum_class[::-1])
+                )
             )
             self.optimizer_alg.zero_grad()
             b_loss.backward()
