@@ -119,7 +119,7 @@ def filter_size(slices, mask, min_size):
     return filtered_slices
 
 
-def get_balanced_slides(masks, patch_size, min_size=0):
+def get_balanced_slices(masks, patch_size, min_size=0):
     patch_half = map(lambda p_length: p_length // 2, patch_size)
 
     masks = map(get_image, masks)
@@ -324,8 +324,8 @@ class LongitudinalCroppingDataset(Dataset):
         if type(patch_size) is not tuple:
             patch_size = (patch_size,) * len(self.lesions[0].shape)
 
-        self.patch_slices = get_balanced_slides(
-            lesions, patch_size, min_size=10
+        self.patch_slices = get_slices_bb(
+            lesions, patch_size, overlap=32, filtered=True, min_size=10
         )
 
         self.max_slice = np.cumsum(map(len, self.patch_slices))

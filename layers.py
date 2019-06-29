@@ -205,8 +205,7 @@ class SpatialTransformer(nn.Module):
                 subs = map(lambda (i, cd): locs[cd][i], enumerate(point))
                 loc_list_p = map(lambda (s, l): s * l, zip(subs, d_size))
                 idx_p = torch.sum(torch.stack(loc_list_p, dim=0), dim=0)
-                if len(idx_p.shape) < len(vol.shape):
-                    idx_p = torch.unsqueeze(idx_p, 0)
+                
                 vol_val_flat = torch.stack(
                     map(
                         lambda (vol_i, idx_i): torch.stack(
