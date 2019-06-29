@@ -1090,7 +1090,6 @@ class NewLesionsUNet(nn.Module):
         self.seg.to(device)
 
     def forward(self, source, target):
-        # Atrophy network
         input_s = torch.cat([source, target], dim=1)
         down_inputs = [input_s]
         for c in self.down:
@@ -1218,7 +1217,6 @@ class NewLesionsUNet(nn.Module):
         e = 0
 
         for self.epoch in range(epochs):
-            self.atrophy.epoch = self.epoch
             # Main epoch loop
             self.t_train = time.time()
             self.step_train(
