@@ -184,7 +184,7 @@ def get_balanced_slices(masks, patch_size, min_size=0):
     patch_slices = map(
         lambda (pos_s, neg_s): pos_s + map(
             lambda idx: neg_s[idx],
-            np.random.permutation(len(neg_s))[:len(pos_s)]
+            np.random.permutation(len(neg_s))[:len(pos_s) // 2]
         ),
         zip(lesion_slices, fbck_slices)
     )
