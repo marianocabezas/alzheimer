@@ -405,7 +405,7 @@ def new_lesions(
                     p.numel() for p in reg_net.parameters() if p.requires_grad
                 )
                 print(
-                    '%Starting training%s (%d parameters)\n' %
+                    '%sStarting training%s (%d parameters)\n' %
                     (c['c'], c['nc'], n_params)
                 )
             reg_net.fit(
