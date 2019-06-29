@@ -633,34 +633,20 @@ class MaskAtrophyNet(nn.Module):
         # Extra DF path
         deconv_out = deconv_unet[-1]
         extra_filters = map(lambda f: f * 3, deconv_filters[unet_filters:])
-        if kernel_size is not None:
-            final_filters = deconv_filters[-1] * 3
-            pad = kernel_size // 2
-            self.conv = map(
-                lambda (f_in, f_out): nn.Conv3d(
-                    f_in, f_out, kernel_size, padding=pad, groups=3,
-                ),
-                zip(
-                    [deconv_out] + extra_filters[:-1],
-                    extra_filters
-                )
+        final_filters = deconv_filters[-1] * 3
+        pad = kernel_size // 2
+        self.conv = map(
+            lambda (f_in, f_out): nn.Conv3d(
+                f_in, f_out, kernel_size, padding=pad, groups=3,
+            ),
+            zip(
+                [deconv_out] + extra_filters[:-1],
+                extra_filters
             )
-            for c in self.conv:
-                c.to(device)
-                nn.init.kaiming_normal_(c.weight)
-        else:
-            final_filters = deconv_filters[-1]
-            self.conv = map(
-                lambda (f_in, f_out): MultiViewBlock3D(
-                    f_in, f_out
-                ),
-                zip(
-                    [deconv_out] + deconv_filters[unet_filters:-1],
-                    deconv_filters[unet_filters:]
-                )
-            )
-            for c in self.conv:
-                c.to(device)
+        )
+        for c in self.conv:
+            c.to(device)
+            nn.init.kaiming_normal_(c.weight)
 
         # Final DF computation
         self.to_df = nn.Conv3d(final_filters, 3, 1, groups=3)
