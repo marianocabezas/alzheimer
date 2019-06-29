@@ -16,7 +16,7 @@ from data_manipulation.sitk import itkn4, itkhist_match
 from data_manipulation.metrics import dsc_det, tp_fraction_det, fp_fraction_det
 from data_manipulation.metrics import dsc_seg, tp_fraction_seg, fp_fraction_seg
 from data_manipulation.metrics import true_positive_det, num_regions, num_voxels
-from models import NewLesionsNet
+from models import NewLesionsNet, NewLesionsUNet
 from utils import color_codes, get_dirs, find_file, run_command, print_message
 from utils import get_mask, get_normalised_image
 
@@ -332,7 +332,7 @@ def new_lesions(
             ]
         )
     )
-    net_name = 'newlesions'
+    net_name = 'newlesions-unet'
     model_name = '%s_model_%s_e%dp%d.mdl' % (
         net_name, smooth_s + '_' if smooth_s else '', epochs, patience
     )
@@ -390,7 +390,7 @@ def new_lesions(
 
         training_start = time.time()
 
-        reg_net = NewLesionsNet(
+        reg_net = NewLesionsUNet(
             device=device,
             data_smooth=data_smooth,
             df_smooth=df_smooth,
@@ -405,7 +405,7 @@ def new_lesions(
                     p.numel() for p in reg_net.parameters() if p.requires_grad
                 )
                 print(
-                    '%sStarting training%s (%d parameters)\n' %
+                    '%sStarting training%s (%d parameters)' %
                     (c['c'], c['nc'], n_params)
                 )
             reg_net.fit(
@@ -481,21 +481,25 @@ def new_lesions(
         )
 
         # Test the network
-        seg, source_mov, df = reg_net.new_lesions(
+        # seg, source_mov, df = reg_net.new_lesions(
+        #     np.expand_dims(norm_source, axis=0),
+        #     np.expand_dims(norm_target, axis=0)
+        # )
+        seg = reg_net.new_lesions(
             np.expand_dims(norm_source, axis=0),
             np.expand_dims(norm_target, axis=0)
         )
 
         lesion = seg[0][1] > 0.5
 
-        for j, (nii, mov, mu, sigma) in enumerate(
-                zip(source_niis, source_mov[0], source_mus, source_sigmas)
-        ):
-            source_mov = mov * sigma + mu
-            nii.get_data()[:] = source_mov * brain
-            nii.to_filename(
-                os.path.join(patient_path, 'moved_%s_im%d.nii.gz' % (sufix, j))
-            )
+        # for j, (nii, mov, mu, sigma) in enumerate(
+        #         zip(source_niis, source_mov[0], source_mus, source_sigmas)
+        # ):
+        #     source_mov = mov * sigma + mu
+        #     nii.get_data()[:] = source_mov * brain
+        #     nii.to_filename(
+        #         os.path.join(patient_path, 'moved_%s_im%d.nii.gz' % (sufix, j))
+        #     )
         for j, s_i in enumerate(seg[0]):
             mask_nii = nib.Nifti1Image(
                 s_i,
@@ -508,15 +512,15 @@ def new_lesions(
                 )
             )
 
-        df_mask = np.repeat(np.expand_dims(brain, -1), 3, -1)
-        df_nii = nib.Nifti1Image(
-            np.moveaxis(df[0], 0, -1) * df_mask,
-            source_niis[0].get_qform(),
-            source_niis[0].get_header()
-        )
-        df_nii.to_filename(
-            os.path.join(patient_path, 'deformation _%s.nii.gz' % sufix)
-        )
+        # df_mask = np.repeat(np.expand_dims(brain, -1), 3, -1)
+        # df_nii = nib.Nifti1Image(
+        #     np.moveaxis(df[0], 0, -1) * df_mask,
+        #     source_niis[0].get_qform(),
+        #     source_niis[0].get_header()
+        # )
+        # df_nii.to_filename(
+        #     os.path.join(patient_path, 'deformation _%s.nii.gz' % sufix)
+        # )
 
         # Patient done
         if verbose > 0:
