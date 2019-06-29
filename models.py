@@ -1425,8 +1425,8 @@ class NewLesionsNet(nn.Module):
         self.device = device
 
         # Down path of the unet
-        conv_in = conv_filters_s[:-2]
-        init_out = conv_filters_s[0] / 2
+        conv_in = [conv_filters_s[0] * 2] + conv_filters_s[1:-2]
+        init_out = conv_filters_s[0]
         self.init_df = nn.Conv3d(3, init_out, 3, padding=1)
         self.init_df.to(device)
         self.init_im = nn.Conv3d(n_images * 2, init_out, 3, padding=1)
