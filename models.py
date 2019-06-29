@@ -1114,8 +1114,8 @@ class NewLesionsNet(nn.Module):
     def __init__(
             self,
             conv_filters_s=list([32, 64, 64]),
-            conv_filters_r=list([32, 64, 64, 64]),
-            deconv_filters_r=list([64, 64, 66, 64, 32, 32]),
+            conv_filters_r=list([33, 66, 66, 66]),
+            deconv_filters_r=list([66, 66, 66, 66, 66, 66]),
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             lambda_d=1,
             leakyness=0.2,
