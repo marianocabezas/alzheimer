@@ -123,9 +123,7 @@ def get_balanced_slices(masks, patch_size, min_size=0):
     patch_half = map(lambda p_length: p_length // 2, patch_size)
 
     masks = map(get_image, masks)
-    print('Getting lesion voxels')
     lesion_voxels = map(get_mask_voxels, masks)
-    print('Getting other voxels')
     min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), masks)
     max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), masks)
 
@@ -148,12 +146,10 @@ def get_balanced_slices(masks, patch_size, min_size=0):
         )
     )
 
-    print('Filtering lesion bounds')
     flesion_voxels = map(
         lambda vox: filter_bounds(vox, min_shape, max_shape), lesion_voxels
     )
 
-    print('Filtering other bounds')
     fall_voxells = map(
         lambda vox: filter_bounds(vox, min_shape, max_shape), all_voxels
     )
@@ -165,22 +161,18 @@ def get_balanced_slices(masks, patch_size, min_size=0):
         zip(fall_voxells, masks)
     )
 
-    print('Slicing lesions')
     lesion_slices = map(
         lambda vox: centers_to_slice(vox, patch_half), flesion_voxels
     )
-    print('Slicing other')
     bck_slices = map(
         lambda vox: centers_to_slice(vox, patch_half), fbck_voxels
     )
 
-    print('Filtering other size')
     fbck_slices = map(
         lambda (slices, mask): filter_size(slices, mask, min_size),
         zip(bck_slices, masks)
     )
 
-    print('Merging lesions and other')
     patch_slices = map(
         lambda (pos_s, neg_s): pos_s + map(
             lambda idx: neg_s[idx],

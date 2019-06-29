@@ -332,10 +332,6 @@ def new_lesions(
             ]
         )
     )
-    net_name = 'newlesions-unet'
-    model_name = '%s_model_%s_e%dp%d.mdl' % (
-        net_name, smooth_s + '_' if smooth_s else '', epochs, patience
-    )
 
     global_start = time.time()
 
@@ -390,7 +386,12 @@ def new_lesions(
 
         training_start = time.time()
 
-        reg_net = NewLesionsUNet(
+        net_name = 'newlesions-unet'
+        model_name = '%s_model_%s_e%dp%d.mdl' % (
+            net_name, smooth_s + '_' if smooth_s else '', epochs, patience
+        )
+
+        seg_net = NewLesionsUNet(
             device=device,
             data_smooth=data_smooth,
             df_smooth=df_smooth,
@@ -398,17 +399,17 @@ def new_lesions(
             n_images=3
         )
         try:
-            reg_net.load_model(os.path.join(d_path, patient, model_name))
+            seg_net.load_model(os.path.join(d_path, patient, model_name))
         except IOError:
             if verbose > 0:
                 n_params = sum(
-                    p.numel() for p in reg_net.parameters() if p.requires_grad
+                    p.numel() for p in seg_net.parameters() if p.requires_grad
                 )
                 print(
-                    '%sStarting training%s (%d parameters)' %
+                    '%sStarting training wit a unet%s (%d parameters)' %
                     (c['c'], c['nc'], n_params)
                 )
-            reg_net.fit(
+            seg_net.fit(
                 norm_source,
                 norm_target,
                 lesions,
@@ -418,7 +419,7 @@ def new_lesions(
                 patience=patience
             )
 
-        reg_net.save_model(os.path.join(d_path, patient, model_name))
+        seg_net.save_model(os.path.join(d_path, patient, model_name))
 
         if verbose > 0:
             time_str = time.strftime(
@@ -453,9 +454,6 @@ def new_lesions(
             lambda name: load_nii(os.path.join(patient_path, name)),
             source_names
         )
-        source_images = map(lambda nii: nii.get_data(), source_niis)
-        source_mus = map(lambda im: np.mean(im[brain]), source_images)
-        source_sigmas = map(lambda im: np.std(im[brain]), source_images)
 
         norm_source = np.stack(
             map(
@@ -476,30 +474,17 @@ def new_lesions(
             axis=0
         )
 
-        sufix = '%s%s.e%dp%d' % (
+        sufix = 'seg_%s%s.e%dp%d' % (
             smooth_s + '_' if smooth_s else '', net_name, epochs, patience
         )
 
-        # Test the network
-        # seg, source_mov, df = reg_net.new_lesions(
-        #     np.expand_dims(norm_source, axis=0),
-        #     np.expand_dims(norm_target, axis=0)
-        # )
-        seg = reg_net.new_lesions(
+        seg = seg_net.new_lesions(
             np.expand_dims(norm_source, axis=0),
             np.expand_dims(norm_target, axis=0)
         )
 
         lesion = seg[0][1] > 0.5
 
-        # for j, (nii, mov, mu, sigma) in enumerate(
-        #         zip(source_niis, source_mov[0], source_mus, source_sigmas)
-        # ):
-        #     source_mov = mov * sigma + mu
-        #     nii.get_data()[:] = source_mov * brain
-        #     nii.to_filename(
-        #         os.path.join(patient_path, 'moved_%s_im%d.nii.gz' % (sufix, j))
-        #     )
         for j, s_i in enumerate(seg[0]):
             mask_nii = nib.Nifti1Image(
                 s_i,
@@ -512,15 +497,129 @@ def new_lesions(
                 )
             )
 
-        # df_mask = np.repeat(np.expand_dims(brain, -1), 3, -1)
-        # df_nii = nib.Nifti1Image(
-        #     np.moveaxis(df[0], 0, -1) * df_mask,
-        #     source_niis[0].get_qform(),
-        #     source_niis[0].get_header()
-        # )
-        # df_nii.to_filename(
-        #     os.path.join(patient_path, 'deformation _%s.nii.gz' % sufix)
-        # )
+        # Patient done
+        if verbose > 0:
+            time_str = time.strftime(
+                '%H hours %M minutes %S seconds',
+                time.gmtime(time.time() - training_start)
+            )
+            print(
+                '%sPatient %s finished%s (total time %s)\n' %
+                (c['r'], patient, c['nc'], time_str)
+            )
+            tpfv = tp_fraction_seg(gt, lesion)
+            fpfv = fp_fraction_seg(gt, lesion)
+            dscv = dsc_seg(gt, lesion)
+            tpfl = tp_fraction_det(gt, lesion)
+            fpfl = fp_fraction_det(gt, lesion)
+            dscl = dsc_det(gt, lesion)
+            tp = true_positive_det(lesion, gt)
+            gt_d = num_regions(gt)
+            lesion_s = num_voxels(lesion)
+            gt_s = num_voxels(gt)
+            measures = (tpfv, fpfv, dscv, tpfl, fpfl, dscl, tp, gt_d, lesion_s, gt_s)
+
+            print('TPFV FPFV DSCV TPFL FPFL DSCL TPL GTL Voxels GTV')
+            print('%f %f %f %f %f %f %d %d %d %d' % measures)
+
+        net_name = 'newlesions-vm'
+        model_name = '%s_model_%s_e%dp%d.mdl' % (
+            net_name, smooth_s + '_' if smooth_s else '', epochs, patience
+        )
+        reg_net = NewLesionsNet(
+            device=device,
+            data_smooth=data_smooth,
+            df_smooth=df_smooth,
+            trainable_smooth=train_smooth,
+            n_images=3
+        )
+        try:
+            reg_net.load_model(os.path.join(d_path, patient, model_name))
+        except IOError:
+            if verbose > 0:
+                n_params = sum(
+                    p.numel() for p in seg_net.parameters() if p.requires_grad
+                )
+                print(
+                    '%sStarting training with VoxelMorph%s (%d parameters)' %
+                    (c['c'], c['nc'], n_params)
+                )
+            reg_net.fit(
+                norm_source,
+                norm_target,
+                lesions,
+                num_workers=16,
+                val_split=0.1,
+                epochs=epochs,
+                patience=patience
+            )
+
+        reg_net.save_model(os.path.join(d_path, patient, model_name))
+
+        if verbose > 0:
+            time_str = time.strftime(
+                '%H hours %M minutes %S seconds',
+                time.gmtime(time.time() - training_start)
+            )
+            print(
+                '%sTraining finished%s (total time %s)\n' %
+                (c['r'], c['nc'], time_str)
+            )
+
+            print(
+                '%s[%s]%s Starting testing with patient %s %s(%d/%d)%s' %
+                (
+                    c['c'], strftime("%H:%M:%S"),
+                    c['g'], patient,
+                    c['c'], i + 1, len(patients), c['nc']
+                )
+            )
+
+        source_images = map(lambda nii: nii.get_data(), source_niis)
+        source_mus = map(lambda im: np.mean(im[brain]), source_images)
+        source_sigmas = map(lambda im: np.std(im[brain]), source_images)
+
+        sufix = 'vm_%s%s.e%dp%d' % (
+            smooth_s + '_' if smooth_s else '', net_name, epochs, patience
+        )
+
+        # Test the network
+        seg, source_mov, df = reg_net.new_lesions(
+            np.expand_dims(norm_source, axis=0),
+            np.expand_dims(norm_target, axis=0)
+        )
+
+        lesion = seg[0][1] > 0.5
+
+        for j, (nii, mov, mu, sigma) in enumerate(
+                zip(source_niis, source_mov[0], source_mus, source_sigmas)
+        ):
+            source_mov = mov * sigma + mu
+            nii.get_data()[:] = source_mov * brain
+            nii.to_filename(
+                os.path.join(patient_path, 'moved_%s_im%d.nii.gz' % (sufix, j))
+            )
+        for j, s_i in enumerate(seg[0]):
+            mask_nii = nib.Nifti1Image(
+                s_i,
+                source_niis[0].get_qform(),
+                source_niis[0].get_header()
+            )
+            mask_nii.to_filename(
+                os.path.join(
+                    patient_path, 'lesion_mask_%s_s%d.nii.gz' % (sufix, j)
+                )
+            )
+
+        df_mask = np.repeat(np.expand_dims(brain, -1), 3, -1)
+        df_nii = nib.Nifti1Image(
+            np.moveaxis(df[0], 0, -1) * df_mask,
+            source_niis[0].get_qform(),
+            source_niis[0].get_header()
+        )
+        df_nii.to_filename(
+            os.path.join(patient_path, 'deformation _%s.nii.gz' % sufix)
+        )
 
         # Patient done
         if verbose > 0:
