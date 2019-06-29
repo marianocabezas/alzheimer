@@ -661,7 +661,7 @@ class MaskAtrophyNet(nn.Module):
                 c.to(device)
 
         # Final DF computation
-        self.to_df = nn.Conv3d(final_filters, 3, 1, groups=3)
+        self.to_df = nn.Conv3d(final_filters, 3, 1)
         self.to_df.to(device)
         nn.init.normal_(self.to_df.weight, 0.0, 1e-5)
 
