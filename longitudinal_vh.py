@@ -407,7 +407,7 @@ def new_lesions(
                 norm_target,
                 lesions,
                 num_workers=16,
-                val_split=0.25,
+                val_split=0.1,
                 epochs=epochs,
                 patience=patience
             )
