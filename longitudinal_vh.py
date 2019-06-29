@@ -488,7 +488,7 @@ def new_lesions(
             source_mov = mov * sigma + mu
             nii.get_data()[:] = source_mov * brain
             nii.to_filename(
-                os.path.join(patient_path, 'moved_%s_im%d.nii.gz' % sufix, j)
+                os.path.join(patient_path, 'moved_%s_im%d.nii.gz' % (sufix, j))
             )
         for j, s_i in enumerate(seg[0]):
             mask_nii = nib.Nifti1Image(
