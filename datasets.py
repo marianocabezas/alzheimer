@@ -357,7 +357,6 @@ class LongitudinalCroppingDataset(Dataset):
             target,
             mesh,
             case_source
-
         )
 
         targets_p = (

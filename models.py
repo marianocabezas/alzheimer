@@ -1181,7 +1181,7 @@ class NewLesionsNet(nn.Module):
         for d in self.up:
             d.to(device)
 
-        self.seg = nn.Conv3d(conv_filters_s[-1], 2, 1)
+        self.seg = nn.Conv3d(conv_filters_s[-1], 2, 1, groups=2)
         self.seg.to(device)
 
     def forward(self, patch_source, target, mesh=None, source=None):
