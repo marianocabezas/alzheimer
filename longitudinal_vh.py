@@ -400,6 +400,14 @@ def new_lesions(
         try:
             reg_net.load_model(os.path.join(d_path, patient, model_name))
         except IOError:
+            if verbose > 0:
+                n_params = sum(
+                    p.numel() for p in reg_net.parameters() if p.requires_grad
+                )
+                print(
+                    '%Starting training%s (%d parameters)\n' %
+                    (c['c'], c['nc'], n_params)
+                )
             reg_net.fit(
                 norm_source,
                 norm_target,
