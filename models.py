@@ -565,8 +565,8 @@ class MultiViewBlock3D(nn.Module):
 class MaskAtrophyNet(nn.Module):
     def __init__(
             self,
-            conv_filters=list([33, 66, 66, 66, 66]),
-            deconv_filters=list([66, 66, 66, 66, 66, 66, 64]),
+            conv_filters=list([32, 64, 64, 64, 64]),
+            deconv_filters=list([64, 64, 64, 64, 64, 64, 64]),
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             leakyness=0.2,
             loss_idx=list([0, 1, 6]),
@@ -576,7 +576,7 @@ class MaskAtrophyNet(nn.Module):
             df_smooth=False,
             trainable_smooth=False,
     ):
-        # Inits
+        # Init
         loss_names = list([
                 ' subt ',
                 'subt_l',
@@ -618,9 +618,11 @@ class MaskAtrophyNet(nn.Module):
         up_out = [conv_in[-1]] + deconv_filters[:unet_filters - 1]
         deconv_in = map(sum, zip(down_out, up_out))
         deconv_unet = deconv_filters[:unet_filters]
+        if deconv_unet[-1] % 3 != 0:
+            deconv_unet[-1] = deconv_unet[-1] * 3
         self.deconv_u = map(
             lambda (f_in, f_out): nn.ConvTranspose3d(
-                f_in, f_out, 3, padding=1, groups=3
+                f_in, f_out, 3, padding=1,
             ),
             zip(deconv_in, deconv_unet)
         )
@@ -630,8 +632,8 @@ class MaskAtrophyNet(nn.Module):
 
         # Extra DF path
         deconv_out = deconv_unet[-1]
-        extra_filters = deconv_filters[unet_filters:]
-        final_filters = deconv_filters[-1]
+        extra_filters = map(lambda f: f * 3, deconv_filters[unet_filters:])
+        final_filters = deconv_filters[-1] * 3
         pad = kernel_size // 2
         self.conv = map(
             lambda (f_in, f_out): nn.Conv3d(
@@ -1114,8 +1116,8 @@ class NewLesionsNet(nn.Module):
     def __init__(
             self,
             conv_filters_s=list([32, 64, 64]),
-            conv_filters_r=list([33, 66, 66, 66]),
-            deconv_filters_r=list([66, 66, 66, 66, 66, 66]),
+            conv_filters_r=list([32, 64, 64, 64]),
+            deconv_filters_r=list([64, 64, 66, 64, 32, 32]),
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             lambda_d=1,
             leakyness=0.2,
