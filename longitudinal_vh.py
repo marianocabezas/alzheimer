@@ -271,13 +271,11 @@ def new_lesions(
         source_names=[
             'pd_basal.nii.gz',
             't2_basal.nii.gz',
-            't1_basal.nii.gz',
             'flair_basal.nii.gz'
         ],
         target_names=[
             'pd_followup.nii.gz',
             't2_followup.nii.gz',
-            't1_followup.nii.gz',
             'flair_followup.nii.gz'
         ],
         brain_name='brainmask.nii.gz',
@@ -397,7 +395,7 @@ def new_lesions(
             data_smooth=data_smooth,
             df_smooth=df_smooth,
             trainable_smooth=train_smooth,
-            n_images=4
+            n_images=3
         )
         try:
             reg_net.load_model(os.path.join(d_path, patient, model_name))

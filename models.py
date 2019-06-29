@@ -1115,11 +1115,10 @@ class MaskAtrophyNet(nn.Module):
 class NewLesionsNet(nn.Module):
     def __init__(
             self,
-            conv_filters_s=list([32, 64, 64]),
+            conv_filters_s=list([32, 64, 64, 64]),
             conv_filters_r=list([32, 64, 64, 64]),
             deconv_filters_r=list([64, 64, 66, 64, 32, 32]),
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
-            lambda_d=1,
             leakyness=0.2,
             n_images=1,
             data_smooth=False,
@@ -1142,7 +1141,6 @@ class NewLesionsNet(nn.Module):
             df_smooth=df_smooth,
             trainable_smooth=trainable_smooth
         )
-        self.lambda_d = lambda_d
         self.device = device
 
         # Down path of the unet
