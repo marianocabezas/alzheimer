@@ -208,7 +208,7 @@ class SpatialTransformer(nn.Module):
 
                 print(
                     subs[0].shape, vol.shape,
-                    vol[0, 0, subs[0][16, 16, 16], subs[1][16, 16, 16], subs[2][16, 16, 16]],
+                    vol[0, 0, subs[0][0, 16, 16, 16], subs[1][0, 16, 16, 16], subs[2][0, 16, 16, 16]],
                     torch.take(vol, idx_p[0, 16, 16, 16])
                 )
 
