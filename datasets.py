@@ -159,7 +159,7 @@ def get_balanced_slices(masks, patch_size, min_size=0):
     )
     fbck_voxels = map(
         lambda (vox, mask): filter(
-            lambda vox_i: mask[vox_i] > 0,
+            lambda vox_i: mask[vox_i] == 0,
             vox
         ),
         zip(fall_voxells, masks)
