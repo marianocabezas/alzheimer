@@ -1353,7 +1353,7 @@ class NewLesionsUNet(nn.Module):
             sum_class = map(lambda c: torch.sum(b_lesion == c), range(2))
             b_loss = torch.sum(
                 map(
-                    lambda (loss, s): loss * sum / torch.sum(sum_class),
+                    lambda (loss, s): loss * s / torch.sum(sum_class),
                     zip(b_dsc_losses, sum_class[::-1]
                         )
                     )
