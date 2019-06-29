@@ -483,7 +483,7 @@ def new_lesions(
             np.expand_dims(norm_target, axis=0)
         )
 
-        lesion = seg[0][1] > 0.5
+        lesion_unet = seg[0][1] > 0.5
 
         for j, s_i in enumerate(seg[0]):
             mask_nii = nib.Nifti1Image(
@@ -496,31 +496,6 @@ def new_lesions(
                     patient_path, 'lesion_mask_%s_s%d.nii.gz' % (sufix, j)
                 )
             )
-
-        # Patient done
-        if verbose > 0:
-            time_str = time.strftime(
-                '%H hours %M minutes %S seconds',
-                time.gmtime(time.time() - training_start)
-            )
-            print(
-                '%sPatient %s finished%s (total time %s)\n' %
-                (c['r'], patient, c['nc'], time_str)
-            )
-            tpfv = tp_fraction_seg(gt, lesion)
-            fpfv = fp_fraction_seg(gt, lesion)
-            dscv = dsc_seg(gt, lesion)
-            tpfl = tp_fraction_det(gt, lesion)
-            fpfl = fp_fraction_det(gt, lesion)
-            dscl = dsc_det(gt, lesion)
-            tp = true_positive_det(lesion, gt)
-            gt_d = num_regions(gt)
-            lesion_s = num_voxels(lesion)
-            gt_s = num_voxels(gt)
-            measures = (tpfv, fpfv, dscv, tpfl, fpfl, dscl, tp, gt_d, lesion_s, gt_s)
-
-            print('TPFV FPFV DSCV TPFL FPFL DSCL TPL GTL Voxels GTV')
-            print('%f %f %f %f %f %f %d %d %d %d' % measures)
 
         net_name = 'newlesions-vm'
         model_name = '%s_model_%s_e%dp%d.mdl' % (
@@ -589,7 +564,7 @@ def new_lesions(
             np.expand_dims(norm_target, axis=0)
         )
 
-        lesion = seg[0][1] > 0.5
+        lesion_vm = seg[0][1] > 0.5
 
         for j, (nii, mov, mu, sigma) in enumerate(
                 zip(source_niis, source_mov[0], source_mus, source_sigmas)
@@ -631,20 +606,42 @@ def new_lesions(
                 '%sPatient %s finished%s (total time %s)\n' %
                 (c['r'], patient, c['nc'], time_str)
             )
-            tpfv = tp_fraction_seg(gt, lesion)
-            fpfv = fp_fraction_seg(gt, lesion)
-            dscv = dsc_seg(gt, lesion)
-            tpfl = tp_fraction_det(gt, lesion)
-            fpfl = fp_fraction_det(gt, lesion)
-            dscl = dsc_det(gt, lesion)
-            tp = true_positive_det(lesion, gt)
+
+            print('Netname TPFV FPFV DSCV TPFL FPFL DSCL TPL GTL Vox GTV')
+
+            tpfv = tp_fraction_seg(gt, lesion_unet)
+            fpfv = fp_fraction_seg(gt, lesion_unet)
+            dscv = dsc_seg(gt, lesion_unet)
+            tpfl = tp_fraction_det(gt, lesion_unet)
+            fpfl = fp_fraction_det(gt, lesion_unet)
+            dscl = dsc_det(gt, lesion_unet)
+            tp = true_positive_det(lesion_unet, gt)
             gt_d = num_regions(gt)
-            lesion_s = num_voxels(lesion)
+            lesion_s = num_voxels(lesion_unet)
             gt_s = num_voxels(gt)
             measures = (tpfv, fpfv, dscv, tpfl, fpfl, dscl, tp, gt_d, lesion_s, gt_s)
 
-            print('TPFV FPFV DSCV TPFL FPFL DSCL TPL GTL Voxels GTV')
-            print('%f %f %f %f %f %f %d %d %d %d' % measures)
+            print(
+                'Unet    %.2f %.2f %.2f %.2f %.2f %.2f'
+                ' %03d %03d %03d %03d' % measures
+            )
+
+            tpfv = tp_fraction_seg(gt, lesion_vm)
+            fpfv = fp_fraction_seg(gt, lesion_vm)
+            dscv = dsc_seg(gt, lesion_vm)
+            tpfl = tp_fraction_det(gt, lesion_vm)
+            fpfl = fp_fraction_det(gt, lesion_vm)
+            dscl = dsc_det(gt, lesion_vm)
+            tp = true_positive_det(lesion_vm, gt)
+            gt_d = num_regions(gt)
+            lesion_s = num_voxels(lesion_vm)
+            gt_s = num_voxels(gt)
+            measures = (tpfv, fpfv, dscv, tpfl, fpfl, dscl, tp, gt_d, lesion_s, gt_s)
+
+            print(
+                'VMnet   %.2f %.2f %.2f %.2f %.2f %.2f'
+                ' %d %d %d %d' % measures
+            )
 
     # Finished
     if verbose > 0:
