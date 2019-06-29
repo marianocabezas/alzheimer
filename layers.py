@@ -206,7 +206,7 @@ class SpatialTransformer(nn.Module):
                 loc_list_p = map(lambda (s, l): s * l, zip(subs, d_size))
                 idx_p = torch.sum(torch.stack(loc_list_p, dim=0), dim=0)
 
-                print(vol[0, 0,subs[0][70,70,20]], vol[idx_p[0, 70, 70, 20])
+                print(vol[0, 0,subs[0][70,70,20]], vol[idx_p[0, 70, 70, 20]])
 
                 vol_val_flat = torch.stack(
                     map(
