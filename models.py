@@ -1343,7 +1343,7 @@ class NewLesionsUNet(nn.Module):
         b_lesion = outputs[0].to(self.device)
 
         torch.cuda.synchronize()
-        b_pred_lesion, b_moved, b_df = self(*b_inputs)
+        b_pred_lesion = self(*b_inputs)
 
         b_dsc_losses = multidsc_loss(b_pred_lesion, b_lesion, averaged=False)
         b_loss = torch.mean(b_dsc_losses)
