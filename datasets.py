@@ -184,7 +184,7 @@ def get_balanced_slices(masks, patch_size, min_size=0):
     patch_slices = map(
         lambda (pos_s, neg_s): pos_s + map(
             lambda idx: neg_s[idx],
-            np.random.permutation(len(neg_s))[:len(pos_s) // 2]
+            np.random.permutation(len(neg_s))[:len(pos_s)]
         ),
         zip(lesion_slices, fbck_slices)
     )
@@ -324,8 +324,11 @@ class LongitudinalCroppingDataset(Dataset):
         if type(patch_size) is not tuple:
             patch_size = (patch_size,) * len(self.lesions[0].shape)
 
-        self.patch_slices = get_slices_bb(
-            lesions, patch_size, overlap=32, filtered=True, min_size=10
+        #self.patch_slices = get_slices_bb(
+        #    lesions, patch_size, overlap=32, filtered=True, min_size=10
+        #)
+        self.patch_slices = get_balanced_slices(
+            lesions, patch_size, min_size=10
         )
 
         self.max_slice = np.cumsum(map(len, self.patch_slices))
