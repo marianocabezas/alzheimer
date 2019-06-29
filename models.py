@@ -1349,11 +1349,20 @@ class NewLesionsUNet(nn.Module):
         b_pred_lesion = self(*b_inputs)
 
         b_dsc_losses = multidsc_loss(b_pred_lesion, b_lesion, averaged=False)
-        b_loss = torch.mean(b_dsc_losses)
         if train:
+            sum_class = map(lambda c: torch.sum(b_lesion == c), range(2))
+            b_loss = torch.sum(
+                map(
+                    lambda (loss, s): loss * sum / torch.sum(sum_class),
+                    zip(b_dsc_losses, sum_class[::-1]
+                        )
+                    )
+            )
             self.optimizer_alg.zero_grad()
             b_loss.backward()
             self.optimizer_alg.step()
+        else:
+            b_loss = torch.mean(b_dsc_losses)
 
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
