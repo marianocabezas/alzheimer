@@ -1140,7 +1140,7 @@ class NewLesionsUNet(nn.Module):
                 '\033[K%sTransformation finished' % ' '.join([''] * 12)
             )
 
-        seg = map(np.squeeze, seg.cpu().numpy())
+        seg = map(lambda s: np.squeeze(s.cpu().numpy()), seg)
         return seg
 
     def fit(
