@@ -455,7 +455,7 @@ def new_lesions(
             source_names
         )
 
-        norm_source = np.stack(
+        norm_source_tst = np.stack(
             map(
                 lambda im: get_normalised_image(
                     os.path.join(patient_path, im), brain, masked=True
@@ -464,7 +464,7 @@ def new_lesions(
             ),
             axis=0
         )
-        norm_target = np.stack(
+        norm_target_tst = np.stack(
             map(
                 lambda im: get_normalised_image(
                     os.path.join(patient_path, im), brain, masked=True
@@ -479,8 +479,8 @@ def new_lesions(
         )
 
         seg = seg_net.new_lesions(
-            np.expand_dims(norm_source, axis=0),
-            np.expand_dims(norm_target, axis=0)
+            np.expand_dims(norm_source_tst, axis=0),
+            np.expand_dims(norm_target_tst, axis=0)
         )
 
         lesion_unet = seg[0][1] > 0.5
@@ -560,8 +560,8 @@ def new_lesions(
 
         # Test the network
         seg, source_mov, df = reg_net.new_lesions(
-            np.expand_dims(norm_source, axis=0),
-            np.expand_dims(norm_target, axis=0)
+            np.expand_dims(norm_source_tst, axis=0),
+            np.expand_dims(norm_target_tst, axis=0)
         )
 
         lesion_vm = seg[0][1] > 0.5
