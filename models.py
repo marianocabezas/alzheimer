@@ -1126,7 +1126,12 @@ class NewLesionsUNet(nn.Module):
 
         with torch.no_grad():
             torch.cuda.synchronize()
-            seg = map(lambda (s, t): self(s, t), zip(source_tensor, target_tensor))
+            seg = map(
+                lambda (s, t): self(
+                    torch.unsqueeze(s, dim=0), torch.unsqueeze(t, dim=0)
+                ),
+                zip(source_tensor, target_tensor)
+            )
             torch.cuda.synchronize()
             torch.cuda.empty_cache()
 

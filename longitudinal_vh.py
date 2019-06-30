@@ -622,8 +622,8 @@ def new_lesions(
             measures = (tpfv, fpfv, dscv, tpfl, fpfl, dscl, tp, gt_d, lesion_s, gt_s)
 
             print(
-                'Unet    %.2f %.2f %.2f %.2f %.2f %.2f'
-                ' %03d %03d %03d %03d' % measures
+                'Unet    %.2f %.2f %.2f %.2f %.2f %.2f '
+                '%03d %03d %03d %03d' % measures
             )
 
             tpfv = tp_fraction_seg(gt, lesion_vm)
@@ -639,8 +639,8 @@ def new_lesions(
             measures = (tpfv, fpfv, dscv, tpfl, fpfl, dscl, tp, gt_d, lesion_s, gt_s)
 
             print(
-                'VMnet   %.2f %.2f %.2f %.2f %.2f %.2f'
-                ' %d %d %d %d' % measures
+                'VMnet   %.2f %.2f %.2f %.2f %.2f %.2f '
+                '%d %d %d %d' % measures
             )
 
     # Finished
