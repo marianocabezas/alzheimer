@@ -1463,8 +1463,8 @@ class NewLesionsNet(nn.Module):
         self.u.to(self.device)
 
         # Up path of the unet
-        down_out = conv_filters_s[-2::-1]
-        up_out = conv_filters_s[-1:0:-1]
+        down_out = conv_filters_s[-2:0:-1] + [conv_filters_s[0] * 2]
+        up_out = conv_filters_s[:0:-1]
         deconv_in = map(sum, zip(down_out, up_out))
         self.up = map(
             lambda (f_in, f_out): nn.ConvTranspose3d(
