@@ -300,8 +300,8 @@ class LongitudinalCroppingDataset(Dataset):
     ):
         # Init
         # Image and mask should be numpy arrays
-        for zip(source, target, lesions):
-            print(source.shape, target.shape, lesions.shape)
+        for s, t, l in zip(source, target, lesions):
+            print(s.shape, t.shape, l.shape)
         shape_comparisons = map(
             lambda (x, y, l): x.shape == y.shape and x.shape[1:] == l.shape,
             zip(source, target, lesions)
