@@ -1227,7 +1227,7 @@ class NewLesionsUNet(nn.Module):
             # Main epoch loop
             self.t_train = time.time()
             tr_loss_value = self.step_train(train_dataloader)
-            loss_s = '{:8.3f}'.format(tr_loss_value)
+            loss_s = '{:7.3f}'.format(tr_loss_value)
             if tr_loss_value < best_loss_tr:
                 best_loss_tr = tr_loss_value
                 tr_loss_s = '\033[32;1m%s\033[0m' % loss_s
@@ -1252,7 +1252,7 @@ class NewLesionsUNet(nn.Module):
 
             # Patience check
             improvement = loss_value < best_loss_val
-            loss_s = '{:8.3f}'.format(loss_value)
+            loss_s = '{:7.3f}'.format(loss_value)
             if improvement:
                 best_loss_val = loss_value
                 epoch_s = '\033[32mEpoch %03d\033[0m' % self.epoch
@@ -1554,7 +1554,7 @@ class NewLesionsNet(nn.Module):
             patch_size=32,
             val_split=0,
             batch_size=32,
-            optimizer='adam',
+            optimizer='adadelta',
             epochs=100,
             patience=10,
             num_workers=32,
@@ -1567,6 +1567,7 @@ class NewLesionsNet(nn.Module):
         optimizer_dict = {
             'adam': torch.optim.Adam,
             'adabound': AdaBound,
+            'adadelta': torch.optim.Adadelta
         }
         model_params = filter(lambda p: p.requires_grad, self.parameters())
         self.optimizer_alg = optimizer_dict[optimizer](model_params)
@@ -1634,7 +1635,7 @@ class NewLesionsNet(nn.Module):
             # Main epoch loop
             self.t_train = time.time()
             tr_loss_value = self.step_train(dataloader_seg=train_dataloader)
-            loss_s = '{:8.3f}'.format(tr_loss_value)
+            loss_s = '{:7.3f}'.format(tr_loss_value)
             if tr_loss_value < best_loss_tr:
                 best_loss_tr = tr_loss_value
                 tr_loss_s = '\033[32;1m%s\033[0m' % loss_s
@@ -1659,7 +1660,7 @@ class NewLesionsNet(nn.Module):
 
             # Patience check
             improvement = loss_value < best_loss_val
-            loss_s = '{:8.3f}'.format(loss_value)
+            loss_s = '{:7.3f}'.format(loss_value)
             if improvement:
                 best_loss_val = loss_value
                 epoch_s = '\033[32mEpoch %03d\033[0m' % self.epoch
