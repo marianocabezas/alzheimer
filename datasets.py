@@ -145,7 +145,7 @@ def get_balanced_slices(masks, patch_size, images=None, min_size=0):
     mesh = get_mesh(max_shape)
     legal_masks = map(
         lambda (min_i, max_i): reduce(
-            np.logical_or,
+            np.logical_and,
             map(
                 lambda (m_j, min_ij, max_ij, p_ij, max_j): np.logical_and(
                     m_j >= max(min_ij, p_ij),
