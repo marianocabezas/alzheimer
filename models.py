@@ -1316,7 +1316,7 @@ class NewLesionsUNet(nn.Module):
                     b_loss_value, np.mean(loss_list)
                 )
 
-        return b_loss_value
+        return np.mean(loss_list)
 
     def step_validate(
             self,
@@ -1723,7 +1723,7 @@ class NewLesionsNet(nn.Module):
                     batch_i, n_batches,
                     b_loss_value, np.mean(loss_list)
                 )
-        return b_loss_value
+        return np.mean(loss_list)
 
     def step_validate(
             self,
