@@ -137,7 +137,6 @@ def get_balanced_slices(masks, patch_size, images=None, min_size=0):
             zip(map(np.logical_not, masks), images)
         )
 
-    print(len(masks), len(images))
     for min_i, max_i, mask in zip(min_bb, max_bb, masks):
         slice_s = '(%s)' % ', '.join(
             map(
@@ -174,6 +173,8 @@ def get_balanced_slices(masks, patch_size, images=None, min_size=0):
         notmask[min_i] = False
         mask[max_i] = False
         notmask[max_i] = False
+        print(np.min(np.where(mask), axis=-1), np.min(np.where(notmask), axis=-1))
+        print(np.max(np.where(mask), axis=-1), np.max(np.where(notmask), axis=-1))
 
     lesion_voxels = map(get_mask_voxels, masks)
     bck_voxels = map(get_mask_voxels, masks)
