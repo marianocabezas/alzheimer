@@ -1573,6 +1573,7 @@ class NewLesionsNet(nn.Module):
 
         # Pre-loop init
         best_loss_tr = np.inf
+        best_loss_val = np.inf
         no_improv_e = 0
         best_state = deepcopy(self.state_dict())
 
@@ -1622,8 +1623,8 @@ class NewLesionsNet(nn.Module):
                 val_dataset, batch_size, num_workers=num_workers
             )
 
-        l_names = [' loss ', '  mse ', '  dsc ']
-        # l_names = [' loss ', ' subt ', '  dsc ']
+        l_names = [' train', ' loss ', '  mse ', '  dsc ']
+        # l_names = [' train', ' loss ', ' subt ', '  dsc ']
         best_losses = [np.inf] * (len(l_names))
         best_e = 0
         e = 0
@@ -1632,14 +1633,16 @@ class NewLesionsNet(nn.Module):
             self.atrophy.epoch = self.epoch
             # Main epoch loop
             self.t_train = time.time()
-            self.step_train(
-                dataloader_seg=train_dataloader,
-            )
+            tr_loss_value = self.step_train(dataloader_seg=train_dataloader)
+            loss_s = '{:8.4f}'.format(tr_loss_value)
+            if tr_loss_value < best_loss_tr:
+                best_loss_tr = tr_loss_value
+                tr_loss_s = '\033[32;1m%s\033[0m' % loss_s
+            else:
+                tr_loss_s = '%s' % loss_s
 
             self.t_val = time.time()
-            loss_value, mid_losses = self.step_validate(
-                val_dataloader
-            )
+            loss_value, mid_losses = self.step_validate(val_dataloader)
 
             losses_color = map(
                 lambda (pl, l): '\033[36m%s\033[0m' if l < pl else '%s',
@@ -1655,10 +1658,10 @@ class NewLesionsNet(nn.Module):
             )
 
             # Patience check
-            improvement = loss_value < best_loss_tr
+            improvement = loss_value < best_loss_val
             loss_s = '{:8.4f}'.format(loss_value)
             if improvement:
-                best_loss_tr = loss_value
+                best_loss_val = loss_value
                 epoch_s = '\033[32mEpoch %03d\033[0m' % self.epoch
                 loss_s = '\033[32m%s\033[0m' % loss_s
                 best_e = self.epoch
@@ -1679,7 +1682,9 @@ class NewLesionsNet(nn.Module):
                     l_hdr = '  |  '.join(l_names)
                     print('%sEpoch num |  %s  |' % (whites, l_hdr))
                     print('%s----------|--%s--|' % (whites, l_bars))
-                final_s = whites + ' | '.join([epoch_s, loss_s] + losses_s + [t_s])
+                final_s = whites + ' | '.join(
+                    [epoch_s, tr_loss_s, loss_s] + losses_s + [t_s]
+                )
                 print(final_s)
 
             if no_improv_e == patience:
@@ -1717,6 +1722,7 @@ class NewLesionsNet(nn.Module):
                     batch_i, n_batches,
                     b_loss_value, np.mean(loss_list)
                 )
+        return b_loss_value
 
     def step_validate(
             self,
