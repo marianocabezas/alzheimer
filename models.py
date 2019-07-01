@@ -621,7 +621,7 @@ class MaskAtrophyNet(nn.Module):
         if deconv_unet[-1] % 3 != 0:
             deconv_unet[-1] = deconv_unet[-1] * 3
         self.deconv_u = map(
-            lambda (f_in, f_out): nn.ConvTranspose3d(
+            lambda (f_in, f_out): nn.Conv3d(
                 f_in, f_out, 3, padding=1,
             ),
             zip(deconv_in, deconv_unet)
@@ -1041,9 +1041,6 @@ class NewLesionsUNet(nn.Module):
             conv_filters=list([32, 64, 64, 64, 64]),
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             n_images=1,
-            data_smooth=False,
-            df_smooth=False,
-            trainable_smooth=False,
     ):
         super(NewLesionsUNet, self).__init__()
         # Init
@@ -1088,7 +1085,7 @@ class NewLesionsUNet(nn.Module):
 
         self.seg = nn.Sequential(
             nn.Conv3d(conv_filters[-1], conv_filters[-1], 1),
-            nn.Conv3d(conv_filters[-1], 2, 1, groups=2)
+            nn.Conv3d(conv_filters[-1], 2, 1)
         )
         self.seg.to(device)
 
@@ -1151,7 +1148,7 @@ class NewLesionsUNet(nn.Module):
             patch_size=32,
             val_split=0,
             batch_size=32,
-            optimizer='adam',
+            optimizer='adadelta',
             epochs=100,
             patience=10,
             num_workers=32,
@@ -1162,14 +1159,16 @@ class NewLesionsUNet(nn.Module):
 
         # Optimizer init
         optimizer_dict = {
-            'adam': torch.optim.Adam,
+            'adam': lambda param: torch.optim.Adam(param, lr=1e-2),
             'adabound': AdaBound,
+            'adadelta': torch.optim.Adadelta
         }
         model_params = filter(lambda p: p.requires_grad, self.parameters())
         self.optimizer_alg = optimizer_dict[optimizer](model_params)
 
         # Pre-loop init
         best_loss_tr = np.inf
+        best_loss_val = np.inf
         no_improv_e = 0
         best_state = deepcopy(self.state_dict())
 
@@ -1219,7 +1218,7 @@ class NewLesionsUNet(nn.Module):
                 val_dataset, batch_size, num_workers=num_workers
             )
 
-        l_names = [' loss ', '  bck ', '  les ']
+        l_names = [' train', ' loss ', '  bck ', '  les ']
         best_losses = [np.inf] * (len(l_names))
         best_e = 0
         e = 0
@@ -1227,9 +1226,15 @@ class NewLesionsUNet(nn.Module):
         for self.epoch in range(epochs):
             # Main epoch loop
             self.t_train = time.time()
-            self.step_train(
+            tr_loss_value = self.step_train(
                 dataloader_seg=train_dataloader,
             )
+            loss_s = '{:8.4f}'.format(tr_loss_value)
+            if tr_loss_value < best_loss_tr:
+                best_loss_tr = tr_loss_value
+                tr_loss_s = '\033[32;1m%s\033[0m' % loss_s
+            else:
+                tr_loss_s = '%s' % loss_s
 
             self.t_val = time.time()
             loss_value, mid_losses = self.step_validate(
@@ -1250,10 +1255,10 @@ class NewLesionsUNet(nn.Module):
             )
 
             # Patience check
-            improvement = loss_value < best_loss_tr
+            improvement = loss_value < best_loss_val
             loss_s = '{:8.4f}'.format(loss_value)
             if improvement:
-                best_loss_tr = loss_value
+                best_loss_val = loss_value
                 epoch_s = '\033[32mEpoch %03d\033[0m' % self.epoch
                 loss_s = '\033[32m%s\033[0m' % loss_s
                 best_e = self.epoch
@@ -1274,7 +1279,9 @@ class NewLesionsUNet(nn.Module):
                     l_hdr = '  |  '.join(l_names)
                     print('%sEpoch num |  %s  |' % (whites, l_hdr))
                     print('%s----------|--%s--|' % (whites, l_bars))
-                final_s = whites + ' | '.join([epoch_s, loss_s] + losses_s + [t_s])
+                final_s = whites + ' | '.join(
+                    [epoch_s, tr_loss_s, loss_s] + losses_s + [t_s]
+                )
                 print(final_s)
 
             if no_improv_e == patience:
@@ -1312,6 +1319,8 @@ class NewLesionsUNet(nn.Module):
                     batch_i, n_batches,
                     b_loss_value, np.mean(loss_list)
                 )
+
+        return b_loss_value
 
     def step_validate(
             self,

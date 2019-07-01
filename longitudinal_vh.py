@@ -81,205 +81,11 @@ def parse_args():
 """
 
 
-def initial_analysis(
-        d_path=None,
-        pd_tags=list(['DP', 'PD', 'pd', 'dp']),
-        t1_tags=list(['MPRAGE', 'mprage', 'MPR', 'mpr', 'T1', 't1']),
-        t2_tags=list(['T2', 't2']),
-        flair_tags=list(['FLAIR', 'flair', 'dark_fluid', 'dark_fluid']),
-        verbose=1,
-):
-    """
-    Function that applies some processing based on our paper:
-        M. Cabezas, J.F. Corral, A. Oliver, Y. Diez, M. Tintore, C. Auger,
-        X. Montalban, X. Llado, D. Pareto, A. Rovira.
-        'Automatic multiple sclerosis lesion detection in brain MRI by FLAIR
-        thresholding'
-        In American Journal of Neuroradiology, Volume 37(10), 2016,
-        Pages 1816-1823
-        http://dx.doi.org/10.3174/ajnr.A4829
-    :param d_path: Path where the whole database is stored. If not specified,
-    it will be read from the command parameters.
-    :param pd_tags: PD tags for the preprocessing method in itk_tools.
-    :param t1_tags: T1 tags for the preprocessing method in itk_tools.
-    :param t2_tags: T2 tags for the preprocessing method in itk_tools.
-    :param flair_tags: FLAIR tags for the preprocessing method in itk_tools.
-    :param verbose: Verbosity level.
-    :return: None.
-    """
-
-    c = color_codes()
-
-    # Init
-    if d_path is None:
-        d_path = parse_args()['dataset_path']
-    robex = os.path.join(parse_args()['tools_path'], 'ROBEX', 'runROBEX.sh')
-    tags = [pd_tags, t1_tags, t2_tags, flair_tags]
-    images = ['pd', 't1', 't2', 'flair']
-    patients = get_dirs(d_path)
-
-    time_str = strftime("%H:%M:%S")
-    print('\n%s[%s]%s Longitudinal analysis' % (
-        c['c'], time_str, c['nc']
-    ))
-
-    global_start = time.time()
-
-    # Main loop
-    for i, patient in enumerate(patients):
-        patient_start = time.time()
-        print(
-            '%s[%s]%s Starting preprocessing with patient %s %s(%d/%d)%s' %
-            (
-                c['c'], strftime("%H:%M:%S"),
-                c['g'], patient,
-                c['c'], i + 1, len(patients),
-                c['nc']
-            )
-        )
-        patient_path = os.path.join(d_path, patient)
-
-        timepoints = get_dirs(os.path.join(d_path, patient))
-
-        if verbose > 0:
-            print('/-------------------------------\\')
-            print('|         Preprocessing         |')
-            print('\\-------------------------------/')
-
-        # First we skull strip all the timepoints using ROBEX. We could
-        #  probably use another method that has better integration with
-        #  our code...
-        for folder in timepoints:
-
-            full_folder = os.path.join(patient_path, folder) + '/'
-
-            ''' ROBEX '''
-            if verbose > 0:
-                print('\t-------------------------------')
-                print('\t            ROBEX              ')
-                print('\t-------------------------------')
-            # Check if there is a brainmask
-            brainmask_name = find_file('brainmask.nii.gz', full_folder)
-            if brainmask_name is None:
-                brainmask_name = os.path.join(full_folder, 'brainmask.nii.gz')
-                brain_name = os.path.join(full_folder, 'stripped.nii.gz')
-                base_pd = filter(
-                    lambda x: not os.path.isdir(x) and re.search(
-                        r'(\w|\W)*(t1|T1)(\w|\W)', x
-                    ),
-                    os.listdir(full_folder)
-                )[0]
-                base_image = os.path.join(full_folder, base_pd)
-                run_command(
-                    [robex, base_image, brain_name, brainmask_name],
-                    'ROBEX skull stripping - %s (%s)' % (folder, patient),
-                )
-                if find_file('stripped.nii.gz', full_folder):
-                    os.remove(brain_name)
-
-            # The next step is to apply bias correction
-            """N4 preprocessing"""
-            if verbose > 0:
-                print('\t-------------------------------')
-                print('\t        Bias correction        ')
-                print('\t-------------------------------')
-            original_files = map(
-                lambda t: find_file('(' + '|'.join(t) + ')', full_folder), tags
-            )
-            map(
-                lambda (b, im): itkn4(
-                    b, full_folder, im,
-                    max_iters=200, levels=4, verbose=verbose
-                ),
-                filter(
-                    lambda (b, _): b is not None,
-                    zip(original_files, images)
-                )
-            )
-
-        # Followup setup
-        followup = timepoints[-1]
-        followup_path = os.path.join(patient_path, followup)
-
-        bm_tag = 'brainmask.nii.gz'
-        brains = map(
-            lambda t: load_nii(
-                os.path.join(patient_path, t, bm_tag)
-            ).get_data(),
-            timepoints
-        )
-        brain = reduce(np.logical_or, brains)
-        brain_nii = load_nii(
-            os.path.join(patient_path, timepoints[-1], 'brainmask.nii.gz')
-        )
-        brain_nii.get_data()[:] = brain
-        brain_nii.to_filename(
-            os.path.join(followup_path, 'union_brainmask.nii.gz')
-        )
-
-        followup_files = map(
-            lambda im: find_file(im + '_corrected.nii.gz', followup_path),
-            images
-        )
-        for baseline in timepoints[:-1]:
-            image_tag = baseline + '-' + followup
-            baseline_path = os.path.join(patient_path, baseline)
-            baseline_files = map(
-                lambda im: find_file(im + '_corrected.nii.gz', baseline_path),
-                images
-            )
-
-            # Now it's time to histogram match everything to the last timepoint.
-            """Histogram matching"""
-            if verbose > 0:
-                print('\t-------------------------------')
-                print('\t       Histogram matching      ')
-                print('\t-------------------------------')
-            map(
-                lambda (f, b, im): itkhist_match(
-                    f, b,
-                    followup_path, im + '_' + image_tag,
-                    verbose=verbose
-                ),
-                filter(
-                    lambda (f, b, im): b is not None and f is not None,
-                    zip(followup_files, baseline_files, images)
-                )
-            )
-
-        time_str = time.strftime(
-            '%H hours %M minutes %S seconds',
-            time.gmtime(time.time() - patient_start)
-        )
-        print(
-            '%sPatient %s finished%s (total time %s)\n' %
-            (c['r'], patient, c['nc'], time_str)
-        )
-
-    time_str = time.strftime(
-        '%H hours %M minutes %S seconds',
-        time.gmtime(time.time() - global_start)
-    )
-    print_message(
-        '%sAll patients finished %s(total time %s)%s' %
-        (c['r'],  c['b'], time_str, c['nc'])
-    )
-
-
 def new_lesions(
         d_path=None,
-        source_names=[
-            'pd_basal.nii.gz',
-            't2_basal.nii.gz',
-            'flair_basal.nii.gz'
-        ],
-        target_names=[
-            'pd_followup.nii.gz',
-            't2_followup.nii.gz',
-            'flair_followup.nii.gz'
-        ],
-        brain_name='brainmask.nii.gz',
-        lesion_name='lesionMask_followup.nii.gz',
+        images=['pd', 't1', 't2', 'flair'],
+        brain_name='union_brainmask.nii.gz',
+        lesion_name='longitudinalMask.nii.gz',
         verbose=1,
 ):
     """
@@ -288,10 +94,7 @@ def new_lesions(
         lesion mask, manually segmented on the baseline image.
         :param d_path: Path where the whole database is stored. If not
          specified,it will be read from the command parameters.
-        :param source_name: Name of the source image from the segmentation
-         dataset.
-        :param target_name: Name of the target image from the segmentation
-         dataset.
+        :param images: Names of the images.
         :param brain_name: Name of the brainmask image from the segmentation
          dataset.
         :param lesion_name: Name of the lesionmask image from the segmentation
@@ -306,6 +109,10 @@ def new_lesions(
     if d_path is None:
         d_path = parse_args()['dataset_path']
     patients = get_dirs(d_path)
+
+    source_names = map(lambda im: '%s_moved.nii.gz' % im, images)
+    target_names = map(lambda im: '%s_processed.nii.gz' % im, images)
+
     gpu = parse_args()['gpu_id']
     cuda = torch.cuda.is_available()
     device = torch.device('cuda:%d' % gpu if cuda else 'cpu')
@@ -350,12 +157,14 @@ def new_lesions(
         train_patients = patients[:i] + patients[i + 1:]
         patient_paths = map(lambda p: os.path.join(d_path, p), train_patients)
         brain_names = map(
-            lambda p_path: os.path.join(p_path, brain_name),
+            lambda p_path: os.path.join(
+                p_path, 'time2', 'segmentation', brain_name
+            ),
             patient_paths
         )
         brains = map(get_mask, brain_names)
         lesion_names = map(
-            lambda p_path: os.path.join(p_path, lesion_name),
+            lambda p_path: os.path.join(p_path, 'time2', lesion_name),
             patient_paths
         )
         lesions = map(get_mask, lesion_names)
@@ -363,7 +172,8 @@ def new_lesions(
             lambda (p, mask_i): np.stack(
                 map(
                     lambda im: get_normalised_image(
-                        os.path.join(p, im), mask_i, masked=True
+                        os.path.join(p, 'time2', 'preprocessed', im),
+                        mask_i, masked=True
                     ),
                     source_names
                 ),
@@ -375,7 +185,8 @@ def new_lesions(
             lambda (p, mask_i): np.stack(
                 map(
                     lambda im: get_normalised_image(
-                        os.path.join(p, im), mask_i, masked=True
+                        os.path.join(p, 'time2', 'preprocessed', im),
+                        mask_i, masked=True
                     ),
                     target_names
                 ),
@@ -391,13 +202,7 @@ def new_lesions(
             net_name, smooth_s + '_' if smooth_s else '', epochs, patience
         )
 
-        seg_net = NewLesionsUNet(
-            device=device,
-            data_smooth=data_smooth,
-            df_smooth=df_smooth,
-            trainable_smooth=train_smooth,
-            n_images=3
-        )
+        seg_net = NewLesionsUNet(n_images=len(images))
         try:
             seg_net.load_model(os.path.join(d_path, patient, model_name))
         except IOError:
@@ -444,10 +249,12 @@ def new_lesions(
         patient_path = os.path.join(d_path, patient)
 
         # Brain mask
-        brain = get_mask(os.path.join(patient_path, brain_name), dtype=bool)
+        brain = get_mask(os.path.join(
+            patient_path, 'time2', 'segmentation', brain_name
+        ), dtype=bool)
 
         # Lesion mask
-        gt = get_mask(os.path.join(patient_path, lesion_name))
+        gt = get_mask(os.path.join(patient_path, 'time2', lesion_name))
 
         # Baseline image (testing)
         source_niis = map(
@@ -458,7 +265,8 @@ def new_lesions(
         norm_source_tst = np.stack(
             map(
                 lambda im: get_normalised_image(
-                    os.path.join(patient_path, im), brain, masked=True
+                    os.path.join(patient_path, 'time2', 'preprocessed', im),
+                    brain, masked=True
                 ),
                 source_names
             ),
@@ -467,7 +275,8 @@ def new_lesions(
         norm_target_tst = np.stack(
             map(
                 lambda im: get_normalised_image(
-                    os.path.join(patient_path, im), brain, masked=True
+                    os.path.join(patient_path, 'time2', 'preprocessed', im),
+                    brain, masked=True
                 ),
                 target_names
             ),
@@ -506,7 +315,7 @@ def new_lesions(
             data_smooth=data_smooth,
             df_smooth=df_smooth,
             trainable_smooth=train_smooth,
-            n_images=3
+            n_images=len(images)
         )
         try:
             reg_net.load_model(os.path.join(d_path, patient, model_name))
@@ -656,7 +465,6 @@ def new_lesions(
 
 
 def main():
-    # initial_analysis()
     new_lesions(verbose=2)
 
 
