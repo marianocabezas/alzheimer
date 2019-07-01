@@ -1499,7 +1499,7 @@ class NewLesionsNet(nn.Module):
         # Now we actually need to give a segmentation result.
         input_df = F.relu(self.init_df(df))
         input_im = F.relu(
-            self.init_im(torch.cat([patch_source, target], dim=1)),
+            self.init_im(torch.cat([patch_source, target], dim=1))
         )
         input_s = torch.cat([input_im, input_df], dim=1)
         down_inputs = [input_s]

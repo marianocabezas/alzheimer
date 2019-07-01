@@ -258,7 +258,9 @@ def new_lesions(
 
         # Baseline image (testing)
         source_niis = map(
-            lambda name: load_nii(os.path.join(patient_path, name)),
+            lambda name: load_nii(
+                os.path.join(patient_path, 'time2', 'preprocessed', name)
+            ),
             source_names
         )
 
