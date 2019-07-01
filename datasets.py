@@ -130,6 +130,7 @@ def get_balanced_slices(masks, patch_size, images=None, min_size=0):
         min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), images)
         max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), images)
 
+    print(len(masks), len(images))
     for min_i, max_i, mask, p_i in zip(min_bb, max_bb, masks, patch_half):
         slice_s = '(%s)' % ', '.join(
             map(
@@ -150,7 +151,6 @@ def get_balanced_slices(masks, patch_size, images=None, min_size=0):
         ),
         min_bb
     )
-    print(min_bb)
     max_bb = map(
         lambda (s_i, mask): tuple(
             map(
@@ -160,7 +160,6 @@ def get_balanced_slices(masks, patch_size, images=None, min_size=0):
         ),
         zip(max_bb, masks)
     )
-    print(max_bb)
 
     masks = map(get_image, masks)
     not_masks = map(
