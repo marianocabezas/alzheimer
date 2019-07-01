@@ -123,12 +123,19 @@ def get_balanced_slices(masks, patch_size, images=None, min_size=0):
     # Init
     patch_half = map(lambda p_length: p_length // 2, patch_size)
 
+    masks = map(get_image, masks)
+
     if images is None:
         min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), masks)
         max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), masks)
+        not_masks = map(np.logical_not, masks)
     else:
         min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), images)
         max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), images)
+        not_masks = map(
+            lambda (m, roi): np.logical_and(m, roi.astype(bool)),
+            zip(map(np.logical_not, masks), images)
+        )
 
     print(len(masks), len(images))
     for min_i, max_i, mask in zip(min_bb, max_bb, masks):
@@ -159,12 +166,6 @@ def get_balanced_slices(masks, patch_size, images=None, min_size=0):
             )
         ),
         zip(max_bb, masks)
-    )
-
-    masks = map(get_image, masks)
-    not_masks = map(
-        lambda (m, roi): np.logical_and(m, roi.astype(bool)),
-        zip(map(np.logical_not, masks), images)
     )
 
     fmasks = map(np.copy, masks)
