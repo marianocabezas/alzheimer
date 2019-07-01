@@ -128,7 +128,7 @@ def get_balanced_slices(masks, patch_size, images=None, min_size=0):
     if images is None:
         min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), masks)
         max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), masks)
-        not_masks = map(np.logical_not, masks)
+        bck_masks = map(np.logical_not, masks)
     else:
         min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), images)
         max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), images)
