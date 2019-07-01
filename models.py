@@ -1226,9 +1226,7 @@ class NewLesionsUNet(nn.Module):
         for self.epoch in range(epochs):
             # Main epoch loop
             self.t_train = time.time()
-            tr_loss_value = self.step_train(
-                dataloader_seg=train_dataloader,
-            )
+            tr_loss_value = self.step_train(train_dataloader)
             loss_s = '{:8.4f}'.format(tr_loss_value)
             if tr_loss_value < best_loss_tr:
                 best_loss_tr = tr_loss_value
@@ -1237,9 +1235,7 @@ class NewLesionsUNet(nn.Module):
                 tr_loss_s = '%s' % loss_s
 
             self.t_val = time.time()
-            loss_value, mid_losses = self.step_validate(
-                val_dataloader
-            )
+            loss_value, mid_losses = self.step_validate(val_dataloader)
 
             losses_color = map(
                 lambda (pl, l): '\033[36m%s\033[0m' if l < pl else '%s',
