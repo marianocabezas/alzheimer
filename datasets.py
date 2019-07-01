@@ -140,7 +140,7 @@ def get_balanced_slices(masks, patch_size, images=None, min_size=0):
                 zip(min_i, max_i, patch_half, mask.shape)
             )
         )
-        print(slice_s, mask.shape, p_i)
+        print(slice_s, mask.shape, patch_half)
 
     min_bb = map(
         lambda s_i: tuple(
