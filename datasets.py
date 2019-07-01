@@ -140,15 +140,16 @@ def get_balanced_slices(masks, patch_size, images=None, min_size=0):
     # The idea with this is to create a binary representation of illegal
     # positions for possible patches. That means positions that would create
     # patches with a size smaller than patch_size.
+    # For notation, i = case; j = dimension
     max_shape = masks[0].shape
     mesh = get_mesh(max_shape)
     legal_masks = map(
         lambda (min_i, max_i): reduce(
             np.logical_or,
             map(
-                lambda (m_ij, min_ij, max_ij, p_ij, max_j): np.logical_and(
-                    m_ij >= max(min_ij, p_ij),
-                    m_ij <= min(max_ij, max_j - p_ij)
+                lambda (m_j, min_ij, max_ij, p_ij, max_j): np.logical_and(
+                    m_j >= max(min_ij, p_ij),
+                    m_j <= min(max_ij, max_j - p_ij)
                 ),
                 zip(mesh, min_i, max_i, patch_half, max_shape)
             )
