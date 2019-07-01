@@ -120,55 +120,56 @@ def filter_size(slices, mask, min_size):
 
 
 def get_balanced_slices(masks, patch_size, images=None, min_size=0):
+    # Init
     patch_half = map(lambda p_length: p_length // 2, patch_size)
 
-    masks = map(get_image, masks)
-    lesion_voxels = map(get_mask_voxels, masks)
     if images is None:
         min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), masks)
         max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), masks)
     else:
         min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), images)
         max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), images)
-    dim_ranges = map(
-        lambda (min_bb_i, max_bb_i): map(
-            lambda t: np.concatenate([np.arange(*t), [t[1]]]),
-            zip(min_bb_i, max_bb_i, (1,) * 3)
+
+    min_bb = map(
+        lambda s_i: tuple(
+            map(
+                lambda (ij, p_j): slice(None, max(ij, p_j)),
+                zip(s_i, patch_half)
+            )
         ),
-        zip(min_bb, max_bb)
+        min_bb
     )
-    all_voxels = map(
-        lambda dim_range: itertools.product(*dim_range), dim_ranges
-    )
-
-    min_shape = np.array(patch_half)
-    max_shape = np.array(
-        map(
-            lambda (max_i, p_len): max_i - p_len,
-            zip(masks[0].shape, patch_half)
-        )
-    )
-
-    flesion_voxels = map(
-        lambda vox: filter_bounds(vox, min_shape, max_shape), lesion_voxels
-    )
-
-    fall_voxells = map(
-        lambda vox: filter_bounds(vox, min_shape, max_shape), all_voxels
-    )
-    fbck_voxels = map(
-        lambda (vox, mask): filter(
-            lambda vox_i: mask[vox_i] == 0,
-            vox
+    max_bb = map(
+        lambda (s_i, mask): tuple(
+            map(
+                lambda (ij, p_j, max_j): slice(min(ij, max_j - p_j), None),
+                zip(s_i, patch_half, mask.shape)
+            )
         ),
-        zip(fall_voxells, masks)
+        zip(max_bb, masks)
     )
+
+    masks = map(get_image, masks)
+    not_masks = map(
+        lambda (m, roi): np.logical_and(m, roi.astype(bool)),
+        zip(map(np.logical_not, masks), images)
+    )
+
+    fmasks = map(np.copy, masks)
+    for mask, notmask, min_i, max_i in zip(fmasks, not_masks, min_bb, max_bb):
+        mask[min_i] = False
+        notmask[min_i] = False
+        mask[max_i] = False
+        notmask[max_i] = False
+
+    lesion_voxels = map(get_mask_voxels, masks)
+    bck_voxels = map(get_mask_voxels, masks)
 
     lesion_slices = map(
-        lambda vox: centers_to_slice(vox, patch_half), flesion_voxels
+        lambda vox: centers_to_slice(vox, patch_half), lesion_voxels
     )
     bck_slices = map(
-        lambda vox: centers_to_slice(vox, patch_half), fbck_voxels
+        lambda vox: centers_to_slice(vox, patch_half), bck_voxels
     )
 
     fbck_slices = map(
