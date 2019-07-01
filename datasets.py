@@ -132,43 +132,40 @@ def get_balanced_slices(masks, patch_size, images=None, min_size=0):
     else:
         min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), images)
         max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), images)
-        not_masks = map(
+        bck_masks = map(
             lambda (m, roi): np.logical_and(m, roi.astype(bool)),
             zip(map(np.logical_not, masks), images)
         )
 
-    min_bb = map(
-        lambda s_i: tuple(
+    # The idea with this is to create a binary representation of illegal
+    # positions for possible patches. That means positions that would create
+    # patches with a size smaller than patch_size.
+    legal_masks = reduce(
+        np.logical_or,
+        sum(
             map(
-                lambda (ij, p_j): slice(0, max(ij, p_j)),
-                zip(s_i, patch_half)
+                lambda (m_i, min_i, max_i): map(
+                    lambda (m_ij, min_ij, max_ij): m_i > min_ij & m_i < max_ij,
+                    zip(m_i, min_i, max_i)
+                ),
+                zip(
+                    map(lambda m_i: get_mesh(m_i.shape), masks),
+                    min_bb,
+                    max_bb
+                )
             )
-        ),
-        min_bb
-    )
-    max_bb = map(
-        lambda (s_i, mask): tuple(
-            map(
-                lambda (ij, p_j, max_j): slice(min(ij, max_j - p_j + 1), max_j),
-                zip(s_i, patch_half, mask.shape)
-            )
-        ),
-        zip(max_bb, masks)
+        )
     )
 
-    fmasks = map(np.copy, masks)
-    for mask, notmask, min_i, max_i in zip(fmasks, not_masks, min_bb, max_bb):
-        print(min_i)
-        print(max_i)
-        mask[min_i] = False
-        notmask[min_i] = False
-        mask[max_i] = False
-        notmask[max_i] = False
-        print(np.min(np.where(mask), axis=-1), np.min(np.where(notmask), axis=-1))
-        print(np.max(np.where(mask), axis=-1), np.max(np.where(notmask), axis=-1))
+    fmasks = map(
+        lambda (m_i, l_i): np.logical_and(m_i, l_i), zip(masks, legal_masks)
+    )
+    fbck_masks = map(
+        lambda (m_i, l_i): np.logical_and(m_i, l_i), zip(bck_masks, legal_masks)
+    )
 
-    lesion_voxels = map(get_mask_voxels, masks)
-    bck_voxels = map(get_mask_voxels, masks)
+    lesion_voxels = map(get_mask_voxels, fmasks)
+    bck_voxels = map(get_mask_voxels, fbck_masks)
 
     lesion_slices = map(
         lambda vox: centers_to_slice(vox, patch_half), lesion_voxels
