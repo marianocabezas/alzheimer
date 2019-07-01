@@ -145,7 +145,9 @@ def get_balanced_slices(masks, patch_size, images=None, min_size=0):
         sum(
             map(
                 lambda (m_i, min_i, max_i): map(
-                    lambda (m_ij, min_ij, max_ij): m_i > min_ij & m_i < max_ij,
+                    lambda (m_ij, min_ij, max_ij): np.logical_and(
+                        m_i > min_ij, m_i < max_ij
+                    ),
                     zip(m_i, min_i, max_i)
                 ),
                 zip(
