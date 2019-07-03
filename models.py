@@ -583,7 +583,9 @@ class MaskAtrophyNet(nn.Module):
         # Down path of the unet
         conv_in = [n_images * 2] + conv_filters[:-2]
         self.conv_u = map(
-            lambda (f_in, f_out): nn.Conv3d(f_in, f_out, 3, padding=1),
+            lambda (f_in, f_out): nn.Conv3d(
+                f_in, f_out, 3, padding=1, groups=n_images
+            ),
             zip(conv_in, conv_filters[:-1])
         )
         unet_filters = len(conv_filters) - 1
