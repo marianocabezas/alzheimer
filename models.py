@@ -1204,7 +1204,7 @@ class NewLesionsUNet(nn.Module):
                 val_dataset, batch_size, num_workers=num_workers
             )
 
-        l_names = [' train', ' loss ', '  bck ', '  les ']
+        l_names = ['train', ' val ', '  bck ', '  les ']
         best_losses = [np.inf] * (len(l_names))
         best_e = 0
         e = 0
@@ -1213,7 +1213,7 @@ class NewLesionsUNet(nn.Module):
             # Main epoch loop
             self.t_train = time.time()
             tr_loss_value = self.step_train(train_dataloader)
-            loss_s = '{:8.4f}'.format(tr_loss_value)
+            loss_s = '{:7.3f}'.format(tr_loss_value)
             if tr_loss_value < best_loss_tr:
                 best_loss_tr = tr_loss_value
                 tr_loss_s = '\033[32;1m%s\033[0m' % loss_s
@@ -1238,7 +1238,7 @@ class NewLesionsUNet(nn.Module):
 
             # Patience check
             improvement = loss_value < best_loss_val
-            loss_s = '{:8.4f}'.format(loss_value)
+            loss_s = '{:7.3f}'.format(loss_value)
             if improvement:
                 best_loss_val = loss_value
                 epoch_s = '\033[32mEpoch %03d\033[0m' % self.epoch
@@ -1634,7 +1634,7 @@ class NewLesionsNet(nn.Module):
             # Main epoch loop
             self.t_train = time.time()
             tr_loss_value = self.step_train(dataloader_seg=train_dataloader)
-            loss_s = '{:8.4f}'.format(tr_loss_value)
+            loss_s = '{:7.3f}'.format(tr_loss_value)
             if tr_loss_value < best_loss_tr:
                 best_loss_tr = tr_loss_value
                 tr_loss_s = '\033[32;1m%s\033[0m' % loss_s
@@ -1659,7 +1659,7 @@ class NewLesionsNet(nn.Module):
 
             # Patience check
             improvement = loss_value < best_loss_val
-            loss_s = '{:8.4f}'.format(loss_value)
+            loss_s = '{:7.3f}'.format(loss_value)
             if improvement:
                 best_loss_val = loss_value
                 epoch_s = '\033[32mEpoch %03d\033[0m' % self.epoch
