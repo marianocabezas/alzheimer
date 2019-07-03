@@ -1704,8 +1704,7 @@ class NewLesionsNet(nn.Module):
                 whites = ' '.join([''] * 12)
                 if self.epoch == 0:
                     l_bars = '--|--'.join(
-                        ['-' * 5] * 2
-                        ['-' * 6] * len(l_names[2:])
+                        ['-' * 5] * 2 + ['-' * 6] * len(l_names[2:])
                     )
                     l_hdr = '  |  '.join(l_names)
                     print('%sEpoch num |  %s  |' % (whites, l_hdr))
