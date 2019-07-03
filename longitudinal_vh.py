@@ -325,16 +325,13 @@ def new_lesions(
         except IOError:
             if verbose > 0:
                 seg_params = reg_net.parameters()
-                n_seg_params = sum(
-                    p.numel() for p in seg_params if p.requires_grad
+                reg_params = reg_net.atrophy.parameters()
+                n_reg_params = sum(
+                    p.numel() for p in reg_net.parameters() if p.requires_grad
                 )
-                # reg_params = reg_net.atrophy.parameters()
-                # n_reg_params = sum(
-                #     p.numel() for p in reg_params if p.requires_grad
-                # )
                 print(
                     '%sStarting training with VoxelMorph%s (%d parameters)' %
-                    (c['c'], c['nc'], n_seg_params)# + n_reg_params)
+                    (c['c'], c['nc'], n_params)
                 )
             reg_net.fit(
                 norm_source,

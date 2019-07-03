@@ -1436,16 +1436,16 @@ class NewLesionsNet(nn.Module):
         self.t_train = 0
         self.t_val = 0
         self.optimizer_alg = None
-        # self.atrophy = MaskAtrophyNet(
-        #     conv_filters=conv_filters_r,
-        #     deconv_filters=deconv_filters_r,
-        #     device=device,
-        #     leakyness=leakyness,
-        #     n_images=n_images,
-        #     data_smooth=data_smooth,
-        #     df_smooth=df_smooth,
-        #     trainable_smooth=trainable_smooth
-        # )
+        self.atrophy = MaskAtrophyNet(
+            conv_filters=conv_filters_r,
+            deconv_filters=deconv_filters_r,
+            device=device,
+            leakyness=leakyness,
+            n_images=n_images,
+            data_smooth=data_smooth,
+            df_smooth=df_smooth,
+            trainable_smooth=trainable_smooth
+        )
         self.device = device
 
         # Down path of the unet
@@ -1585,13 +1585,8 @@ class NewLesionsNet(nn.Module):
             'adabound': AdaBound,
             'adadelta': torch.optim.Adadelta
         }
-        atrophy_params = filter(
-            lambda p: p.requires_grad, self.atrophy.parameters()
-        )
         model_params = filter(lambda p: p.requires_grad, self.parameters())
-        self.optimizer_alg = optimizer_dict[optimizer](
-            model_params + atrophy_params
-        )
+        self.optimizer_alg = optimizer_dict[optimizer](model_params)
 
         # Pre-loop init
         best_loss_tr = np.inf
