@@ -36,11 +36,11 @@ def normalised_xcor(var_x, var_y):
         return torch.mean(xcor)
 
     else:
-        red_dim = var_x.shape[2:]
+        red_dim = range(2, len(var_x.shape))
         if var_x.numel() > 1 and var_y.numel() > 1:
             # Computation
-            var_x_norm = var_x - torch.mean(var_x, dim=red_dim)
-            var_y_norm = var_y - torch.mean(var_y, dim=red_dim)
+            var_x_norm = var_x - torch.mean(var_x, red_dim, True)
+            var_y_norm = var_y - torch.mean(var_y, red_dim, True)
             var_xy_norm = torch.mean(var_x_norm * var_y_norm, dim=red_dim)
             inv_var_x_den = 1 / torch.std(var_x, dim=red_dim)
             inv_var_y_den = 1 / torch.std(var_y, dim=red_dim)

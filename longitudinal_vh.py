@@ -85,7 +85,7 @@ def new_lesions(
         d_path=None,
         images=['pd', 't1', 't2', 'flair'],
         brain_name='union_brainmask.nii.gz',
-        lesion_name='longitudinalMask.nii.gz',
+        lesion_name='gt_mask.nii',
         verbose=1,
 ):
     """
@@ -164,7 +164,7 @@ def new_lesions(
         )
         brains = map(get_mask, brain_names)
         lesion_names = map(
-            lambda p_path: os.path.join(p_path, 'time2', lesion_name),
+            lambda p_path: os.path.join(p_path, lesion_name),
             patient_paths
         )
         lesions = map(get_mask, lesion_names)
@@ -254,7 +254,7 @@ def new_lesions(
         ), dtype=bool)
 
         # Lesion mask
-        gt = get_mask(os.path.join(patient_path, 'time2', lesion_name))
+        gt = get_mask(os.path.join(patient_path, lesion_name))
 
         # Baseline image (testing)
         source_niis = map(
@@ -324,7 +324,7 @@ def new_lesions(
         except IOError:
             if verbose > 0:
                 n_params = sum(
-                    p.numel() for p in seg_net.parameters() if p.requires_grad
+                    p.numel() for p in reg_net.parameters() if p.requires_grad
                 )
                 print(
                     '%sStarting training with VoxelMorph%s (%d parameters)' %

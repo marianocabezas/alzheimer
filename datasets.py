@@ -125,6 +125,8 @@ def get_balanced_slices(masks, patch_size, images=None, min_size=0):
 
     masks = map(get_image, masks)
 
+    # Bounding box + not mask voxels
+    print('Bounding box + not mask voxels')
     if images is None:
         min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), masks)
         max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), masks)
@@ -141,6 +143,7 @@ def get_balanced_slices(masks, patch_size, images=None, min_size=0):
     # positions for possible patches. That means positions that would create
     # patches with a size smaller than patch_size.
     # For notation, i = case; j = dimension
+    print('Legal mask')
     max_shape = masks[0].shape
     mesh = get_mesh(max_shape)
     legal_masks = map(
@@ -157,6 +160,8 @@ def get_balanced_slices(masks, patch_size, images=None, min_size=0):
         zip(min_bb, max_bb)
     )
 
+    # Filtering with the legal mask
+    print('Legal mask filtering')
     fmasks = map(
         lambda (m_i, l_i): np.logical_and(m_i, l_i), zip(masks, legal_masks)
     )
@@ -164,9 +169,11 @@ def get_balanced_slices(masks, patch_size, images=None, min_size=0):
         lambda (m_i, l_i): np.logical_and(m_i, l_i), zip(bck_masks, legal_masks)
     )
 
+    print('Voxel selection')
     lesion_voxels = map(get_mask_voxels, fmasks)
     bck_voxels = map(get_mask_voxels, fbck_masks)
 
+    print('Slice creation')
     lesion_slices = map(
         lambda vox: centers_to_slice(vox, patch_half), lesion_voxels
     )
@@ -174,11 +181,15 @@ def get_balanced_slices(masks, patch_size, images=None, min_size=0):
         lambda vox: centers_to_slice(vox, patch_half), bck_voxels
     )
 
+    # Minimum size filtering for background
+    print('Size filtering')
     fbck_slices = map(
         lambda (slices, mask): filter_size(slices, mask, min_size),
         zip(bck_slices, masks)
     )
 
+    # Final slice selection
+    print('Final selection')
     patch_slices = map(
         lambda (pos_s, neg_s): pos_s + map(
             lambda idx: neg_s[idx],
