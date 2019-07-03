@@ -1585,8 +1585,13 @@ class NewLesionsNet(nn.Module):
             'adabound': AdaBound,
             'adadelta': torch.optim.Adadelta
         }
+        atrophy_params = filter(
+            lambda p: p.requires_grad, self.atrophy.parameters()
+        )
         model_params = filter(lambda p: p.requires_grad, self.parameters())
-        self.optimizer_alg = optimizer_dict[optimizer](model_params)
+        self.optimizer_alg = optimizer_dict[optimizer](
+            model_params + atrophy_params
+        )
 
         # Pre-loop init
         best_loss_tr = np.inf

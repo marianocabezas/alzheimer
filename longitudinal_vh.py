@@ -324,11 +324,10 @@ def new_lesions(
             reg_net.load_model(os.path.join(d_path, patient, model_name))
         except IOError:
             if verbose > 0:
+                params = reg_net.parameters() + reg_net.atrophy.parameters()
                 n_params = sum(
-                    p.numel() for p in reg_net.parameters() if p.requires_grad
+                    p.numel() for p in params if p.requires_grad
                 )
-                for p in reg_net.parameters():
-                    print(p, p.numel(), p.requires_grad)
                 print(
                     '%sStarting training with VoxelMorph%s (%d parameters)' %
                     (c['c'], c['nc'], n_params)
