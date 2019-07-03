@@ -1478,7 +1478,7 @@ class NewLesionsNet(nn.Module):
         deconv_in = map(sum, zip(down_out, up_out))
         self.up = map(
             lambda (f_in, f_out): nn.ConvTranspose3d(
-                f_in, f_out, 3, padding=1,
+                f_in, f_out, 3, padding=1, groups=2
             ),
             zip(
                 deconv_in,
@@ -1489,7 +1489,7 @@ class NewLesionsNet(nn.Module):
             d.to(device)
 
         self.seg = nn.Sequential(
-            nn.Conv3d(conv_filters_s[-1], conv_filters_s[-1], 1),
+            nn.Conv3d(conv_filters_s[-1], conv_filters_s[-1], 1, groups=2),
             nn.Conv3d(conv_filters_s[-1], 2, 1)
         )
         self.seg.to(device)
