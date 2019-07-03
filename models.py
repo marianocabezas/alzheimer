@@ -1468,7 +1468,7 @@ class NewLesionsNet(nn.Module):
             c.to(device)
 
         self.u = nn.Conv3d(
-            conv_filters_s[-2], conv_filters_s[-1], 3, padding=1,
+            conv_filters_s[-2] * 2, conv_filters_s[-1] * 2, 3, padding=1,
         )
         self.u.to(self.device)
 
