@@ -1071,8 +1071,8 @@ class NewLesionsUNet(nn.Module):
             d.to(device)
 
         self.seg = nn.Sequential(
-            nn.Conv3d(conv_filters[-1], conv_filters[-1], 1),
-            nn.Conv3d(conv_filters[-1], 2, 1)
+            nn.Conv3d(conv_filters[0], conv_filters[0], 1),
+            nn.Conv3d(conv_filters[0], 2, 1)
         )
         self.seg.to(device)
 
@@ -1489,8 +1489,8 @@ class NewLesionsNet(nn.Module):
             d.to(device)
 
         self.seg = nn.Sequential(
-            nn.Conv3d(conv_filters_s[-1], conv_filters_s[-1], 1),
-            nn.Conv3d(conv_filters_s[-1], 2, 1)
+            nn.Conv3d(conv_filters_s[0], conv_filters_s[0], 1),
+            nn.Conv3d(conv_filters_s[0], 2, 1)
         )
         self.seg.to(device)
 
