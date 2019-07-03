@@ -642,7 +642,12 @@ class MaskAtrophyNet(nn.Module):
         self.trans_mask.to(device)
 
     def forward(self, patch_source, target, mask=None, mesh=None, source=None):
-        data = torch.cat([patch_source, target], dim=1)
+        data = torch.stack(
+            map(
+                lambda (s, t): torch.cat([s, t]),
+                zip(patch_source, target)
+            )
+        )
 
         if self.data_smooth:
             data = self.smooth(data)
