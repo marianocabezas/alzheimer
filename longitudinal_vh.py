@@ -328,13 +328,13 @@ def new_lesions(
                 n_seg_params = sum(
                     p.numel() for p in seg_params if p.requires_grad
                 )
-                reg_params = reg_net.atrophy.parameters()
-                n_reg_params = sum(
-                    p.numel() for p in reg_params if p.requires_grad
-                )
+                # reg_params = reg_net.atrophy.parameters()
+                # n_reg_params = sum(
+                #     p.numel() for p in reg_params if p.requires_grad
+                # )
                 print(
                     '%sStarting training with VoxelMorph%s (%d parameters)' %
-                    (c['c'], c['nc'], n_seg_params + n_reg_params)
+                    (c['c'], c['nc'], n_seg_params)# + n_reg_params)
                 )
             reg_net.fit(
                 norm_source,
