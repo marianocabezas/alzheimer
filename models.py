@@ -1413,7 +1413,7 @@ class NewLesionsUNet(nn.Module):
 class NewLesionsNet(nn.Module):
     def __init__(
             self,
-            conv_filters_s=list([32, 64, 64, 64]),
+            conv_filters_s=list([32, 64, 64, 64, 64]),
             conv_filters_r=list([32, 64, 64]),
             deconv_filters_r=list([64, 64, 64, 32, 32]),
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
@@ -1461,7 +1461,7 @@ class NewLesionsNet(nn.Module):
             c.to(device)
 
         self.u = nn.Conv3d(
-            conv_filters_s[-2], conv_filters_s[-1], 3, padding=1, groups=2
+            conv_filters_s[-2], conv_filters_s[-1], 3, padding=1,
         )
         self.u.to(self.device)
 
