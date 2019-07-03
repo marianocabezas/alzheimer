@@ -1640,7 +1640,7 @@ class NewLesionsNet(nn.Module):
                 val_dataset, batch_size, num_workers=num_workers
             )
 
-        l_names = [' train', ' loss ', ' xcor ', '  dsc ']
+        l_names = ['train', ' val ', ' xcor ', '  dsc ']
         # l_names = [' train', ' loss ', '  mse ', '  dsc ']
         # l_names = [' train', ' loss ', ' subt ', '  dsc ']
         best_losses = [np.inf] * (len(l_names))
@@ -1696,7 +1696,10 @@ class NewLesionsNet(nn.Module):
                 print('\033[K', end='')
                 whites = ' '.join([''] * 12)
                 if self.epoch == 0:
-                    l_bars = '--|--'.join(['-' * 6] * len(l_names))
+                    l_bars = '--|--'.join(
+                        ['-' * 5] * 2
+                        ['-' * 6] * len(l_names[2:])
+                    )
                     l_hdr = '  |  '.join(l_names)
                     print('%sEpoch num |  %s  |' % (whites, l_hdr))
                     print('%s----------|--%s--|' % (whites, l_bars))
