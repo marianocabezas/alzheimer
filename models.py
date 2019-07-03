@@ -562,8 +562,8 @@ class MultiViewBlock3D(nn.Module):
 class MaskAtrophyNet(nn.Module):
     def __init__(
             self,
-            conv_filters=list([32, 64, 64, 64, 64]),
-            deconv_filters=list([64, 64, 64, 64, 64, 64, 64]),
+            conv_filters=list([32, 64, 64, 64]),
+            deconv_filters=list([64, 64, 64, 64, 64, 64]),
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             leakyness=0.2,
             n_images=1,
