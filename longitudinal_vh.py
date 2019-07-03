@@ -324,9 +324,7 @@ def new_lesions(
             reg_net.load_model(os.path.join(d_path, patient, model_name))
         except IOError:
             if verbose > 0:
-                seg_params = reg_net.parameters()
-                reg_params = reg_net.atrophy.parameters()
-                n_reg_params = sum(
+                n_params = sum(
                     p.numel() for p in reg_net.parameters() if p.requires_grad
                 )
                 print(
