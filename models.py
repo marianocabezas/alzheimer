@@ -1064,7 +1064,7 @@ class NewLesionsUNet(nn.Module):
             ),
             zip(
                 deconv_in,
-                conv_filters[::-1]
+                down_out
             )
         )
         for d in self.up:
