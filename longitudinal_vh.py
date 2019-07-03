@@ -327,6 +327,8 @@ def new_lesions(
                 n_params = sum(
                     p.numel() for p in reg_net.parameters() if p.requires_grad
                 )
+                for p in reg_net.parameters():
+                    print(p, p.numel(), p.requires_grad)
                 print(
                     '%sStarting training with VoxelMorph%s (%d parameters)' %
                     (c['c'], c['nc'], n_params)

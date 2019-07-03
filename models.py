@@ -1422,7 +1422,7 @@ class NewLesionsNet(nn.Module):
             self,
             conv_filters_s=list([32, 64, 64, 64, 64]),
             conv_filters_r=list([32, 64, 64]),
-            deconv_filters_r=list([64, 64, 64, 64, 32]),
+            deconv_filters_r=list([64, 64, 64, 32, 32]),
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             leakyness=0.2,
             n_images=1,
