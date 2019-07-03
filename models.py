@@ -1570,7 +1570,7 @@ class NewLesionsNet(nn.Module):
             patch_size=32,
             val_split=0,
             batch_size=32,
-            optimizer='adadelta',
+            optimizer='adam',
             epochs=100,
             patience=10,
             num_workers=32,
@@ -1581,7 +1581,7 @@ class NewLesionsNet(nn.Module):
 
         # Optimizer init
         optimizer_dict = {
-            'adam': lambda param: torch.optim.Adam(param, lr=1e-2),
+            'adam': lambda param: torch.optim.Adam(param, lr=1e-1),
             'adabound': AdaBound,
             'adadelta': torch.optim.Adadelta
         }
