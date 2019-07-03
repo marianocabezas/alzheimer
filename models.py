@@ -1449,7 +1449,7 @@ class NewLesionsNet(nn.Module):
         self.device = device
 
         # Down path of the unet
-        conv_in = [conv_filters_s[0] * 2] + conv_filters_s[1:-1]
+        conv_in = [conv_filters_s[0] * 2] + conv_filters_s[1:-2]
         init_out = conv_filters_s[0]
         self.init_df = nn.Conv3d(3, init_out, 3, padding=1)
         self.init_df.to(device)
@@ -1482,14 +1482,14 @@ class NewLesionsNet(nn.Module):
             ),
             zip(
                 deconv_in,
-                conv_filters_s[-1::-1]
+                conv_filters_s[-2::-1]
             )
         )
         for d in self.up:
             d.to(device)
 
         self.seg = nn.Sequential(
-            nn.Conv3d(conv_filters_s[-1], conv_filters_s[-1], 1, groups=2),
+            nn.Conv3d(conv_filters_s[-1], conv_filters_s[-1], 1),
             nn.Conv3d(conv_filters_s[-1], 2, 1)
         )
         self.seg.to(device)
