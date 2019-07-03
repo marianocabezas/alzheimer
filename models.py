@@ -1131,6 +1131,7 @@ class NewLesionsUNet(nn.Module):
             source,
             target,
             new_lesion,
+            masks=None,
             patch_size=32,
             val_split=0,
             batch_size=32,
@@ -1176,29 +1177,36 @@ class NewLesionsUNet(nn.Module):
             l_train = new_lesion[:n_t_samples]
             l_val = new_lesion[n_t_samples:]
 
+            if masks is None:
+                m_train = None
+                m_val = None
+            else:
+                m_train = new_lesion[:n_t_samples]
+                m_val = new_lesion[n_t_samples:]
+
             train_dataset = LongitudinalCroppingDataset(
-                s_train, t_train, l_train, patch_size=patch_size,
+                s_train, t_train, l_train, m_train, patch_size=patch_size,
             )
             train_dataloader = DataLoader(
                 train_dataset, batch_size, True, num_workers=num_workers
             )
 
             val_dataset = LongitudinalCroppingDataset(
-                s_val, t_val, l_val, patch_size=patch_size,
+                s_val, t_val, l_val, m_val, patch_size=patch_size,
             )
             val_dataloader = DataLoader(
                 val_dataset, batch_size, num_workers=num_workers
             )
         else:
             train_dataset = LongitudinalCroppingDataset(
-                source, target, new_lesion, patch_size=patch_size,
+                source, target, new_lesion, masks, patch_size=patch_size,
             )
             train_dataloader = DataLoader(
                 train_dataset, batch_size, True, num_workers=num_workers
             )
 
             val_dataset = LongitudinalCroppingDataset(
-                source, target, new_lesion,
+                source, target, new_lesion, masks, patch_size=patch_size
             )
             val_dataloader = DataLoader(
                 val_dataset, batch_size, num_workers=num_workers
@@ -1549,6 +1557,7 @@ class NewLesionsNet(nn.Module):
             source,
             target,
             new_lesion,
+            masks=None,
             patch_size=32,
             val_split=0,
             batch_size=32,
@@ -1594,29 +1603,36 @@ class NewLesionsNet(nn.Module):
             l_train = new_lesion[:n_t_samples]
             l_val = new_lesion[n_t_samples:]
 
+            if masks is None:
+                m_train = None
+                m_val = None
+            else:
+                m_train = new_lesion[:n_t_samples]
+                m_val = new_lesion[n_t_samples:]
+
             train_dataset = LongitudinalCroppingDataset(
-                s_train, t_train, l_train, patch_size=patch_size,
+                s_train, t_train, l_train, m_train, patch_size=patch_size,
             )
             train_dataloader = DataLoader(
                 train_dataset, batch_size, True, num_workers=num_workers
             )
 
             val_dataset = LongitudinalCroppingDataset(
-                s_val, t_val, l_val, patch_size=patch_size,
+                s_val, t_val, l_val, m_val, patch_size=patch_size,
             )
             val_dataloader = DataLoader(
                 val_dataset, batch_size, num_workers=num_workers
             )
         else:
             train_dataset = LongitudinalCroppingDataset(
-                source, target, new_lesion, patch_size=patch_size,
+                source, target, new_lesion, masks, patch_size=patch_size,
             )
             train_dataloader = DataLoader(
                 train_dataset, batch_size, True, num_workers=num_workers
             )
 
             val_dataset = LongitudinalCroppingDataset(
-                source, target, new_lesion,
+                source, target, new_lesion, masks, patch_size=patch_size
             )
             val_dataloader = DataLoader(
                 val_dataset, batch_size, num_workers=num_workers

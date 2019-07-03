@@ -119,7 +119,7 @@ def filter_size(slices, mask, min_size):
     return filtered_slices
 
 
-def get_balanced_slices(masks, patch_size, images=None, min_size=0):
+def get_balanced_slices(masks, patch_size, rois=None, min_size=0):
     # Init
     patch_half = map(lambda p_length: p_length // 2, patch_size)
 
@@ -127,16 +127,16 @@ def get_balanced_slices(masks, patch_size, images=None, min_size=0):
 
     # Bounding box + not mask voxels
     print('Bounding box + not mask voxels')
-    if images is None:
+    if rois is None:
         min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), masks)
         max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), masks)
         bck_masks = map(np.logical_not, masks)
     else:
-        min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), images)
-        max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), images)
+        min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), rois)
+        max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), rois)
         bck_masks = map(
             lambda (m, roi): np.logical_and(m, roi.astype(bool)),
-            zip(map(np.logical_not, masks), images)
+            zip(map(np.logical_not, masks), rois)
         )
 
     # The idea with this is to create a binary representation of illegal
@@ -313,7 +313,7 @@ class GenericCroppingDataset(Dataset):
 class LongitudinalCroppingDataset(Dataset):
     def __init__(
             self,
-            source, target, lesions, patch_size=32
+            source, target, lesions, masks=None, patch_size=32
     ):
         # Init
         # Image and mask should be numpy arrays
@@ -337,9 +337,8 @@ class LongitudinalCroppingDataset(Dataset):
         #     lesions, patch_size, overlap=32, filtered=True, min_size=10
         # )
 
-        source_im = map(lambda im: im[0], source)
         self.patch_slices = get_balanced_slices(
-            lesions, patch_size, images=source_im, min_size=10
+            lesions, patch_size, rois=masks, min_size=10
         )
 
         self.max_slice = np.cumsum(map(len, self.patch_slices))

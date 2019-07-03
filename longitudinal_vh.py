@@ -173,7 +173,7 @@ def new_lesions(
                 map(
                     lambda im: get_normalised_image(
                         os.path.join(p, 'time2', 'preprocessed', im),
-                        mask_i, masked=True
+                        mask_i,
                     ),
                     source_names
                 ),
@@ -186,7 +186,7 @@ def new_lesions(
                 map(
                     lambda im: get_normalised_image(
                         os.path.join(p, 'time2', 'preprocessed', im),
-                        mask_i, masked=True
+                        mask_i,
                     ),
                     target_names
                 ),
@@ -218,6 +218,7 @@ def new_lesions(
                 norm_source,
                 norm_target,
                 lesions,
+                brains,
                 num_workers=16,
                 val_split=0.1,
                 epochs=epochs,
@@ -268,7 +269,7 @@ def new_lesions(
             map(
                 lambda im: get_normalised_image(
                     os.path.join(patient_path, 'time2', 'preprocessed', im),
-                    brain, masked=True
+                    brain,
                 ),
                 source_names
             ),
@@ -278,7 +279,7 @@ def new_lesions(
             map(
                 lambda im: get_normalised_image(
                     os.path.join(patient_path, 'time2', 'preprocessed', im),
-                    brain, masked=True
+                    brain,
                 ),
                 target_names
             ),
@@ -334,6 +335,7 @@ def new_lesions(
                 norm_source,
                 norm_target,
                 lesions,
+                brains,
                 num_workers=16,
                 val_split=0.1,
                 epochs=epochs,
