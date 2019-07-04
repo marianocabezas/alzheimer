@@ -591,11 +591,11 @@ class MaskAtrophyNet(nn.Module):
         unet_filters = len(conv_filters) - 1
         for c in self.conv_u:
             c.to(device)
-            # nn.init.kaiming_normal_(c.weight)
+            nn.init.kaiming_normal_(c.weight)
 
         self.u = nn.Conv3d(conv_filters[-2], conv_filters[-1], 3, padding=1)
         self.u.to(device)
-        # nn.init.kaiming_normal_(self.u.weight)
+        nn.init.kaiming_normal_(self.u.weight)
 
         # Up path of the unet
         down_out = conv_filters[-2::-1]
@@ -610,7 +610,7 @@ class MaskAtrophyNet(nn.Module):
         )
         for d in self.deconv_u:
             d.to(device)
-            # nn.init.kaiming_normal_(d.weight)
+            nn.init.kaiming_normal_(d.weight)
 
         # Extra DF path
         deconv_out = deconv_unet[-1]
@@ -628,12 +628,12 @@ class MaskAtrophyNet(nn.Module):
         )
         for c in self.conv:
             c.to(device)
-            # nn.init.kaiming_normal_(c.weight)
+            nn.init.kaiming_normal_(c.weight)
 
         # Final DF computation
         self.to_df = nn.Conv3d(final_filters, 3, 1)
         self.to_df.to(device)
-        # nn.init.normal_(self.to_df.weight, 0.0, 1e-5)
+        nn.init.normal_(self.to_df.weight, 0.0, 1e-5)
 
         self.smooth = SmoothingLayer(trainable=trainable_smooth)
         self.smooth.to(device)
@@ -664,7 +664,8 @@ class MaskAtrophyNet(nn.Module):
 
         for d, i in zip(self.deconv_u, down_inputs[::-1]):
             data = torch.cat(
-                [F.interpolate(data, size=i.size()[2:]), i], dim=1
+                #[F.interpolate(data, size=i.size()[2:]), i], dim=1
+                [F.interpolate(data, scale_actor=2), i], dim=1
             )
             data = F.leaky_relu(
                 d(data), self.leakyness
@@ -679,6 +680,7 @@ class MaskAtrophyNet(nn.Module):
             df = self.smooth(df)
 
         if source is not None and mesh is not None:
+            print('Here?')
             source_mov = self.trans_im(
                 [source, df, mesh]
             )
@@ -1657,7 +1659,7 @@ class NewLesionsNet(nn.Module):
             self.atrophy.epoch = self.epoch
             # Main epoch loop
             self.t_train = time.time()
-            tr_loss_value = self.step_train(dataloader_seg=train_dataloader)
+            tr_loss_value = self.step_train(dataloader=train_dataloader)
             loss_s = '{:7.3f}'.format(tr_loss_value)
             if tr_loss_value < best_loss_tr:
                 best_loss_tr = tr_loss_value
@@ -1727,19 +1729,19 @@ class NewLesionsNet(nn.Module):
 
     def step_train(
             self,
-            dataloader_seg,
+            dataloader,
     ):
         # This step should combine both registration and segmentation.
         # The goal is to affect the deformation with two datasets and different
         # goals and loss functions.
         with torch.autograd.set_detect_anomaly(True):
             # Segmentation update
-            n_batches = len(dataloader_seg)
+            n_batches = len(dataloader)
             loss_list = []
-            for batch_i, (inputs, output) in enumerate(dataloader_seg):
-                b_seg_loss = self.batch_step(inputs, output)
+            for batch_i, (inputs, output) in enumerate(dataloader):
+                b_loss, _ = self.batch_step(inputs, output)
 
-                b_loss_value = b_seg_loss[0].tolist()
+                b_loss_value = b_loss.tolist()
 
                 loss_list.append(b_loss_value)
 
@@ -1791,18 +1793,25 @@ class NewLesionsNet(nn.Module):
         torch.cuda.synchronize()
         b_pred_lesion, b_moved, b_df = self(*b_inputs)
 
-        b_dsc_loss = multidsc_loss(b_pred_lesion, b_lesion, averaged=train)
+        b_dsc_losses = multidsc_loss(b_pred_lesion, b_lesion, averaged=False)
         b_reg_loss = normalised_xcor_loss(b_moved, b_target)
         # b_reg_loss = subtraction_loss(b_moved, b_target, roi)
         if train:
+            sum_class = map(lambda c: torch.sum(b_lesion == c), range(2))
+            b_dsc_loss = sum(
+                map(
+                    lambda (loss, s): loss * s / sum(sum_class),
+                    zip(b_dsc_losses, sum_class[::-1])
+                )
+            )
             b_losses = (b_reg_loss, b_dsc_loss)
             b_loss = sum(b_losses)
             self.optimizer_alg.zero_grad()
             b_loss.backward()
             self.optimizer_alg.step()
         else:
-            b_losses = (b_reg_loss,) + tuple(map(lambda l: l, b_dsc_loss))
-            b_loss = b_reg_loss + torch.mean(b_dsc_loss)
+            b_losses = (b_reg_loss,) + tuple(map(lambda l: l, b_dsc_losses))
+            b_loss = b_reg_loss + torch.mean(b_dsc_losses)
 
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
