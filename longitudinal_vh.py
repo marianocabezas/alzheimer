@@ -295,11 +295,11 @@ def new_lesions(
             np.expand_dims(norm_target_tst, axis=0)
         )
 
-        lesion_unet = (seg[0][1] * brain) > 0.5
+        lesion_unet = (seg[0][1]) > 0.5
 
         for j, s_i in enumerate(seg[0]):
             mask_nii = nib.Nifti1Image(
-                s_i * brain,
+                s_i,
                 source_niis[0].get_qform(),
                 source_niis[0].get_header()
             )
@@ -436,7 +436,7 @@ def new_lesions(
 
             print(
                 'Unet    %.2f %.2f %.2f %.2f %.2f %.2f '
-                '%03d %03d %03d %03d' % measures
+                '%d %d %d %d' % measures
             )
 
             tpfv = tp_fraction_seg(gt, lesion_vm)
