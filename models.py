@@ -680,7 +680,6 @@ class MaskAtrophyNet(nn.Module):
             df = self.smooth(df)
 
         if source is not None and mesh is not None:
-            print('Here?')
             source_mov = self.trans_im(
                 [source, df, mesh]
             )
