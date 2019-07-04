@@ -1465,13 +1465,13 @@ class NewLesionsNet(nn.Module):
             lambda (f_in, f_out): nn.Conv3d(
                 f_in, f_out, 3, padding=1, groups=n_images
             ),
-            zip([n_images * 2] + conv_in, conv_filters_s[1:-1])
+            zip([n_images * 2] + conv_in, conv_filters_s[:-1])
         )
         self.down_df = map(
             lambda (f_in, f_out): nn.Conv3d(
                 f_in, f_out, 3, padding=1,
             ),
-            zip([3] + conv_in, conv_filters_s[1:-1])
+            zip([3] + conv_in, conv_filters_s[:-1])
         )
         for ci, cd in zip(self.down_im, self.down_df):
             ci.to(device)
