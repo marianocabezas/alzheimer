@@ -665,7 +665,7 @@ class MaskAtrophyNet(nn.Module):
         for d, i in zip(self.deconv_u, down_inputs[::-1]):
             data = torch.cat(
                 #[F.interpolate(data, size=i.size()[2:]), i], dim=1
-                [F.interpolate(data, scale_actor=2), i], dim=1
+                [F.interpolate(data, scale_factor=2), i], dim=1
             )
             data = F.leaky_relu(
                 d(data), self.leakyness
