@@ -1648,7 +1648,7 @@ class NewLesionsNet(nn.Module):
                 val_dataset, batch_size, num_workers=num_workers
             )
 
-        l_names = ['train', ' val ', ' xcor ', '  dsc ']
+        l_names = ['train', ' val ', ' xcor ', '  bck ', '  les ']
         # l_names = [' train', ' loss ', '  mse ', '  dsc ']
         # l_names = [' train', ' loss ', ' subt ', '  dsc ']
         best_losses = [np.inf] * (len(l_names))
