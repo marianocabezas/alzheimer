@@ -1423,7 +1423,9 @@ class NewLesionsNet(nn.Module):
             conv_filters_s=list([32, 64, 64, 64]),
             conv_filters_r=list([32, 64, 64]),
             deconv_filters_r=list([64, 64, 64, 32, 32]),
-            device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
+            device=torch.device(
+                "cuda:0" if torch.cuda.is_available() else "cpu"
+            ),
             leakyness=0.2,
             n_images=1,
             data_smooth=False,
@@ -1799,7 +1801,7 @@ class NewLesionsNet(nn.Module):
             b_loss.backward()
             self.optimizer_alg.step()
         else:
-            b_losses = (b_reg_loss, b_dsc_loss[1])
+            b_losses = (b_reg_loss,) + tuple(b_dsc_loss.tolist())
             b_loss = b_reg_loss + torch.mean(b_dsc_loss)
 
         torch.cuda.synchronize()
