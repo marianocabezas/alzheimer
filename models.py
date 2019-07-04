@@ -1801,7 +1801,7 @@ class NewLesionsNet(nn.Module):
             b_loss.backward()
             self.optimizer_alg.step()
         else:
-            b_losses = (b_reg_loss,) + tuple(b_dsc_loss.tolist())
+            b_losses = (b_reg_loss,) + tuple(map(lambda l: l, b_dsc_loss))
             b_loss = b_reg_loss + torch.mean(b_dsc_loss)
 
         torch.cuda.synchronize()
