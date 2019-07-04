@@ -1460,60 +1460,38 @@ class NewLesionsNet(nn.Module):
         )
         self.init_im.to(device)
 
-        conv_in = conv_filters_s[0:-2]
-        self.down_im = map(
+        self.down = map(
             lambda (f_in, f_out): nn.Conv3d(
-                f_in, f_out, 3, padding=1, groups=n_images
+                f_in, f_out, 3, padding=1, groups=2
             ),
-            zip([n_images * 2] + conv_in, conv_filters_s[:-1])
+            zip(conv_in, conv_filters_s[1:-1])
         )
-        self.down_df = map(
-            lambda (f_in, f_out): nn.Conv3d(
-                f_in, f_out, 3, padding=1,
-            ),
-            zip([3] + conv_in, conv_filters_s[:-1])
-        )
-        for ci, cd in zip(self.down_im, self.down_df):
-            ci.to(device)
-            cd.to(device)
+        for c in self.down:
+            c.to(device)
 
-        self.u_im = nn.Conv3d(
+        self.u = nn.Conv3d(
             conv_filters_s[-2], conv_filters_s[-1], 3, padding=1,
         )
-        self.u_im.to(self.device)
-        self.u_df = nn.Conv3d(
-            conv_filters_s[-2], conv_filters_s[-1], 3, padding=1,
-        )
-        self.u_df.to(self.device)
+        self.u.to(self.device)
 
         # Up path of the unet
-        down_out = conv_filters_s[-2::-1]
+        down_out = conv_filters_s[-2:0:-1] + [conv_filters_s[0] * 2]
         up_out = conv_filters_s[:0:-1]
         deconv_in = map(sum, zip(down_out, up_out))
-        self.up_im = map(
+        self.up = map(
             lambda (f_in, f_out): nn.ConvTranspose3d(
-                f_in, f_out, 3, padding=1
+                f_in, f_out, 3, padding=1, groups=2
             ),
             zip(
                 deconv_in,
                 conv_filters_s[-2::-1]
             )
         )
-        self.up_df = map(
-            lambda (f_in, f_out): nn.ConvTranspose3d(
-                f_in, f_out, 3, padding=1
-            ),
-            zip(
-                deconv_in,
-                conv_filters_s[-2::-1]
-            )
-        )
-        for di, ddf in zip(self.up_im, self.up_df):
-            di.to(device)
-            ddf.to(device)
+        for d in self.up:
+            d.to(device)
 
         self.seg = nn.Sequential(
-            nn.Conv3d(conv_filters_s[0] * 2, conv_filters_s[0], 1),
+            nn.Conv3d(conv_filters_s[0], conv_filters_s[0], 1),
             nn.Conv3d(conv_filters_s[0], 2, 1)
         )
         self.seg.to(device)
@@ -1524,43 +1502,31 @@ class NewLesionsNet(nn.Module):
             patch_source, target, mesh=mesh, source=source
         )
 
-        input_im = torch.stack(
+        data = torch.stack(
             map(
                 lambda (s, t): torch.cat([s, t]),
                 zip(patch_source, target)
             )
         )
-        input_df = df
         # Now we actually need to give a segmentation result.
-        down_inputs_im = []
-        down_inputs_df = []
-        for ci, cd in zip(self.down_im, self.down_df):
-            input_im = F.relu(ci(input_im))
-            input_df = F.relu(cd(input_df))
-            down_inputs_im.append(input_im)
-            down_inputs_df.append(input_df)
-            input_im = F.max_pool3d(input_im, 2)
-            input_df = F.max_pool3d(input_df, 2)
+        input_df = F.relu(self.init_df(df))
+        input_im = F.relu(self.init_im(data))
+        input_s = torch.cat([input_im, input_df], dim=1)
+        down_inputs = [input_s]
+        for c in self.down:
+            input_s = F.relu(c(input_s))
+            down_inputs.append(input_s)
+            input_s = F.max_pool3d(input_s, 2)
 
-        input_im = F.relu(self.u_im(input_im))
-        input_df = F.relu(self.u_df(input_df))
+        input_s = F.relu(self.u(input_s))
 
-        for (di, ii, dd, id) in zip(
-                self.up_im, down_inputs_im[::-1],
-                self.up_df, down_inputs_df[::-1]
-        ):
-            input_im = torch.cat(
-                (F.interpolate(input_im, size=ii.size()[2:]), ii), dim=1
+        for d, i in zip(self.up, down_inputs[::-1]):
+            input_s = torch.cat(
+                (F.interpolate(input_s, size=i.size()[2:]), i), dim=1
             )
-            input_df = torch.cat(
-                (F.interpolate(input_df, size=id.size()[2:]), id), dim=1
-            )
-            input_im = F.relu(di(input_im))
-            input_df = F.relu(dd(input_df))
+            input_s = F.relu(d(input_s))
 
-        multi_seg = torch.softmax(
-            self.seg(torch.cat([input_im, input_df], dim=1)), dim=1
-        )
+        multi_seg = torch.softmax(self.seg(input_s), dim=1)
 
         return multi_seg, source_mov, df
 
@@ -1680,7 +1646,7 @@ class NewLesionsNet(nn.Module):
                 val_dataset, batch_size, num_workers=num_workers
             )
 
-        l_names = ['train', ' val ', ' xcor ', '  bck ', '  les ']
+        l_names = ['train', ' val ', ' xcor ', '  dsc ']
         # l_names = [' train', ' loss ', '  mse ', '  dsc ']
         # l_names = [' train', ' loss ', ' subt ', '  dsc ']
         best_losses = [np.inf] * (len(l_names))
@@ -1692,7 +1658,7 @@ class NewLesionsNet(nn.Module):
             # Main epoch loop
             self.t_train = time.time()
             tr_loss_value = self.step_train(dataloader_seg=train_dataloader)
-            loss_s = '{:7.4f}'.format(tr_loss_value)
+            loss_s = '{:7.3f}'.format(tr_loss_value)
             if tr_loss_value < best_loss_tr:
                 best_loss_tr = tr_loss_value
                 tr_loss_s = '\033[32;1m%s\033[0m' % loss_s
@@ -1717,7 +1683,7 @@ class NewLesionsNet(nn.Module):
 
             # Patience check
             improvement = loss_value < best_loss_val
-            loss_s = '{:7.4f}'.format(loss_value)
+            loss_s = '{:7.3f}'.format(loss_value)
             if improvement:
                 best_loss_val = loss_value
                 epoch_s = '\033[32mEpoch %03d\033[0m' % self.epoch
