@@ -295,11 +295,11 @@ def new_lesions(
             np.expand_dims(norm_target_tst, axis=0)
         )
 
-        lesion_unet = (seg[0][1]) > 0.5
+        lesion_unet = (seg[0][1] * brain) > 0.5
 
         for j, s_i in enumerate(seg[0]):
             mask_nii = nib.Nifti1Image(
-                s_i,
+                s_i * brain,
                 source_niis[0].get_qform(),
                 source_niis[0].get_header()
             )

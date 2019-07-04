@@ -1569,7 +1569,7 @@ class NewLesionsNet(nn.Module):
             patch_size=32,
             val_split=0,
             batch_size=32,
-            optimizer='adam',
+            optimizer='adadelta',
             epochs=100,
             patience=10,
             num_workers=32,
