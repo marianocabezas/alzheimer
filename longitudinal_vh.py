@@ -367,7 +367,7 @@ def new_lesions(
         source_mus = map(lambda im: np.mean(im[brain]), source_images)
         source_sigmas = map(lambda im: np.std(im[brain]), source_images)
 
-        sufix = '%s%s.e%dp%d' % (
+        sufix = 'vm_%s%s.e%dp%d' % (
             smooth_s + '_' if smooth_s else '', net_name, epochs, patience
         )
 
