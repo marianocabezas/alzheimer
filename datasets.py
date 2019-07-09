@@ -299,13 +299,14 @@ class GenericSegmentationCroppingDataset(Dataset):
         case_slices = self.patch_slices[case_idx]
 
         # We get the slice indexes
+        none_slice = (slice(None, None),)
         slice_i = case_slices[patch_idx]
 
-        inputs = np.expand_dims(case[slice_i], 0)
+        inputs = np.expand_dims(case[none_slice + slice_i], 0)
 
         if self.labels is not None:
             labels = get_image(self.labels[case_idx]).astype(long)
-            target = np.expand_dims(labels[slice_i], 0)
+            target = np.expand_dims(labels[none_slice + slice_i], 0)
 
             return inputs, target
         else:
