@@ -171,7 +171,10 @@ def main():
         end_p = len(train_data) * (i + 1) / n_folds
 
         # Training data
-        print(train_data[:ini_p, :].shape, train_data[end_p:, :].shape)
+        print(
+            train_data[:ini_p, :].shape, train_data[end_p:, :].shape,
+            train_data[:ini_p, :].dtype(), train_data[end_p:, :].dtype()
+        )
         train_x = np.concatenate(
             train_data[:ini_p, :], train_data[end_p:, :]
         )
