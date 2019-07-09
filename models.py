@@ -392,9 +392,7 @@ class BratsSegmentationNet(CustomModel):
         self.midconv.to(self.device)
 
         # Up path
-        down_out = filters_list[-2::-1]
-        up_out = filters_list[:0:-1]
-        deconv_in = map(sum, zip(down_out, up_out))
+        deconv_in = map(lambda f: 2 * f, filters_list[-2::-1])
         mid_out = filters_list[-2::-1]
         deconv_out = filters_list[-3::-1] + [filters]
         self.deconvlist = map(
