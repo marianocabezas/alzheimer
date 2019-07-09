@@ -1,4 +1,4 @@
-from operator import and_
+from operator import and_, add
 import itertools
 import numpy as np
 from torch.utils.data.dataset import Dataset
@@ -119,7 +119,7 @@ def filter_size(slices, mask, min_size):
     return filtered_slices
 
 
-def get_balanced_slices(masks, patch_size, rois=None, min_size=0):
+def get_balanced_slices(masks, patch_size, rois=None, min_size=0, neg_ratio=2):
     # Init
     patch_half = map(lambda p_length: p_length // 2, patch_size)
 
@@ -186,7 +186,7 @@ def get_balanced_slices(masks, patch_size, rois=None, min_size=0):
     patch_slices = map(
         lambda (pos_s, neg_s): pos_s + map(
             lambda idx: neg_s[idx],
-            np.random.permutation(len(neg_s))[:len(pos_s)]
+            np.random.permutation(len(neg_s))[:neg_ratio * len(pos_s)]
         ),
         zip(lesion_slices, fbck_slices)
     )
@@ -245,11 +245,11 @@ def assert_shapes(cases):
     assert reduce(and_, case_comparisons)
 
 
-class GenericCroppingDataset(Dataset):
+class GenericSegmentationCroppingDataset(Dataset):
     def __init__(
             self,
             cases, labels=None, masks=None,
-            patch_size=32, overlap=16, preload=False,
+            patch_size=32, neg_ratio=1, preload=False,
     ):
         # Init
         # Image and mask should be numpy arrays
@@ -264,17 +264,23 @@ class GenericCroppingDataset(Dataset):
 
         if type(patch_size) is not tuple:
             patch_size = (patch_size,) * len(data_shape)
+
         if self.masks is not None:
-            self.patch_slices = get_slices_bb(
-                self.masks, patch_size, overlap, filtered=True
+            self.patch_slices = get_balanced_slices(
+                self.labels, patch_size, self.masks, neg_ratio=neg_ratio
             )
         elif self.labels is not None:
-            self.patch_slices = get_slices_bb(
-                self.labels, patch_size, overlap, filtered=True
+            self.patch_slices = get_balanced_slices(
+                self.labels, patch_size, self.labels, neg_ratio=neg_ratio
             )
         else:
-            data_single = map(lambda d: d[0] if len(d) > 1 else d, self.cases)
-            self.patch_slices = get_slices_bb(data_single, patch_size, overlap)
+            data_single = map(
+                lambda d: np.ones_like(
+                    d[0] if len(d) > 1 else d
+                ),
+                self.cases
+            )
+            self.patch_slices = get_slices_bb(data_single, patch_size, 0)
         self.max_slice = np.cumsum(map(len, self.patch_slices))
 
     def __getitem__(self, index):
@@ -306,7 +312,7 @@ class GenericCroppingDataset(Dataset):
 class LongitudinalCroppingDataset(Dataset):
     def __init__(
             self,
-            source, target, lesions, masks=None, patch_size=32
+            source, target, lesions, rois=None, patch_size=32
     ):
         # Init
         # Image and mask should be numpy arrays
@@ -331,7 +337,7 @@ class LongitudinalCroppingDataset(Dataset):
         # )
 
         self.patch_slices = get_balanced_slices(
-            lesions, patch_size, rois=masks, min_size=10
+            lesions, patch_size, rois=rois, min_size=10, neg_ratio=3
         )
 
         self.max_slice = np.cumsum(map(len, self.patch_slices))

@@ -33,13 +33,13 @@ def parse_args():
     parser.add_argument(
         '-d', '--dataset-path',
         dest='dataset_path',
-        default='/home/mariano/DATA/Longitudinal',
+        default='/home/mariano/DATA/LongMostafa',
         help='Parameter to store the working directory.'
     )
     parser.add_argument(
         '-e', '--epochs',
         dest='epochs',
-        type=int,  default=10,
+        type=int,  default=20,
         help='Number of epochs'
     )
     parser.add_argument(
@@ -84,8 +84,8 @@ def parse_args():
 def new_lesions(
         d_path=None,
         images=['pd', 't1', 't2', 'flair'],
-        brain_name='union_brainmask.nii.gz',
-        lesion_name='gt_mask.nii',
+        brain_name='brainmask.nii.gz',
+        lesion_name='lesionmask.nii.gz',
         verbose=1,
 ):
     """
@@ -109,9 +109,6 @@ def new_lesions(
     if d_path is None:
         d_path = parse_args()['dataset_path']
     patients = get_dirs(d_path)
-
-    source_names = map(lambda im: '%s_moved.nii.gz' % im, images)
-    target_names = map(lambda im: '%s_processed.nii.gz' % im, images)
 
     gpu = parse_args()['gpu_id']
     cuda = torch.cuda.is_available()
@@ -158,7 +155,7 @@ def new_lesions(
         patient_paths = map(lambda p: os.path.join(d_path, p), train_patients)
         brain_names = map(
             lambda p_path: os.path.join(
-                p_path, 'time2', 'segmentation', brain_name
+                p_path, brain_name
             ),
             patient_paths
         )
@@ -172,10 +169,10 @@ def new_lesions(
             lambda (p, mask_i): np.stack(
                 map(
                     lambda im: get_normalised_image(
-                        os.path.join(p, 'time2', 'preprocessed', im),
+                        os.path.join(p, im, '%s_basal.nii.gz' % im),
                         mask_i,
                     ),
-                    source_names
+                    images
                 ),
                 axis=0
             ),
@@ -185,10 +182,10 @@ def new_lesions(
             lambda (p, mask_i): np.stack(
                 map(
                     lambda im: get_normalised_image(
-                        os.path.join(p, 'time2', 'preprocessed', im),
+                        os.path.join(p, im, '%s_followup.nii.gz' % im),
                         mask_i,
                     ),
-                    target_names
+                    images
                 ),
                 axis=0
             ),
@@ -218,7 +215,7 @@ def new_lesions(
                 norm_source,
                 norm_target,
                 lesions,
-                brains,
+                masks=brains,
                 num_workers=16,
                 val_split=0.1,
                 epochs=epochs,
@@ -251,7 +248,7 @@ def new_lesions(
 
         # Brain mask
         brain = get_mask(os.path.join(
-            patient_path, 'time2', 'segmentation', brain_name
+            patient_path, brain_name
         ), dtype=bool)
 
         # Lesion mask
@@ -259,29 +256,29 @@ def new_lesions(
 
         # Baseline image (testing)
         source_niis = map(
-            lambda name: load_nii(
-                os.path.join(patient_path, 'time2', 'preprocessed', name)
+            lambda im: load_nii(
+                os.path.join(patient_path, im, '%s_basal.nii.gz' % im)
             ),
-            source_names
+            images
         )
 
         norm_source_tst = np.stack(
             map(
                 lambda im: get_normalised_image(
-                    os.path.join(patient_path, 'time2', 'preprocessed', im),
+                    os.path.join(patient_path, im, '%s_basal.nii.gz' % im),
                     brain,
                 ),
-                source_names
+                images
             ),
             axis=0
         )
         norm_target_tst = np.stack(
             map(
                 lambda im: get_normalised_image(
-                    os.path.join(patient_path, 'time2', 'preprocessed', im),
+                    os.path.join(patient_path, im, '%s_followup.nii.gz' % im),
                     brain,
                 ),
-                target_names
+                images
             ),
             axis=0
         )
@@ -299,7 +296,7 @@ def new_lesions(
 
         for j, s_i in enumerate(seg[0]):
             mask_nii = nib.Nifti1Image(
-                s_i * brain,
+                s_i,
                 source_niis[0].get_qform(),
                 source_niis[0].get_header()
             )
@@ -335,7 +332,7 @@ def new_lesions(
                 norm_source,
                 norm_target,
                 lesions,
-                brains,
+                masks=brains,
                 num_workers=16,
                 val_split=0.1,
                 epochs=epochs,
@@ -389,7 +386,7 @@ def new_lesions(
             )
         for j, s_i in enumerate(seg[0]):
             mask_nii = nib.Nifti1Image(
-                s_i * brain,
+                s_i,
                 source_niis[0].get_qform(),
                 source_niis[0].get_header()
             )

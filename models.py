@@ -12,7 +12,7 @@ from layers import ScalingLayer, SpatialTransformer, SmoothingLayer
 from criterions import GenericLossLayer, multidsc_loss, normalised_xcor_loss
 from datasets import ImageListDataset
 from datasets import LongitudinalCroppingDataset, ImageListCroppingDataset
-from datasets import GenericCroppingDataset, get_image
+from datasets import GenericSegmentationCroppingDataset, get_image
 from optimizers import AdaBound
 from utils import time_to_string
 
@@ -109,7 +109,7 @@ class CustomModel(nn.Module):
             epochs=100,
             patience=10,
             batch_size=32,
-            overlap=16,
+            neg_ratio=1,
             num_workers=32,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -170,21 +170,21 @@ class CustomModel(nn.Module):
             t_train = target[:n_t_samples]
             t_val = target[n_t_samples:]
 
-            train_dataset = GenericCroppingDataset(
-                d_train, t_train, patch_size=patch_size, overlap=overlap
+            train_dataset = GenericSegmentationCroppingDataset(
+                d_train, t_train, patch_size=patch_size, neg_ratio=neg_ratio
             )
             train_loader = DataLoader(
                 train_dataset, batch_size, True, num_workers=num_workers
             )
-            val_dataset = GenericCroppingDataset(
-                d_val, t_val, patch_size=patch_size, overlap=overlap
+            val_dataset = GenericSegmentationCroppingDataset(
+                d_val, t_val, patch_size=patch_size, neg_ratio=neg_ratio
             )
             val_loader = DataLoader(
                 val_dataset, batch_size, True, num_workers=num_workers
             )
         else:
-            train_dataset = GenericCroppingDataset(
-                data, target, patch_size=patch_size, overlap=overlap
+            train_dataset = GenericSegmentationCroppingDataset(
+                data, target, patch_size=patch_size, neg_ratio=neg_ratio
             )
             train_loader = DataLoader(
                 train_dataset, batch_size, True, num_workers=num_workers
@@ -285,7 +285,7 @@ class CustomModel(nn.Module):
         whites = ' '.join([''] * 12)
         y_pred = map(lambda d: np.zeros_like(get_image(d)[0, ...]), data)
 
-        test_set = GenericCroppingDataset(
+        test_set = GenericSegmentationCroppingDataset(
             data, masks=masks, patch_size=patch_size, overlap=overlap
         )
         test_loader = DataLoader(
@@ -338,7 +338,7 @@ class BratsSegmentationNet(CustomModel):
             kernel_size=3,
             pool_size=2,
             depth=4,
-            conv_groups=None,
+            n_images=4,
     ):
         # Init
         padding = kernel_size // 2
@@ -361,7 +361,7 @@ class BratsSegmentationNet(CustomModel):
                 nn.InstanceNorm3d(filters),
                 nn.LeakyReLU(),
             ),
-            zip([4] + filters_list[:-1], filters_list)
+            zip([n_images] + filters_list[:-1], filters_list)
         )
 
         self.midconv = nn.Sequential(
@@ -1188,8 +1188,8 @@ class NewLesionsUNet(nn.Module):
                 m_train = None
                 m_val = None
             else:
-                m_train = new_lesion[:n_t_samples]
-                m_val = new_lesion[n_t_samples:]
+                m_train = masks[:n_t_samples]
+                m_val = masks[n_t_samples:]
 
             train_dataset = LongitudinalCroppingDataset(
                 s_train, t_train, l_train, m_train, patch_size=patch_size,
@@ -1420,8 +1420,8 @@ class NewLesionsUNet(nn.Module):
 class NewLesionsNet(nn.Module):
     def __init__(
             self,
-            conv_filters_s=list([32, 64, 64, 64]),
-            conv_filters_r=list([32, 64, 64]),
+            conv_filters_s=list([32, 64, 64, 64, 64]),
+            conv_filters_r=list([32, 64, 64, 64]),
             deconv_filters_r=list([64, 64, 64, 32, 32]),
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -1615,8 +1615,8 @@ class NewLesionsNet(nn.Module):
                 m_train = None
                 m_val = None
             else:
-                m_train = new_lesion[:n_t_samples]
-                m_val = new_lesion[n_t_samples:]
+                m_train = masks[:n_t_samples]
+                m_val = masks[n_t_samples:]
 
             train_dataset = LongitudinalCroppingDataset(
                 s_train, t_train, l_train, m_train, patch_size=patch_size,
