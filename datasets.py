@@ -302,7 +302,7 @@ class GenericSegmentationCroppingDataset(Dataset):
         none_slice = (slice(None, None),)
         slice_i = case_slices[patch_idx]
 
-        inputs = case[none_slice + slice_i]
+        inputs = case[none_slice + slice_i].astype(np.float32)
 
         if self.labels is not None:
             labels = get_image(self.labels[case_idx]).astype(np.uint8)

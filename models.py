@@ -1057,7 +1057,7 @@ class NewLesionsUNet(nn.Module):
 
         self.down = map(
             lambda (f_in, f_out): nn.Conv3d(
-                f_in, f_out, 3, padding=1, groups=n_images
+                f_in, f_out, 3, padding=1,
             ),
             zip(conv_in, conv_filters[:-1])
         )
