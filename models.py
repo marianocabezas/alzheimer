@@ -340,6 +340,7 @@ class BratsSegmentationNet(CustomModel):
             depth=4,
             n_images=4,
     ):
+        super(BratsSegmentationNet, self).__init__()
         # Init
         padding = kernel_size // 2
 
