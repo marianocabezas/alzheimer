@@ -95,9 +95,9 @@ class CustomModel(nn.Module):
         progress_s = ''.join(['-'] * percent)
         remainder_s = ''.join([' '] * (20 - percent))
         loss_name = 'train_loss' if train else 'val_loss'
-        batch_s = '%s%sEpoch %03d (%03d/%03d) [%s][%s>%s] %s %f (%f)%s' % (
+        batch_s = '%s%sEpoch %03d (%03d/%03d) [%s>%s] %s %f (%f)%s' % (
             init_c, whites, self.epoch, batch_i + 1, n_batches,
-            ''.join(['-'] * 21), progress_s, remainder_s,
+            progress_s, remainder_s,
             loss_name, b_loss, mean_loss, '\033[0m'
         )
         print('\033[K', end='')
