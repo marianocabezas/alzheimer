@@ -457,12 +457,10 @@ def multidsc_loss(pred, target, smooth=1, averaged=True):
     n_classes = dims[1]
     if target.shape != pred.shape:
         assert torch.max(target) <= n_classes, 'Wrong number of classes for GT'
-        print(torch.max(target))
         target = torch.cat(
             map(lambda i: target == i, range(n_classes)), dim=1
         )
         target = target.type_as(pred)
-        print(torch.max(target), torch.sum(target))
 
     reduce_dims = tuple(range(2, len(dims)))
     num = (2 * torch.sum(pred * target, dim=reduce_dims)) + smooth
@@ -471,6 +469,7 @@ def multidsc_loss(pred, target, smooth=1, averaged=True):
     if averaged:
         class_sum = torch.sum(target, dim=reduce_dims)
         total_sum = torch.sum(target, dim=(2,) + reduce_dims)
+        print(total_sum)
         class_pr = 1 - class_sum / total_sum
         dsc = 1 - torch.sum(dsc_k * class_pr) / dims[0]
     else:
