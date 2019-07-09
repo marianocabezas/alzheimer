@@ -428,7 +428,7 @@ class BratsSegmentationNet(CustomModel):
 
         for d, prev in zip(self.deconvlist, down_list[::-1]):
             interp = F.interpolate(x, size=prev.shape[2:])
-            x = self.deconv1(torch.cat(prev, interp))
+            x = self.d(torch.cat(prev, interp))
 
         output = self.out(x)
         return output
