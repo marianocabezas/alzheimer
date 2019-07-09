@@ -266,7 +266,7 @@ class GenericSegmentationCroppingDataset(Dataset):
 
         self.masks = masks
 
-        data_shape = self.cases[0].shape
+        data_shape = get_image(self.cases[0]).shape
 
         if type(patch_size) is not tuple:
             patch_size = (patch_size,) * len(data_shape)
