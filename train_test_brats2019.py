@@ -172,10 +172,10 @@ def main():
 
         # Training data
         train_x = np.concatenate(
-            [train_data[:ini_p, :], train_data[end_p:, :]]
+            [train_data[:ini_p], train_data[end_p:]]
         )
         train_y = np.concatenate(
-            [train_labels[:ini_p, :], train_labels[end_p:, :]]
+            [train_labels[:ini_p], train_labels[end_p:]]
         )
 
         # Testing data
