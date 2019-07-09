@@ -304,7 +304,6 @@ class GenericSegmentationCroppingDataset(Dataset):
         inputs = np.expand_dims(case[slice_i], 0)
 
         if self.labels is not None:
-            print(self.labels[case_idx])
             labels_patch = get_image(self.labels[case_idx])
             labels = np.expand_dims(labels_patch, 0)
 

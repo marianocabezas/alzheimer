@@ -173,14 +173,14 @@ def main():
         # Training data
         train_x = np.concatenate(
             [train_data[:ini_p], train_data[end_p:]]
-        )
+        ).tolist()
         train_y = np.concatenate(
             [train_labels[:ini_p], train_labels[end_p:]]
-        )
+        ).tolist()
 
         # Testing data
-        test_x = train_data[ini_p:end_p]
-        test_y = train_labels[ini_p:end_p]
+        test_x = train_data[ini_p:end_p].tolist()
+        test_y = train_labels[ini_p:end_p].tolist()
 
         # Training itself
         print(
