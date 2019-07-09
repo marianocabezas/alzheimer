@@ -391,24 +391,20 @@ class BratsSegmentationNet(CustomModel):
         )
         self.midconv.to(self.device)
 
-        # Up path
-        deconv_in = map(lambda f: 2 * f, filters_list[-2::-1])
-        mid_out = filters_list[-2::-1]
-        deconv_out = filters_list[-3::-1] + [filters]
         self.deconvlist = map(
-            lambda (ini, mid, out): nn.Sequential(
+            lambda (ini, out): nn.Sequential(
                 nn.ConvTranspose3d(
-                    ini, mid, kernel_size, padding=padding
+                    2 * ini, ini, kernel_size, padding=padding
                 ),
                 nn.InstanceNorm3d(filters),
                 nn.LeakyReLU(),
                 nn.ConvTranspose3d(
-                    mid, out, kernel_size, padding=padding
+                    ini, out, kernel_size, padding=padding
                 ),
                 nn.InstanceNorm3d(filters),
                 nn.LeakyReLU(),
             ),
-            zip(deconv_in, mid_out, deconv_out)
+            zip(filters_list[-2::-1], filters_list[-3::-1] + [filters])
         )
         for d in self.deconvlist:
             d.to(self.device)
