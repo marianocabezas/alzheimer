@@ -457,6 +457,7 @@ def multidsc_loss(pred, target, smooth=1, averaged=True):
     n_classes = dims[1]
     if target.shape != pred.shape:
         assert torch.max(target) <= n_classes, 'Wrong number of classes for GT'
+        print(torch.max(target))
         target = torch.cat(
             map(lambda i: target == i, range(n_classes)), dim=1
         )
