@@ -424,7 +424,7 @@ class BratsSegmentationNet(CustomModel):
             down_list.append(down)
             x = F.max_pool3d(down, self.pooling)
 
-        x = self.conv5(x)
+        x = self.midconv(x)
 
         for d, prev in zip(self.deconvlist, down_list[::-1]):
             interp = F.interpolate(x, size=prev.shape[2:])
