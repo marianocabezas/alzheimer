@@ -345,7 +345,7 @@ class BratsSegmentationNet(CustomModel):
 
         # Down path
         self.pooling = pool_size
-        filters_list = map(lambda i: filters * 2 * i, range(depth))
+        filters_list = map(lambda i: filters * 2 ** i, range(depth))
         self.convlist = map(
             lambda (ini, out): nn.Sequential(
                 nn.Conv3d(
