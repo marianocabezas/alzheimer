@@ -33,11 +33,17 @@ def to_torch_var(
 
 
 class CustomModel(nn.Module):
-    def __init__(self):
+    def __init__(
+            self,
+            device=torch.device(
+                "cuda:0" if torch.cuda.is_available() else "cpu"
+            ),
+    ):
         super(CustomModel, self).__init__()
         self.criterion_alg = None
         self.optimizer_alg = None
         self.epoch = 0
+        self.device = device
 
     def forward(self, *inputs):
         pass
