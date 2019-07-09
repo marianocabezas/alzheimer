@@ -173,7 +173,7 @@ def main():
         # Training data
         print(
             train_data[:ini_p, :].shape, train_data[end_p:, :].shape,
-            train_data[:ini_p, :].dtype(), train_data[end_p:, :].dtype()
+            train_data[:ini_p, :].dtype, train_data[end_p:, :].dtype
         )
         train_x = np.concatenate(
             train_data[:ini_p, :], train_data[end_p:, :]
