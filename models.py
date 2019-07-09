@@ -428,7 +428,7 @@ class BratsSegmentationNet(CustomModel):
 
         for d, prev in zip(self.deconvlist, down_list[::-1]):
             interp = F.interpolate(x, size=prev.shape[2:])
-            x = self.d(torch.cat(prev, interp))
+            x = d(torch.cat(prev, interp))
 
         output = self.out(x)
         return output
@@ -1305,9 +1305,12 @@ class NewLesionsUNet(nn.Module):
         self.load_state_dict(best_state)
         t_end = time.time() - t_start
         if verbose:
+            out_s = 'Segmentation finished in %d epochs (%fs) ' \
+                    'with minimum loss = %f (epoch %d)'
             print(
-                'Segmentation finished in %d epochs (%fs) with minimum loss = %f (epoch %d)' % (
-                    e + 1, t_end, best_loss_tr, best_e)
+                out_s % (
+                    self.e + 1, t_end, best_loss_val, best_e
+                )
             )
 
     def step_train(
@@ -1735,9 +1738,11 @@ class NewLesionsNet(nn.Module):
         self.load_state_dict(best_state)
         t_end = time.time() - t_start
         if verbose:
+            out_s = 'Registration finished in %d epochs (%fs) ' \
+                    'with minimum loss = %f (epoch %d)'
             print(
-                'Registration finished in %d epochs (%fs) with minimum loss = %f (epoch %d)' % (
-                    e + 1, t_end, best_loss_tr, best_e)
+                out_s % (
+                    self.e + 1, t_end, best_loss_val, best_e)
             )
 
     def step_train(
