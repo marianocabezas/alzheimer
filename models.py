@@ -359,13 +359,13 @@ class BratsSegmentationNet(CustomModel):
                     ini, out, kernel_size,
                     padding=padding
                 ),
-                nn.InstanceNorm3d(filters),
+                nn.InstanceNorm3d(out),
                 nn.LeakyReLU(),
                 nn.Conv3d(
-                    filters, filters, kernel_size,
+                    out, out, kernel_size,
                     padding=padding
                 ),
-                nn.InstanceNorm3d(filters),
+                nn.InstanceNorm3d(out),
                 nn.LeakyReLU(),
             ),
             zip([n_images] + filters_list[:-1], filters_list)
@@ -373,13 +373,15 @@ class BratsSegmentationNet(CustomModel):
 
         self.midconv = nn.Sequential(
             nn.Conv3d(
-                filters * (2 * depth), filters * (4 * depth), kernel_size,
+                filters * (2 ** (depth - 1)),
+                filters * (2 ** depth), kernel_size,
                 padding=padding
             ),
             nn.InstanceNorm3d(filters),
             nn.LeakyReLU(),
             nn.Conv3d(
-                filters * (4 * depth), filters * (2 * depth), kernel_size,
+                filters * (2 ** depth),
+                filters * (2 ** (depth - 1)), kernel_size,
                 padding=padding
             ),
             nn.InstanceNorm3d(filters),
@@ -390,17 +392,17 @@ class BratsSegmentationNet(CustomModel):
         self.deconvlist = map(
             lambda (ini, out): nn.Sequential(
                 nn.ConvTranspose3d(
-                    ini, out, kernel_size, padding=padding
+                    ini, ini, kernel_size, padding=padding
                 ),
                 nn.InstanceNorm3d(filters),
                 nn.LeakyReLU(),
                 nn.ConvTranspose3d(
-                    out, out, kernel_size, padding=padding
+                    ini, out, kernel_size, padding=padding
                 ),
                 nn.InstanceNorm3d(filters),
                 nn.LeakyReLU(),
             ),
-            zip(filters_list[::-1], filters_list[:-1][::-1] + [filters])
+            zip(filters_list[-2::-1], filters_list[-3::-1] + [filters])
         )
 
         # Segmentation
