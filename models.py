@@ -404,7 +404,7 @@ class BratsSegmentationNet(CustomModel):
                 nn.InstanceNorm3d(filters),
                 nn.LeakyReLU(),
             ),
-            zip(filters_list[-2::-1], filters_list[-3::-1] + [filters])
+            zip(filters_list[::-1], filters_list[-2::-1] + [filters])
         )
         for d in self.deconvlist:
             d.to(self.device)
