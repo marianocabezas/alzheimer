@@ -370,6 +370,8 @@ class BratsSegmentationNet(CustomModel):
             ),
             zip([n_images] + filters_list[:-1], filters_list)
         )
+        for c in self.convlist:
+            c.to(self.device)
 
         self.midconv = nn.Sequential(
             nn.Conv3d(
@@ -387,6 +389,7 @@ class BratsSegmentationNet(CustomModel):
             nn.InstanceNorm3d(filters),
             nn.LeakyReLU(),
         )
+        self.midconv.to(self.device)
 
         # Up path
         self.deconvlist = map(
@@ -404,12 +407,15 @@ class BratsSegmentationNet(CustomModel):
             ),
             zip(filters_list[-2::-1], filters_list[-3::-1] + [filters])
         )
+        for d in self.deconvlist:
+            d.to(self.device)
 
         # Segmentation
         self.out = nn.Sequential(
             nn.Conv3d(filters, 5, 1),
             nn.Softmax(dim=1)
         )
+        self.out.to(self.device)
 
     def forward(self, x):
         down_list = []
