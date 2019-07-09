@@ -256,9 +256,14 @@ class GenericSegmentationCroppingDataset(Dataset):
         # Image and mask should be numpy arrays
         if preload:
             self.cases = map(get_image, cases)
+            if labels is not None:
+                self.labels = map(get_image, labels)
+            else:
+                self.labels = labels
         else:
             self.cases = cases
-        self.labels = labels
+            self.labels = labels
+
         self.masks = masks
 
         data_shape = self.cases[0].shape
