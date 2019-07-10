@@ -375,14 +375,14 @@ class BratsSegmentationNet(CustomModel):
                 nn.Conv3d(
                     ini, out, kernel_size,
                     padding=padding,
-                    # groups=g
+                    groups=g
                 ),
                 nn.InstanceNorm3d(out),
                 nn.LeakyReLU(),
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
-                    # groups=2 * g
+                    groups=2 * g
                 ),
                 nn.InstanceNorm3d(out),
                 nn.LeakyReLU(),
