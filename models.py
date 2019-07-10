@@ -416,14 +416,14 @@ class BratsSegmentationNet(CustomModel):
                 nn.ConvTranspose3d(
                     2 * ini, ini, kernel_size,
                     padding=padding,
-                    # groups=g
+                    groups=g
                 ),
                 nn.InstanceNorm3d(filters),
                 nn.LeakyReLU(),
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
-                    # groups=g
+                    groups=g
                 ),
                 nn.InstanceNorm3d(filters),
                 nn.LeakyReLU(),
