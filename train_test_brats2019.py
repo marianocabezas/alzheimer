@@ -192,6 +192,14 @@ def main():
 
         net = BratsSegmentationNet()
 
+        n_params = sum(
+            p.numel() for p in net.parameters() if p.requires_grad
+        )
+        print(
+            '%sStarting training wit a unet%s (%d parameters)' %
+            (c['c'], c['nc'], n_params)
+        )
+
         net.fit(
             train_x, train_y,
             val_split=0.1, criterion='dsc',
