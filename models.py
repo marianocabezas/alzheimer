@@ -43,7 +43,6 @@ class CustomModel(nn.Module):
         super(CustomModel, self).__init__()
         self.criterion_alg = None
         self.optimizer_alg = None
-        self.sampler = None
         self.t_train = 0
         self.t_val = 0
         self.epoch = 0
@@ -60,24 +59,9 @@ class CustomModel(nn.Module):
     ):
         # We train the model and check the loss
         torch.cuda.synchronize()
-        if self.sampler:
-            x, y, indices = data
-            pred_labels = self(x.to(self.device))
-            b_losses = torch.stack(
-                map(
-                    lambda (y_predi, y_i): self.criterion_alg(
-                        torch.unsqueeze(y_predi, 0),
-                        torch.unsqueeze(y_i.to(self.device), 0)
-                    ),
-                    zip(pred_labels, y)
-                )
-            )
-            self.losses[indices] = b_losses.clone().detach()
-            b_loss = torch.mean(b_losses)
-        else:
-            x, y = data
-            pred_labels = self(x.to(self.device))
-            b_loss = self.criterion_alg(pred_labels, y.to(self.device))
+        x, y = data
+        pred_labels = self(x.to(self.device))
+        b_loss = self.criterion_alg(pred_labels, y.to(self.device))
 
         if train:
             self.optimizer_alg.zero_grad()
@@ -105,9 +89,6 @@ class CustomModel(nn.Module):
             self.print_progress(
                 batch_i, n_batches, loss_value, np.mean(losses), train
             )
-
-        if self.sampler:
-            self.sampler.update(self.losses)
 
         return np.mean(losses)
 
@@ -150,8 +131,7 @@ class CustomModel(nn.Module):
             batch_size=32,
             neg_ratio=1,
             num_workers=32,
-            weighted=False,
-            sample_rate=5,
+            sample_rate=3,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -213,22 +193,13 @@ class CustomModel(nn.Module):
             t_val = target[n_t_samples:]
 
             train_dataset = GenericSegmentationCroppingDataset(
-                d_train, t_train, patch_size=patch_size, neg_ratio=neg_ratio,
+                d_train, t_train, patch_size=patch_size,
+                neg_ratio=neg_ratio, sampling_ratio=sample_rate,
                 preload=True,
             )
-            if weighted:
-                self.sampler = WeightedSubsetRandomSampler(
-                    len(train_dataset), sample_rate
-                )
-                self.losses = self.sampler.weights.clone().detach()
-                train_loader = DataLoader(
-                    train_dataset, batch_size, num_workers=num_workers,
-                    sampler=self.sampler
-                )
-            else:
-                train_loader = DataLoader(
-                    train_dataset, batch_size, True, num_workers=num_workers
-                )
+            train_loader = DataLoader(
+                train_dataset, batch_size, True, num_workers=num_workers
+            )
             val_dataset = GenericSegmentationCroppingDataset(
                 d_val, t_val, patch_size=patch_size, neg_ratio=neg_ratio
             )

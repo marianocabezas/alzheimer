@@ -121,7 +121,10 @@ def filter_size(slices, mask, min_size):
     return filtered_slices
 
 
-def get_balanced_slices(masks, patch_size, rois=None, min_size=0, neg_ratio=2):
+def get_balanced_slices(
+        masks, patch_size, rois=None, min_size=0,
+        neg_ratio=2, sampling_ratio=1
+):
     # Init
     patch_half = map(lambda p_length: p_length // 2, patch_size)
 
@@ -187,9 +190,11 @@ def get_balanced_slices(masks, patch_size, rois=None, min_size=0, neg_ratio=2):
 
     # Final slice selection
     patch_slices = map(
-        lambda (pos_s, neg_s): pos_s + map(
+        lambda (pos_s, neg_s): pos_s[::sampling_ratio] + map(
             lambda idx: neg_s[idx],
-            np.random.permutation(len(neg_s))[:int(neg_ratio * len(pos_s))]
+            np.random.permutation(
+                len(neg_s)
+            )[:int(neg_ratio * len(pos_s)):sampling_ratio]
         ),
         zip(lesion_slices, fbck_slices)
     )
@@ -252,8 +257,8 @@ class GenericSegmentationCroppingDataset(Dataset):
     def __init__(
             self,
             cases, labels=None, masks=None,
-            patch_size=32, neg_ratio=1, preload=False,
-            sampler=False
+            patch_size=32, neg_ratio=1, sampling_ratio=1,
+            preload=False, sampler=False
     ):
         # Init
         # Image and mask should be numpy arrays
@@ -277,11 +282,13 @@ class GenericSegmentationCroppingDataset(Dataset):
 
         if self.masks is not None:
             self.patch_slices = get_balanced_slices(
-                self.labels, patch_size, self.masks, neg_ratio=neg_ratio
+                self.labels, patch_size, self.masks,
+                neg_ratio=neg_ratio, sampling_ratio=sampling_ratio
             )
         elif self.labels is not None:
             self.patch_slices = get_balanced_slices(
-                self.labels, patch_size, self.labels, neg_ratio=neg_ratio
+                self.labels, patch_size, self.labels,
+                neg_ratio=neg_ratio, sampling_ratio=sampling_ratio
             )
         else:
             data_single = map(
