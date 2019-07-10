@@ -189,7 +189,7 @@ class CustomModel(nn.Module):
             t_val = target[n_t_samples:]
 
             train_dataset = GenericSegmentationCroppingDataset(
-                d_train, t_train, patch_size=patch_size, neg_ratio=neg_ratio
+                d_train, t_train, patch_size=patch_size, neg_ratio=neg_ratio,
                 preload=True,
             )
             train_loader = DataLoader(
