@@ -534,17 +534,14 @@ class WeightedSubsetRandomSampler(Sampler):
     """
 
     def __init__(self, num_samples, sample_div=2):
+
         self.num_samples = num_samples // sample_div
         self.weights = torch.tensor(
             [np.iinfo(np.long).max] * num_samples, dtype=torch.double
         )
 
     def __iter__(self):
-        return (
-            i for i in torch.multinomial(
-                self.weights, self.num_samples, self.replacement
-            )
-        )
+        return (i for i in torch.multinomial(self.weights, self.num_samples))
 
     def __len__(self):
         return self.num_samples
