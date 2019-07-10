@@ -69,7 +69,7 @@ class CustomModel(nn.Module):
                     zip(pred_labels, y)
                 )
             )
-            self.losses[indices] = torch.tensor(b_losses)
+            self.losses[indices] = b_losses.clone()
             b_loss = torch.mean(b_losses)
         else:
             x, y = data
@@ -216,7 +216,7 @@ class CustomModel(nn.Module):
                 self.sampler = WeightedSubsetRandomSampler(
                     len(train_dataset), sample_rate
                 )
-                self.losses = torch.tensor(self.sampler.weights)
+                self.losses = self.sampler.weights.clone()
                 train_loader = DataLoader(
                     train_dataset, batch_size, num_workers=num_workers,
                     sampler=self.sampler
