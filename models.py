@@ -13,6 +13,7 @@ from criterions import GenericLossLayer, multidsc_loss, normalised_xcor_loss
 from datasets import ImageListDataset
 from datasets import LongitudinalCroppingDataset, ImageListCroppingDataset
 from datasets import GenericSegmentationCroppingDataset, get_image
+from datasets import WeightedSubsetRandomSampler
 from optimizers import AdaBound
 from utils import time_to_string
 
@@ -42,6 +43,7 @@ class CustomModel(nn.Module):
         super(CustomModel, self).__init__()
         self.criterion_alg = None
         self.optimizer_alg = None
+        self.sampler = None
         self.epoch = 0
         self.device = device
 
@@ -50,14 +52,28 @@ class CustomModel(nn.Module):
 
     def step(
             self,
-            inputs,
-            output,
+            data,
             train=True
     ):
         # We train the model and check the loss
         torch.cuda.synchronize()
-        pred_labels = self(inputs.to(self.device))
-        b_loss = self.criterion_alg(pred_labels, output.to(self.device))
+        if self.sampler:
+            x, y, indices = data
+            pred_labels = self(x.to(self.device))
+            b_losses = torch.stack(
+                map(
+                    lambda (y_predi, y_i): self.criterion_alg(
+                        y_predi, y_i.to(self.device)
+                    ),
+                    zip(pred_labels, y)
+                )
+            )
+            self.sampler.update(b_losses, indices)
+            b_loss = torch.mean(b_losses)
+        else:
+            x, y = data
+            pred_labels = self(x.to(self.device))
+            b_loss = self.criterion_alg(pred_labels, y.to(self.device))
 
         if train:
             self.optimizer_alg.zero_grad()
@@ -75,9 +91,9 @@ class CustomModel(nn.Module):
     ):
         losses = list()
         n_batches = len(training)
-        for batch_i, (batch_x, batch_y) in enumerate(training):
+        for batch_i, batch_data in enumerate(training):
             # We train the model and check the loss
-            batch_loss = self.step(batch_x, batch_y, train=train)
+            batch_loss = self.step(batch_data, train=train)
 
             loss_value = batch_loss.tolist()
             losses.append(loss_value)
@@ -127,6 +143,8 @@ class CustomModel(nn.Module):
             batch_size=32,
             neg_ratio=1,
             num_workers=32,
+            weighted=False,
+            sample_rate=5,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -157,6 +175,7 @@ class CustomModel(nn.Module):
 
         optimizer_dict = {
             'adam': torch.optim.Adam,
+            'adadelta': torch.optim.Adadelta,
             'adabound': AdaBound,
         }
 
@@ -192,9 +211,18 @@ class CustomModel(nn.Module):
                 d_train, t_train, patch_size=patch_size, neg_ratio=neg_ratio,
                 preload=True,
             )
-            train_loader = DataLoader(
-                train_dataset, batch_size, True, num_workers=num_workers
-            )
+            if weighted:
+                self.sampler = WeightedSubsetRandomSampler(
+                    len(train_dataset), sample_rate
+                )
+                train_loader = DataLoader(
+                    train_dataset, batch_size, num_workers=num_workers,
+                    sampler=self.sampler
+                )
+            else:
+                train_loader = DataLoader(
+                    train_dataset, batch_size, True, num_workers=num_workers
+                )
             val_dataset = GenericSegmentationCroppingDataset(
                 d_val, t_val, patch_size=patch_size, neg_ratio=neg_ratio
             )

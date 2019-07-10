@@ -203,7 +203,8 @@ def main():
         net.fit(
             train_x, train_y,
             val_split=0.1, criterion='dsc',
-            epochs=epochs, patience=patience, batch_size=batch_size
+            epochs=epochs, patience=patience, batch_size=batch_size,
+            weighted=True
         )
 
         print(

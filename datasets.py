@@ -1,7 +1,9 @@
 from operator import and_, add
 import itertools
 import numpy as np
+import torch
 from torch.utils.data.dataset import Dataset
+from torch.utils.data.sampler import Sampler
 from nibabel import load as load_nii
 from data_manipulation.generate_features import get_mask_voxels
 
@@ -251,9 +253,11 @@ class GenericSegmentationCroppingDataset(Dataset):
             self,
             cases, labels=None, masks=None,
             patch_size=32, neg_ratio=1, preload=False,
+            sampler=False
     ):
         # Init
         # Image and mask should be numpy arrays
+        self.sampler = sampler
         if preload:
             self.cases = map(get_image, cases)
             if labels is not None:
@@ -308,7 +312,10 @@ class GenericSegmentationCroppingDataset(Dataset):
             labels = get_image(self.labels[case_idx]).astype(np.uint8)
             target = np.expand_dims(labels[slice_i], 0)
 
-            return inputs, target
+            if self.sampler:
+                return inputs, target, index
+            else:
+                return inputs, target
         else:
             return inputs, case_idx, slice_i
 
@@ -344,7 +351,7 @@ class LongitudinalCroppingDataset(Dataset):
         # )
 
         self.patch_slices = get_balanced_slices(
-            lesions, patch_size, rois=rois, min_size=10, neg_ratio=3
+            lesions, patch_size, rois=rois, neg_ratio=3
         )
 
         self.max_slice = np.cumsum(map(len, self.patch_slices))
@@ -517,3 +524,30 @@ class ImageListDataset(Dataset):
 
     def __len__(self):
         return self.max_combo[-1]
+
+
+class WeightedSubsetRandomSampler(Sampler):
+    r"""Samples elements from a given list of indices with given probabilities (weights), with replacement.
+
+    Arguments:
+        num_samples (int): number of samples to draw
+    """
+
+    def __init__(self, num_samples, sample_div=2):
+        self.num_samples = num_samples // sample_div
+        self.weights = torch.tensor(
+            [np.iinfo(np.double).max] * num_samples, dtype=torch.double
+        )
+
+    def __iter__(self):
+        return (
+            i for i in torch.multinomial(
+                self.weights, self.num_samples, self.replacement
+            )
+        )
+
+    def __len__(self):
+        return self.num_samples
+
+    def update(self, weights, indices):
+        self.weights[indices] = weights
