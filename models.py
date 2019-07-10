@@ -141,7 +141,7 @@ class CustomModel(nn.Module):
             target,
             val_split=0,
             criterion='xentr',
-            optimizer='adam',
+            optimizer='adadelta',
             patch_size=32,
             epochs=100,
             patience=10,
@@ -1120,7 +1120,6 @@ class NewLesionsUNet(nn.Module):
         self.down = map(
             lambda (f_in, f_out): nn.Conv3d(
                 f_in, f_out, 3, padding=1,
-                groups=n_images,
             ),
             zip(conv_in, conv_filters[:-1])
         )
