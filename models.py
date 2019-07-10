@@ -412,9 +412,9 @@ class BratsSegmentationNet(CustomModel):
 
         self.deconvlist = map(
             lambda (ini, out, g): nn.Sequential(
-                # nn.ConvTranspose3d(
-                #   2 * ini, 2 * ini, 1,
-                # ),
+                nn.ConvTranspose3d(
+                  2 * ini, 2 * ini, 1,
+                ),
                 nn.ConvTranspose3d(
                     2 * ini, ini, kernel_size,
                     padding=padding,
