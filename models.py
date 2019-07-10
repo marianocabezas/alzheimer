@@ -95,10 +95,20 @@ class CustomModel(nn.Module):
         progress_s = ''.join(['-'] * percent)
         remainder_s = ''.join([' '] * (20 - percent))
         loss_name = 'train_loss' if train else 'val_loss'
-        batch_s = '%s%sEpoch %03d (%03d/%03d) [%s>%s] %s %f (%f)%s' % (
+
+        if train:
+            t_out = time.time() - self.t_train
+        else:
+            t_out = time.time() - self.t_val
+        time_s = time_to_string(t_out)
+
+        t_eta = (t_out / (batch_i + 1)) * (n_batches - (batch_i + 1))
+        eta_s = time_to_string(t_eta)
+
+        batch_s = '%s%sEpoch %03d (%03d/%03d) [%s>%s] %s %f (%f) %s / ETA %s%s' % (
             init_c, whites, self.epoch, batch_i + 1, n_batches,
             progress_s, remainder_s,
-            loss_name, b_loss, mean_loss, '\033[0m'
+            loss_name, b_loss, mean_loss, time_s, eta_s, '\033[0m'
         )
         print('\033[K', end='')
         print(batch_s, end='\r')
@@ -126,8 +136,10 @@ class CustomModel(nn.Module):
         self.to(device)
         self.train()
 
+        self.t_train = 0
+        self.t_val = 0
         best_e = 0
-        e = 0
+        self.epoch = 0
         best_loss_tr = np.inf
         best_loss_val = np.inf
         no_improv_e = 0
@@ -204,10 +216,10 @@ class CustomModel(nn.Module):
                 )
             )
 
-        for e in range(epochs):
-            self.epoch = e
+        for self.epoch in range(epochs):
             # Main epoch loop
             t_in = time.time()
+            self.t_train = time.time()
             loss_tr = self.mini_batch_loop(train_loader)
             # Patience check and validation/real-training loss and accuracy
             improvement = loss_tr < best_loss_tr
@@ -219,18 +231,19 @@ class CustomModel(nn.Module):
 
             if validation:
                 with torch.no_grad():
+                    self.t_val = time.time()
                     loss_val = self.mini_batch_loop(val_loader, False)
 
                 improvement = loss_val < best_loss_val
                 if improvement:
                     best_loss_val = loss_val
                     loss_s += ' | \033[36m%0.5f\033[0m' % loss_val
-                    best_e = e
+                    best_e = self.epoch
                 else:
                     loss_s += ' | %0.5f' % loss_val
 
             if improvement:
-                best_e = e
+                best_e = self.epoch
                 best_state = deepcopy(self.state_dict())
                 no_improv_e = 0
             else:
@@ -242,7 +255,7 @@ class CustomModel(nn.Module):
 
             if verbose:
                 print('\033[K', end='')
-                if e == 0:
+                if self.epoch == 0:
                     print(
                         '%sEpoch num | tr_loss%s |  time  ' % (
                             ' '.join([''] * 12),
@@ -255,7 +268,7 @@ class CustomModel(nn.Module):
                     )
                 print(
                     '%sEpoch %03d | %s | %s' % (
-                        ' '.join([''] * 12), e, loss_s, t_out_s
+                        ' '.join([''] * 12), self.epoch, loss_s, t_out_s
                     )
                 )
 
@@ -269,7 +282,7 @@ class CustomModel(nn.Module):
             print(
                 'Training finished in %d epochs (%s) '
                 'with minimum loss = %f (epoch %d)' % (
-                    e + 1, t_end_s, best_loss_tr, best_e)
+                    self.epoch + 1, t_end_s, best_loss_tr, best_e)
             )
 
     def predict(
