@@ -225,6 +225,12 @@ class CustomModel(nn.Module):
                     train_dataset, batch_size, num_workers=num_workers,
                     sampler=self.sampler
                 )
+                print(
+                    len(train_dataset),
+                    len(train_dataset) // batch_size,
+                    len(self.sampler)
+                    len(train_loader)
+                )
             else:
                 train_loader = DataLoader(
                     train_dataset, batch_size, True, num_workers=num_workers
@@ -1137,11 +1143,8 @@ class NewLesionsUNet(nn.Module):
         up_out = conv_filters[:0:-1]
         deconv_in = map(sum, zip(down_out, up_out))
         self.up = map(
-            lambda (f_in, f_out): nn.Sequential(
-                nn.ConvTranspose3d(f_in, f_in, 1),
-                nn.ConvTranspose3d(
-                    f_in, f_out, 3, padding=1, groups=2
-                )
+            lambda (f_in, f_out): nn.ConvTranspose3d(
+                f_in, f_out, 3, padding=1
             ),
             zip(
                 deconv_in,
@@ -1445,7 +1448,9 @@ class NewLesionsUNet(nn.Module):
         torch.cuda.synchronize()
         b_pred_lesion = self(*b_inputs)
 
-        b_dsc_losses = multidsc_loss(b_pred_lesion, b_lesion, averaged=False)
+        b_dsc_losses = multidsc_loss(
+            b_pred_lesion, b_lesion, averaged=False
+        )
         if train:
             sum_class = map(lambda c: torch.sum(b_lesion == c), range(2))
             b_loss = sum(
@@ -1877,7 +1882,9 @@ class NewLesionsNet(nn.Module):
         torch.cuda.synchronize()
         b_pred_lesion, b_moved, b_df = self(*b_inputs)
 
-        b_dsc_losses = multidsc_loss(b_pred_lesion, b_lesion, averaged=False)
+        b_dsc_losses = multidsc_loss(
+            b_pred_lesion, b_lesion, averaged=False
+        )
         b_reg_loss = normalised_xcor_loss(b_moved, b_target)
         # b_reg_loss = subtraction_loss(b_moved, b_target, roi)
         if train:
