@@ -64,12 +64,13 @@ class CustomModel(nn.Module):
             b_losses = torch.stack(
                 map(
                     lambda (y_predi, y_i): self.criterion_alg(
-                        y_predi, y_i.to(self.device)
+                        torch.unsqueeze(y_predi, 0),
+                        torch.unsqueeze(y_i.to(self.device), 0)
                     ),
                     zip(pred_labels, y)
                 )
             )
-            self.losses[indices] = b_losses.clone()
+            self.losses[indices] = b_losses.clone().detach()
             b_loss = torch.mean(b_losses)
         else:
             x, y = data
@@ -102,6 +103,9 @@ class CustomModel(nn.Module):
             self.print_progress(
                 batch_i, n_batches, loss_value, np.mean(losses), train
             )
+
+        if self.sampler:
+            self.sampler.update(self.losses)
 
         return np.mean(losses)
 
@@ -216,7 +220,7 @@ class CustomModel(nn.Module):
                 self.sampler = WeightedSubsetRandomSampler(
                     len(train_dataset), sample_rate
                 )
-                self.losses = self.sampler.weights.clone()
+                self.losses = self.sampler.weights.clone().detach()
                 train_loader = DataLoader(
                     train_dataset, batch_size, num_workers=num_workers,
                     sampler=self.sampler
@@ -252,8 +256,6 @@ class CustomModel(nn.Module):
             t_in = time.time()
             self.t_train = time.time()
             loss_tr = self.mini_batch_loop(train_loader)
-            if self.sampler:
-                self.sampler.update(self.losses)
             # Patience check and validation/real-training loss and accuracy
             improvement = loss_tr < best_loss_tr
             if loss_tr < best_loss_tr:
@@ -1118,6 +1120,7 @@ class NewLesionsUNet(nn.Module):
         self.down = map(
             lambda (f_in, f_out): nn.Conv3d(
                 f_in, f_out, 3, padding=1,
+                groups=n_images,
             ),
             zip(conv_in, conv_filters[:-1])
         )
@@ -1134,8 +1137,11 @@ class NewLesionsUNet(nn.Module):
         up_out = conv_filters[:0:-1]
         deconv_in = map(sum, zip(down_out, up_out))
         self.up = map(
-            lambda (f_in, f_out): nn.ConvTranspose3d(
-                f_in, f_out, 3, padding=1
+            lambda (f_in, f_out): nn.Sequential(
+                nn.ConvTranspose3d(f_in, f_in, 1),
+                nn.ConvTranspose3d(
+                    f_in, f_out, 3, padding=1, groups=2
+                )
             ),
             zip(
                 deconv_in,
