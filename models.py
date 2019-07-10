@@ -228,7 +228,7 @@ class CustomModel(nn.Module):
                 print(
                     len(train_dataset),
                     len(train_dataset) // batch_size,
-                    len(self.sampler)
+                    len(self.sampler),
                     len(train_loader)
                 )
             else:
