@@ -45,6 +45,7 @@ class CustomModel(nn.Module):
         self.optimizer_alg = None
         self.sampler = None
         self.epoch = 0
+        self.losses = None
         self.device = device
 
     def forward(self, *inputs):
@@ -68,7 +69,7 @@ class CustomModel(nn.Module):
                     zip(pred_labels, y)
                 )
             )
-            self.sampler.update(b_losses, indices)
+            self.losses[indices] = torch.tensor(b_losses)
             b_loss = torch.mean(b_losses)
         else:
             x, y = data
@@ -215,6 +216,7 @@ class CustomModel(nn.Module):
                 self.sampler = WeightedSubsetRandomSampler(
                     len(train_dataset), sample_rate
                 )
+                self.losses = torch.tensor(self.sampler.weights)
                 train_loader = DataLoader(
                     train_dataset, batch_size, num_workers=num_workers,
                     sampler=self.sampler
@@ -250,6 +252,8 @@ class CustomModel(nn.Module):
             t_in = time.time()
             self.t_train = time.time()
             loss_tr = self.mini_batch_loop(train_loader)
+            if self.sampler:
+                self.sampler.update(self.losses)
             # Patience check and validation/real-training loss and accuracy
             improvement = loss_tr < best_loss_tr
             if loss_tr < best_loss_tr:
