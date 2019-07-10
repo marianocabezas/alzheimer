@@ -354,7 +354,7 @@ class BratsSegmentationNet(CustomModel):
     """
     def __init__(
             self,
-            filters=28,
+            filters=32,
             kernel_size=3,
             pool_size=2,
             depth=4,
@@ -380,7 +380,7 @@ class BratsSegmentationNet(CustomModel):
                 nn.LeakyReLU(),
                 nn.Conv3d(
                     out, out, kernel_size,
-                    padding=padding, groups=g
+                    padding=padding, groups=2 * g
                 ),
                 nn.InstanceNorm3d(out),
                 nn.LeakyReLU(),
