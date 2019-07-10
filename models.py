@@ -225,12 +225,6 @@ class CustomModel(nn.Module):
                     train_dataset, batch_size, num_workers=num_workers,
                     sampler=self.sampler
                 )
-                print(
-                    len(train_dataset),
-                    len(train_dataset) // batch_size,
-                    len(self.sampler),
-                    len(train_loader)
-                )
             else:
                 train_loader = DataLoader(
                     train_dataset, batch_size, True, num_workers=num_workers
