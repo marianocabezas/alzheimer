@@ -13,7 +13,6 @@ from criterions import GenericLossLayer, multidsc_loss, normalised_xcor_loss
 from datasets import ImageListDataset
 from datasets import LongitudinalCroppingDataset, ImageListCroppingDataset
 from datasets import GenericSegmentationCroppingDataset, get_image
-from datasets import WeightedSubsetRandomSampler
 from optimizers import AdaBound
 from utils import time_to_string
 
