@@ -44,6 +44,8 @@ class CustomModel(nn.Module):
         self.criterion_alg = None
         self.optimizer_alg = None
         self.sampler = None
+        self.t_train = 0
+        self.t_val = 0
         self.epoch = 0
         self.losses = None
         self.device = device
@@ -159,8 +161,6 @@ class CustomModel(nn.Module):
         self.to(device)
         self.train()
 
-        self.t_train = 0
-        self.t_val = 0
         best_e = 0
         self.epoch = 0
         best_loss_tr = np.inf

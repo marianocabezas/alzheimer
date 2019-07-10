@@ -527,11 +527,6 @@ class ImageListDataset(Dataset):
 
 
 class WeightedSubsetRandomSampler(Sampler):
-    r"""Samples elements from a given list of indices with given probabilities (weights), with replacement.
-
-    Arguments:
-        num_samples (int): number of samples to draw
-    """
 
     def __init__(self, num_samples, sample_div=2):
 
