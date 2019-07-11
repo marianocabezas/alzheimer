@@ -292,7 +292,7 @@ class WeightedSubsetRandomSampler(Sampler):
 
     def update(self, weights, idx):
         if weights is not None:
-            self.weights[idx] = weights
+            self.weights[idx] = weights.type_as(self.weights)
 
         have = 0
         want = 1000
