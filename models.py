@@ -186,6 +186,13 @@ class CustomModel(nn.Module):
             n_t_samples = int(n_samples * (1 - val_split))
             n_v_samples = n_samples - n_t_samples
 
+            if verbose:
+                print(
+                    '%sTraining / validation samples = %d / %d' % (
+                        ' '.join([''] * 12), n_t_samples, n_v_samples
+                    )
+                )
+
             d_train = data[:n_t_samples]
             d_val = data[n_t_samples:]
 
@@ -193,14 +200,17 @@ class CustomModel(nn.Module):
             t_val = target[n_t_samples:]
 
             # Training
+            print('Dataset creation')
             train_dataset = GenericSegmentationCroppingDataset(
                 d_train, t_train, patch_size=patch_size,
                 neg_ratio=neg_ratio,
                 preload=True,
             )
+            print('Sampler creation')
             self.sampler = WeightedSubsetRandomSampler(
                 len(train_dataset), sample_rate
             )
+            print('Dataloader creation')
             train_loader = DataLoader(
                 train_dataset, batch_size, True, num_workers=num_workers,
                 sampler=self.sampler
@@ -226,13 +236,6 @@ class CustomModel(nn.Module):
                 sampler=self.sampler
             )
             val_loader = None
-
-        if verbose:
-            print(
-                '%sTraining / validation samples = %d / %d' % (
-                    ' '.join([''] * 12), n_t_samples, n_v_samples
-                )
-            )
 
         for self.epoch in range(epochs):
             # Main epoch loop
