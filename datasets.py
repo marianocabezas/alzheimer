@@ -223,7 +223,25 @@ class GenericSegmentationCroppingDataset(Dataset):
         self.patch_size = patch_size
 
         self.patch_slices = []
-        self.update()
+
+        if self.masks is not None:
+            self.patch_slices = get_balanced_slices(
+                self.labels, self.patch_size, self.masks,
+                neg_ratio=self.neg_ratio
+            )
+        elif self.labels is not None:
+            self.patch_slices = get_balanced_slices(
+                self.labels, self.patch_size, self.labels,
+                neg_ratio=self.neg_ratio
+            )
+        else:
+            data_single = map(
+                lambda d: np.ones_like(
+                    d[0] if len(d) > 1 else d
+                ),
+                self.cases
+            )
+            self.patch_slices = get_slices_bb(data_single, self.patch_size, 0)
         self.max_slice = np.cumsum(map(len, self.patch_slices))
 
     def __getitem__(self, index):
@@ -254,26 +272,6 @@ class GenericSegmentationCroppingDataset(Dataset):
 
     def __len__(self):
         return self.max_slice[-1]
-
-    def update(self):
-        if self.masks is not None:
-            self.patch_slices = get_balanced_slices(
-                self.labels, self.patch_size, self.masks,
-                neg_ratio=self.neg_ratio
-            )
-        elif self.labels is not None:
-            self.patch_slices = get_balanced_slices(
-                self.labels, self.patch_size, self.labels,
-                neg_ratio=self.neg_ratio
-            )
-        else:
-            data_single = map(
-                lambda d: np.ones_like(
-                    d[0] if len(d) > 1 else d
-                ),
-                self.cases
-            )
-            self.patch_slices = get_slices_bb(data_single, self.patch_size, 0)
 
 
 class WeightedSubsetRandomSampler(Sampler):

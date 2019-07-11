@@ -70,7 +70,7 @@ class CustomModel(nn.Module):
                     zip(pred_labels, y.to(self.device))
                 )
             )
-            self.sampler.update(b_losses.detach().cpu().numpy(), idx)
+            self.sampler.update(b_losses.clone(), idx)
             b_loss = torch.mean(b_losses)
         else:
             x, y = data
