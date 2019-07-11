@@ -287,7 +287,7 @@ class WeightedSubsetRandomSampler(Sampler):
         self.indices = torch.randperm(num_samples)[::sample_div]
 
     def __iter__(self):
-        return (i for i in self.indices)
+        return (i for i in self.indices[torch.randperm(len(self.indices))])
 
     def __len__(self):
         return self.num_samples
@@ -306,5 +306,4 @@ class WeightedSubsetRandomSampler(Sampler):
             indices[have:have + b.size(-1)] = b
             p_[b] = 0
             have += b.size(-1)
-        print(indices)
         self.indices = indices
