@@ -10,7 +10,7 @@ from torchvision import models
 import numpy as np
 from layers import ScalingLayer, SpatialTransformer, SmoothingLayer
 from criterions import GenericLossLayer, multidsc_loss, normalised_xcor_loss
-from datasets import ImageListDataset
+from datasets import ImageListDataset, WeightedSubsetRandomSampler
 from datasets import LongitudinalCroppingDataset, ImageListCroppingDataset
 from datasets import GenericSegmentationCroppingDataset, get_image
 from optimizers import AdaBound
@@ -40,6 +40,7 @@ class CustomModel(nn.Module):
             ),
     ):
         super(CustomModel, self).__init__()
+        self.sampler = None
         self.criterion_alg = None
         self.optimizer_alg = None
         self.t_train = 0
@@ -196,8 +197,12 @@ class CustomModel(nn.Module):
                 neg_ratio=neg_ratio, sampling_ratio=sample_rate,
                 preload=True,
             )
+            self.sampler = WeightedSubsetRandomSampler(
+                len(train_dataset), sample_rate
+            )
             train_loader = DataLoader(
-                train_dataset, batch_size, True, num_workers=num_workers
+                train_dataset, batch_size, True, num_workers=num_workers,
+                sampler=self.sampler
             )
             val_dataset = GenericSegmentationCroppingDataset(
                 d_val, t_val, patch_size=patch_size, neg_ratio=neg_ratio,
@@ -210,8 +215,12 @@ class CustomModel(nn.Module):
             train_dataset = GenericSegmentationCroppingDataset(
                 data, target, patch_size=patch_size, neg_ratio=neg_ratio
             )
+            self.sampler = WeightedSubsetRandomSampler(
+                len(train_dataset), sample_rate
+            )
             train_loader = DataLoader(
-                train_dataset, batch_size, True, num_workers=num_workers
+                train_dataset, batch_size, True, num_workers=num_workers,
+                sampler=self.sampler
             )
             val_loader = None
 

@@ -548,14 +548,16 @@ class WeightedSubsetRandomSampler(Sampler):
 
         self.num_samples = num_samples // sample_div
         self.weights = torch.tensor(
-            [np.iinfo(np.long).max] * num_samples, dtype=torch.double
+            [np.iinfo(np.int16).max] * num_samples, dtype=torch.double
         )
+        self.indices = torch.multinomial(self.weights, self.num_samples)
 
     def __iter__(self):
-        return (i for i in torch.multinomial(self.weights, self.num_samples))
+        return (i for i in self.indices)
 
     def __len__(self):
         return self.num_samples
 
     def update(self, weights):
         self.weights = weights
+        self.indices = torch.multinomial(self.weights, self.num_samples)
