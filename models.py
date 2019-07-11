@@ -321,8 +321,7 @@ class BratsSegmentationNet(nn.Module):
             use_sampler = sample_rate is not None
             train_dataset = GenericSegmentationCroppingDataset(
                 d_train, t_train, patch_size=patch_size,
-                neg_ratio=neg_ratio,
-                preload=True, sampler=use_sampler
+                neg_ratio=neg_ratio, sampler=use_sampler
             )
             print('Sampler creation')
             if use_sampler:
@@ -343,7 +342,6 @@ class BratsSegmentationNet(nn.Module):
             # Validation
             val_dataset = GenericSegmentationCroppingDataset(
                 d_val, t_val, patch_size=patch_size, neg_ratio=neg_ratio,
-                preload=True
             )
             val_loader = DataLoader(
                 val_dataset, batch_size, True, num_workers=num_workers
