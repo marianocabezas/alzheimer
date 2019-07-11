@@ -228,7 +228,7 @@ class CustomModel(nn.Module):
                 )
                 print('Dataloader creation')
                 train_loader = DataLoader(
-                    train_dataset, batch_size,
+                    train_dataset, batch_size, num_workers=num_workers,
                     sampler=self.sampler
                 )
             else:

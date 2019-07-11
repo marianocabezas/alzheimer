@@ -204,7 +204,7 @@ def main():
             train_x, train_y,
             val_split=0.1, criterion='dsc',
             epochs=epochs, patience=patience, batch_size=batch_size,
-            sample_rate=10,
+            sample_rate=10, num_workers=16
         )
 
         print(
