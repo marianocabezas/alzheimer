@@ -194,7 +194,7 @@ class CustomModel(nn.Module):
 
             train_dataset = GenericSegmentationCroppingDataset(
                 d_train, t_train, patch_size=patch_size,
-                neg_ratio=neg_ratio, sampling_ratio=sample_rate,
+                neg_ratio=neg_ratio,
                 preload=True,
             )
             self.sampler = WeightedSubsetRandomSampler(
