@@ -59,9 +59,25 @@ class CustomModel(nn.Module):
     ):
         # We train the model and check the loss
         torch.cuda.synchronize()
-        x, y = data
+        if self.sampler is not None:
+            x, y, idx = data
+        else:
+            x, y = data
         pred_labels = self(x.to(self.device))
-        b_loss = self.criterion_alg(pred_labels, y.to(self.device))
+        if self.sampler is not None:
+            b_losses = torch.stack(
+                map(
+                    lambda (ypred_i, y_i): self.criterion_alg(
+                        torch.unsqueeze(ypred_i, 0),
+                        torch.unsqueeze(y_i, 0)
+                    ),
+                    zip(pred_labels, y.to(self.device))
+                )
+            )
+            self.sampler.update(b_losses.detach().cpu().numpy())
+            b_loss = torch.mean(b_losses)
+        else:
+            b_loss = self.criterion_alg(pred_labels, y.to(self.device))
 
         if train:
             self.optimizer_alg.zero_grad()
@@ -131,7 +147,7 @@ class CustomModel(nn.Module):
             batch_size=32,
             neg_ratio=1,
             num_workers=32,
-            sample_rate=1,
+            sample_rate=None,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -201,20 +217,27 @@ class CustomModel(nn.Module):
 
             # Training
             print('Dataset creation')
+            use_sampler = sample_rate is not None
             train_dataset = GenericSegmentationCroppingDataset(
                 d_train, t_train, patch_size=patch_size,
                 neg_ratio=neg_ratio,
-                preload=True,
+                preload=True, sampler=use_sampler
             )
             print('Sampler creation')
-            self.sampler = WeightedSubsetRandomSampler(
-                len(train_dataset), sample_rate
-            )
-            print('Dataloader creation')
-            train_loader = DataLoader(
-                train_dataset, batch_size, True, num_workers=num_workers,
-                sampler=self.sampler
-            )
+            if use_sampler:
+                self.sampler = WeightedSubsetRandomSampler(
+                    len(train_dataset), sample_rate
+                )
+                print('Dataloader creation')
+                train_loader = DataLoader(
+                    train_dataset, batch_size, True, num_workers=num_workers,
+                    sampler=self.sampler
+                )
+            else:
+                print('Dataloader creation')
+                train_loader = DataLoader(
+                    train_dataset, batch_size, True, num_workers=num_workers,
+                )
 
             # Validation
             val_dataset = GenericSegmentationCroppingDataset(
