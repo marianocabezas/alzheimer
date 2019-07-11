@@ -61,10 +61,7 @@ class CustomModel(nn.Module):
         torch.cuda.synchronize()
         if self.sampler is not None:
             x, y, idx = data
-        else:
-            x, y = data
-        pred_labels = self(x.to(self.device))
-        if self.sampler is not None:
+            pred_labels = self(x.to(self.device))
             b_losses = torch.stack(
                 map(
                     lambda (ypred_i, y_i): self.criterion_alg(
@@ -77,6 +74,8 @@ class CustomModel(nn.Module):
             self.sampler.update(b_losses.detach().cpu().numpy(), idx)
             b_loss = torch.mean(b_losses)
         else:
+            x, y = data
+            pred_labels = self(x.to(self.device))
             b_loss = self.criterion_alg(pred_labels, y.to(self.device))
 
         if train:
