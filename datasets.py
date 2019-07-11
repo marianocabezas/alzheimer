@@ -543,11 +543,12 @@ class WeightedSubsetRandomSampler(Sampler):
 
     def __init__(self, num_samples, sample_div=2, *args):
         super(WeightedSubsetRandomSampler, self).__init__(args)
-        print('a')
         self.num_samples = num_samples // sample_div
+        print(self.num_samples)
         self.weights = torch.tensor(
             [np.iinfo(np.int16).max] * num_samples, dtype=torch.double
         )
+        print(self.weights)
         self.indices = torch.multinomial(self.weights, self.num_samples)
         print(self.indices)
 
