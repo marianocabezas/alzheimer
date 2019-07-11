@@ -272,7 +272,7 @@ class WeightedSubsetRandomSampler(Sampler):
 
     def update(self):
         have = 0
-        want = self.n_samples
+        want = len(self.indices)
         p_ = self.weights.clone()
         indices = torch.empty(want, dtype=torch.long)
         while have < want:
