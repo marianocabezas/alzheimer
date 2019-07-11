@@ -60,80 +60,10 @@ def parse_inputs():
         type=int, default=1,
         help='Patience for early stopping'
     )
-    parser.add_argument(
-        '--no-flair',
-        action='store_false', dest='use_flair', default=True,
-        help='Don''t use FLAIR'
-    )
-    parser.add_argument(
-        '--flair',
-        action='store', dest='flair', default='_flair.nii.gz',
-        help='FLAIR sufix name'
-    )
-    parser.add_argument(
-        '--no-t1',
-        action='store_false', dest='use_t1', default=True,
-        help='Don''t use T1'
-    )
-    parser.add_argument(
-        '--t1',
-        action='store', dest='t1', default='_t1.nii.gz',
-        help='T1 sufix name'
-    )
-    parser.add_argument(
-        '--no-t1ce',
-        action='store_false', dest='use_t1ce', default=True,
-        help='Don''t use T1 with contrast'
-    )
-    parser.add_argument(
-        '--t1ce',
-        action='store', dest='t1ce', default='_t1ce.nii.gz',
-        help='T1 with contrast enchancement sufix name'
-    )
-    parser.add_argument(
-        '--no-t2',
-        action='store_false', dest='use_t2', default=True,
-        help='Don''t use T2'
-    )
-    parser.add_argument(
-        '--t2',
-        action='store', dest='t2', default='_t2.nii.gz',
-        help='T2 sufix name'
-    )
-    parser.add_argument(
-        '--labels',
-        action='store', dest='labels', default='_seg.nii.gz',
-        help='Labels image sufix'
-    )
 
     options = vars(parser.parse_args())
 
     return options
-
-
-def get_names(sufix, path):
-    options = parse_inputs()
-    if path is None:
-        path = options['loo_dir']
-
-    directories = filter(os.path.isdir, [os.path.join(path, f) for f in os.listdir(path)])
-    patients = sorted(directories)
-
-    return map(lambda p: os.path.join(p, p.split('/')[-1] + sufix), patients)
-
-
-def get_names_from_path(path=None):
-    options = parse_inputs()
-    # Prepare the names
-    flair_names = get_names(options['flair'], path) if options['use_flair'] else None
-    t2_names = get_names(options['t2'], path) if options['use_t2'] else None
-    t1_names = get_names(options['t1'], path) if options['use_t1'] else None
-    t1ce_names = get_names(options['t1ce'], path) if options['use_t1ce'] else None
-
-    label_names = np.array(get_names(options['labels'], path))
-    image_names = np.stack(filter(None, [flair_names, t2_names, t1_names, t1ce_names]), axis=1)
-
-    return image_names, label_names
 
 
 def main():
