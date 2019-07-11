@@ -74,7 +74,7 @@ class CustomModel(nn.Module):
                     zip(pred_labels, y.to(self.device))
                 )
             )
-            self.sampler.update(b_losses.detach().cpu().numpy())
+            self.sampler.update(b_losses.detach().cpu().numpy(), idx)
             b_loss = torch.mean(b_losses)
         else:
             b_loss = self.criterion_alg(pred_labels, y.to(self.device))
