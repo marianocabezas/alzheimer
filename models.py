@@ -192,6 +192,7 @@ class CustomModel(nn.Module):
             t_train = target[:n_t_samples]
             t_val = target[n_t_samples:]
 
+            # Training
             train_dataset = GenericSegmentationCroppingDataset(
                 d_train, t_train, patch_size=patch_size,
                 neg_ratio=neg_ratio,
@@ -204,6 +205,8 @@ class CustomModel(nn.Module):
                 train_dataset, batch_size, True, num_workers=num_workers,
                 sampler=self.sampler
             )
+
+            # Validation
             val_dataset = GenericSegmentationCroppingDataset(
                 d_val, t_val, patch_size=patch_size, neg_ratio=neg_ratio,
                 preload=True
@@ -308,7 +311,6 @@ class CustomModel(nn.Module):
             patch_size=32,
             batch_size=32,
             num_workers=32,
-            overlap=0,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -321,7 +323,7 @@ class CustomModel(nn.Module):
         y_pred = map(lambda d: np.zeros_like(get_image(d)[0, ...]), data)
 
         test_set = GenericSegmentationCroppingDataset(
-            data, masks=masks, patch_size=patch_size, overlap=overlap
+            data, masks=masks, patch_size=patch_size
         )
         test_loader = DataLoader(
             test_set, batch_size, num_workers=num_workers

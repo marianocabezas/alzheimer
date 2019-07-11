@@ -541,15 +541,18 @@ class ImageListDataset(Dataset):
 
 class WeightedSubsetRandomSampler(Sampler):
 
-    def __init__(self, num_samples, sample_div=2):
-
+    def __init__(self, num_samples, sample_div=2, *args):
+        super(WeightedSubsetRandomSampler, self).__init__(args)
+        print('a')
         self.num_samples = num_samples // sample_div
         self.weights = torch.tensor(
             [np.iinfo(np.int16).max] * num_samples, dtype=torch.double
         )
         self.indices = torch.multinomial(self.weights, self.num_samples)
+        print(self.indices)
 
     def __iter__(self):
+        print('b')
         return (i for i in self.indices)
 
     def __len__(self):
