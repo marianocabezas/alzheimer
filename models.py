@@ -451,7 +451,7 @@ class BratsSegmentationNet(nn.Module):
         self.to(device)
         self.eval()
         whites = ' '.join([''] * 12)
-        y_pred = map(lambda d: np.zeros_like(get_image(d)[0, ...]), data)
+        y_pred = map(lambda d: np.zeros_like(d[0, ...]), data)
 
         test_set = GenericSegmentationCroppingDataset(
             data, masks=masks, patch_size=patch_size
@@ -496,7 +496,7 @@ class BratsSegmentationNet(nn.Module):
         return y_pred
 
 
-class BratsSurvivalNet(CustomModel):
+class BratsSurvivalNet(nn.Module):
     def __init__(
             self,
             n_slices,
