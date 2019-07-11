@@ -196,6 +196,34 @@ def main():
             zip(patient_paths, train_patients, brains)
         )
 
+        # Testing data
+        test_patients = patients[ini_p:end_p]
+        patient_paths = map(lambda p: os.path.join(d_path, p), test_patients)
+        lesion_names = map(
+            lambda (p_path, p): os.path.join(p_path, p + '_seg.nii.gz'),
+            zip(patient_paths, test_patients)
+        )
+        test_y = map(get_mask, lesion_names)
+        test_x = map(
+            lambda (p_path, p, mask_i): np.stack(
+                map(
+                    lambda im: get_normalised_image(
+                        os.path.join(p_path, p + im),
+                        mask_i,
+                    ),
+                    images
+                ),
+                axis=0
+            ),
+            zip(patient_paths, test_patients, brains)
+        )
+
+        print(
+            'Training / testing samples = %d / %d' % (
+                len(train_x), len(test_x)
+            )
+        )
+
         # Training itself
         print(
             '%s[%s] %sFold %s(%s%d%s%s/%d)%s' % (
