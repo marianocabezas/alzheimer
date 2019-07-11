@@ -130,7 +130,7 @@ class CustomModel(nn.Module):
             batch_size=32,
             neg_ratio=1,
             num_workers=32,
-            sample_rate=5,
+            sample_rate=1,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
