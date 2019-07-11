@@ -493,6 +493,12 @@ class BratsSegmentationNet(nn.Module):
 
         return y_pred
 
+    def save_model(self, net_name):
+        torch.save(self.state_dict(), net_name)
+
+    def load_model(self, net_name):
+        self.load_state_dict(torch.load(net_name))
+
 
 class BratsSurvivalNet(nn.Module):
     def __init__(

@@ -162,7 +162,16 @@ def main():
             c['c'], strftime("%H:%M:%S"), c['g'], n_folds, c['nc']
         )
     )
+
+    net_name = 'brats2019-nnunet_grouped'
+
     for i in range(n_folds):
+        print(
+            '%s[%s] %sFold %s(%s%d%s%s/%d)%s' % (
+                c['c'], strftime("%H:%M:%S"), c['g'],
+                c['c'], c['b'], i + 1, c['nc'], c['c'], n_folds, c['nc']
+            )
+        )
         ''' Training '''
         ini_p = len(patients) * i / n_folds
         end_p = len(patients) * (i + 1) / n_folds
@@ -225,28 +234,26 @@ def main():
         )
 
         # Training itself
-        print(
-            '%s[%s] %sFold %s(%s%d%s%s/%d)%s' % (
-                c['c'], strftime("%H:%M:%S"), c['g'],
-                c['c'], c['b'], i + 1, c['nc'], c['c'], n_folds, c['nc']
-            )
-        )
-
+        model_name = '%s_f%d.mdl' % (net_name, i)
         net = BratsSegmentationNet()
+        try:
+            net.load_model(os.path.join(d_path, model_name))
+        except IOError:
+            n_params = sum(
+                p.numel() for p in net.parameters() if p.requires_grad
+            )
+            print(
+                '%sStarting training wit a unet%s (%d parameters)' %
+                (c['c'], c['nc'], n_params)
+            )
 
-        n_params = sum(
-            p.numel() for p in net.parameters() if p.requires_grad
-        )
-        print(
-            '%sStarting training wit a unet%s (%d parameters)' %
-            (c['c'], c['nc'], n_params)
-        )
+            net.fit(
+                train_x, train_y,
+                val_split=0.1, epochs=epochs, patience=patience,
+                batch_size=batch_size, sample_rate=10, num_workers=16
+            )
 
-        net.fit(
-            train_x, train_y,
-            val_split=0.1, epochs=epochs, patience=patience,
-            batch_size=batch_size, sample_rate=10, num_workers=16
-        )
+            net.save_model(os.path.join(d_path, model_name))
 
         # Testing data
 
