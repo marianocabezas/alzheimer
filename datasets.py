@@ -290,12 +290,12 @@ class WeightedSubsetRandomSampler(Sampler):
     def __len__(self):
         return self.num_samples
 
-    def update(self, weights, idx):
-        if weights is not None:
-            self.weights[idx] = weights.type_as(self.weights)
+    def update_weights(self, weights, idx):
+        self.weights[idx] = weights.type_as(self.weights)
 
+    def update(self):
         have = 0
-        want = 1000
+        want = self.n_samples
         p_ = self.weights.clone()
         indices = torch.empty(want, dtype=torch.long)
         while have < want:
