@@ -236,7 +236,7 @@ class CustomModel(nn.Module):
             t_in = time.time()
             self.t_train = time.time()
             loss_tr = self.mini_batch_loop(train_loader)
-            train_dataset.update()
+            # train_dataset.update()
             # Patience check and validation/real-training loss and accuracy
             improvement = loss_tr < best_loss_tr
             if loss_tr < best_loss_tr:

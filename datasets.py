@@ -123,7 +123,7 @@ def filter_size(slices, mask, min_size):
 
 def get_balanced_slices(
         masks, patch_size, rois=None, min_size=0,
-        neg_ratio=2, sampling_ratio=1
+        neg_ratio=2
 ):
     # Init
     patch_half = map(lambda p_length: p_length // 2, patch_size)
@@ -190,14 +190,11 @@ def get_balanced_slices(
 
     # Final slice selection
     patch_slices = map(
-        lambda (pos_s, neg_s): map(
-            lambda idx: pos_s[idx],
-            np.random.permutation(len(pos_s))[::sampling_ratio]
-        ) + map(
+        lambda (pos_s, neg_s): pos_s + map(
             lambda idx: neg_s[idx],
             np.random.permutation(
                 len(neg_s)
-            )[:int(neg_ratio * len(pos_s)):sampling_ratio]
+            )[:int(neg_ratio * len(pos_s))]
         ),
         zip(lesion_slices, fbck_slices)
     )
@@ -260,11 +257,10 @@ class GenericSegmentationCroppingDataset(Dataset):
     def __init__(
             self,
             cases, labels=None, masks=None,
-            patch_size=32, neg_ratio=1, sampling_ratio=1,
+            patch_size=32, neg_ratio=1,
             preload=False, sampler=False
     ):
         # Init
-        self.sampling_ratio = sampling_ratio
         self.neg_ratio = neg_ratio
         # Image and mask should be numpy arrays
         self.sampler = sampler
@@ -286,6 +282,7 @@ class GenericSegmentationCroppingDataset(Dataset):
             patch_size = (patch_size,) * len(data_shape)
         self.patch_size = patch_size
 
+        self.patch_slices = []
         self.update()
         self.max_slice = np.cumsum(map(len, self.patch_slices))
 
@@ -322,12 +319,12 @@ class GenericSegmentationCroppingDataset(Dataset):
         if self.masks is not None:
             self.patch_slices = get_balanced_slices(
                 self.labels, self.patch_size, self.masks,
-                neg_ratio=self.neg_ratio, sampling_ratio=self.sampling_ratio
+                neg_ratio=self.neg_ratio
             )
         elif self.labels is not None:
             self.patch_slices = get_balanced_slices(
                 self.labels, self.patch_size, self.labels,
-                neg_ratio=self.neg_ratio, sampling_ratio=self.sampling_ratio
+                neg_ratio=self.neg_ratio
             )
         else:
             data_single = map(
