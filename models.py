@@ -11,7 +11,7 @@ import numpy as np
 from layers import ScalingLayer
 from criterions import GenericLossLayer, multidsc_loss
 from datasets import WeightedSubsetRandomSampler
-from datasets import GenericSegmentationCroppingDataset, get_image
+from datasets import GenericSegmentationCroppingDataset
 from optimizers import AdaBound
 from utils import time_to_string
 
@@ -221,7 +221,7 @@ class BratsSegmentationNet(nn.Module):
         if train:
             return np.mean(losses)
         else:
-            return np.mean(losses), np.mean(zip(*losses_list), axis=1)
+            return np.mean(losses), np.mean(zip(*mid_losses), axis=1)
 
     def print_progress(self, batch_i, n_batches, b_loss, mean_loss, train=True):
         init_c = '\033[0m' if train else '\033[38;5;238m'
