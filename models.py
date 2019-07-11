@@ -188,8 +188,8 @@ class CustomModel(nn.Module):
 
             if verbose:
                 print(
-                    '%sTraining / validation samples = %d / %d' % (
-                        ' '.join([''] * 12), n_t_samples, n_v_samples
+                    'Training / validation samples = %d / %d' % (
+                        n_t_samples, n_v_samples
                     )
                 )
 
