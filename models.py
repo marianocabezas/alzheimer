@@ -227,6 +227,7 @@ class CustomModel(nn.Module):
             t_in = time.time()
             self.t_train = time.time()
             loss_tr = self.mini_batch_loop(train_loader)
+            train_dataset.update()
             # Patience check and validation/real-training loss and accuracy
             improvement = loss_tr < best_loss_tr
             if loss_tr < best_loss_tr:
@@ -1091,7 +1092,7 @@ class NewLesionsUNet(nn.Module):
         self.down = map(
             lambda (f_in, f_out): nn.Conv3d(
                 f_in, f_out, 3,
-                # padding=1,
+                padding=1,
             ),
             zip(conv_in, conv_filters[:-1])
         )
@@ -1100,7 +1101,7 @@ class NewLesionsUNet(nn.Module):
 
         self.u = nn.Conv3d(
             conv_filters[-2], conv_filters[-1], 3,
-            # padding=1
+            padding=1
         )
         self.u.to(self.device)
 
@@ -1111,7 +1112,7 @@ class NewLesionsUNet(nn.Module):
         self.up = map(
             lambda (f_in, f_out): nn.ConvTranspose3d(
                 f_in, f_out, 3,
-                # padding=1
+                padding=1
             ),
             zip(
                 deconv_in,

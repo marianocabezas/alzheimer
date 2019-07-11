@@ -190,7 +190,10 @@ def get_balanced_slices(
 
     # Final slice selection
     patch_slices = map(
-        lambda (pos_s, neg_s): pos_s[::sampling_ratio] + map(
+        lambda (pos_s, neg_s): map(
+            lambda idx: pos_s[idx],
+            np.random.permutation(len(pos_s))[::sampling_ratio]
+        ) + map(
             lambda idx: neg_s[idx],
             np.random.permutation(
                 len(neg_s)
@@ -261,6 +264,9 @@ class GenericSegmentationCroppingDataset(Dataset):
             preload=False, sampler=False
     ):
         # Init
+        self.patch_size = patch_size
+        self.sampling_ratio = sampling_ratio
+        self.neg_ratio = neg_ratio
         # Image and mask should be numpy arrays
         self.sampler = sampler
         if preload:
@@ -282,13 +288,13 @@ class GenericSegmentationCroppingDataset(Dataset):
 
         if self.masks is not None:
             self.patch_slices = get_balanced_slices(
-                self.labels, patch_size, self.masks,
-                neg_ratio=neg_ratio, sampling_ratio=sampling_ratio
+                self.labels, self.patch_size, self.masks,
+                neg_ratio=self.neg_ratio, sampling_ratio=self.sampling_ratio
             )
         elif self.labels is not None:
             self.patch_slices = get_balanced_slices(
-                self.labels, patch_size, self.labels,
-                neg_ratio=neg_ratio, sampling_ratio=sampling_ratio
+                self.labels, self.patch_size, self.labels,
+                neg_ratio=self.neg_ratio, sampling_ratio=self.sampling_ratio
             )
         else:
             data_single = map(
@@ -328,6 +334,26 @@ class GenericSegmentationCroppingDataset(Dataset):
 
     def __len__(self):
         return self.max_slice[-1]
+
+    def update(self):
+        if self.masks is not None:
+            self.patch_slices = get_balanced_slices(
+                self.labels, self.patch_size, self.masks,
+                neg_ratio=self.neg_ratio, sampling_ratio=self.sampling_ratio
+            )
+        elif self.labels is not None:
+            self.patch_slices = get_balanced_slices(
+                self.labels, self.patch_size, self.labels,
+                neg_ratio=self.neg_ratio, sampling_ratio=self.sampling_ratio
+            )
+        else:
+            data_single = map(
+                lambda d: np.ones_like(
+                    d[0] if len(d) > 1 else d
+                ),
+                self.cases
+            )
+            self.patch_slices = get_slices_bb(data_single, patch_size, 0)
 
 
 class LongitudinalCroppingDataset(Dataset):
