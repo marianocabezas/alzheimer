@@ -3,18 +3,7 @@ import numpy as np
 import torch
 from torch.utils.data.dataset import Dataset
 from torch.utils.data.sampler import Sampler
-from nibabel import load as load_nii
 from data_manipulation.generate_features import get_mask_voxels
-
-
-def get_image(name_or_image):
-    if isinstance(name_or_image, basestring):
-        return load_nii(name_or_image).get_data()
-    elif isinstance(name_or_image, list):
-        images = map(get_image, name_or_image)
-        return np.stack(images, axis=0)
-    else:
-        return name_or_image
 
 
 def get_slices_bb(masks, patch_size, overlap, filtered=False, min_size=0):
@@ -22,7 +11,6 @@ def get_slices_bb(masks, patch_size, overlap, filtered=False, min_size=0):
     steps = map(lambda p_length: max(p_length - overlap, 1), patch_size)
 
     if type(masks) is list:
-        masks = map(get_image, masks)
         min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), masks)
         min_bb = map(
             lambda min_bb_i: map(
@@ -113,15 +101,12 @@ def get_balanced_slices(
     # Init
     patch_half = map(lambda p_length: p_length // 2, patch_size)
 
-    masks = map(get_image, masks)
-
     # Bounding box + not mask voxels
     if rois is None:
         min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), masks)
         max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), masks)
         bck_masks = map(np.logical_not, masks)
     else:
-        rois = map(get_image, rois)
         min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), rois)
         max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), rois)
         bck_masks = map(
@@ -197,26 +182,18 @@ class GenericSegmentationCroppingDataset(Dataset):
     def __init__(
             self,
             cases, labels=None, masks=None,
-            patch_size=32, neg_ratio=1,
-            preload=False, sampler=False
+            patch_size=32, neg_ratio=1, sampler=False
     ):
         # Init
         self.neg_ratio = neg_ratio
         # Image and mask should be numpy arrays
         self.sampler = sampler
-        if preload:
-            self.cases = map(get_image, cases)
-            if labels is not None:
-                self.labels = map(get_image, labels)
-            else:
-                self.labels = labels
-        else:
-            self.cases = cases
-            self.labels = labels
+        self.cases = cases
+        self.labels = labels
 
         self.masks = masks
 
-        data_shape = get_image(self.cases[0]).shape
+        data_shape = self.cases[0].shape
 
         if type(patch_size) is not tuple:
             patch_size = (patch_size,) * len(data_shape)
@@ -247,7 +224,7 @@ class GenericSegmentationCroppingDataset(Dataset):
     def __getitem__(self, index):
         # We select the case
         case_idx = np.min(np.where(self.max_slice > index))
-        case = get_image(self.cases[case_idx])
+        case = self.cases[case_idx]
 
         slices = [0] + self.max_slice.tolist()
         patch_idx = index - slices[case_idx]
@@ -260,7 +237,7 @@ class GenericSegmentationCroppingDataset(Dataset):
         inputs = case[none_slice + slice_i].astype(np.float32)
 
         if self.labels is not None:
-            labels = get_image(self.labels[case_idx]).astype(np.uint8)
+            labels = self.labels[case_idx].astype(np.uint8)
             target = np.expand_dims(labels[slice_i], 0)
 
             if self.sampler:

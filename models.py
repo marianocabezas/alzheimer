@@ -31,364 +31,6 @@ def to_torch_var(
     return var
 
 
-class CustomModel(nn.Module):
-    def __init__(
-            self,
-            device=torch.device(
-                "cuda:0" if torch.cuda.is_available() else "cpu"
-            ),
-    ):
-        super(CustomModel, self).__init__()
-        self.sampler = None
-        self.criterion_alg = None
-        self.optimizer_alg = None
-        self.t_train = 0
-        self.t_val = 0
-        self.epoch = 0
-        self.losses = None
-        self.device = device
-
-    def forward(self, *inputs):
-        pass
-
-    def step(
-            self,
-            data,
-            train=True
-    ):
-        # We train the model and check the loss
-        torch.cuda.synchronize()
-        if self.sampler is not None:
-            x, y, idx = data
-            pred_labels = self(x.to(self.device))
-            b_losses = torch.stack(
-                map(
-                    lambda (ypred_i, y_i): self.criterion_alg(
-                        torch.unsqueeze(ypred_i, 0),
-                        torch.unsqueeze(y_i, 0)
-                    ),
-                    zip(pred_labels, y.to(self.device))
-                )
-            )
-            self.sampler.update(b_losses.clone().detach().cpu(), idx)
-            b_loss = torch.mean(b_losses)
-        else:
-            x, y = data
-            pred_labels = self(x.to(self.device))
-            b_loss = self.criterion_alg(pred_labels, y.to(self.device))
-
-        if train:
-            self.optimizer_alg.zero_grad()
-            b_loss.backward()
-            self.optimizer_alg.step()
-
-        torch.cuda.synchronize()
-        torch.cuda.empty_cache()
-
-        # return b_loss
-        return b_loss
-
-    def mini_batch_loop(
-            self, training, train=True
-    ):
-        losses = list()
-        n_batches = len(training)
-        for batch_i, batch_data in enumerate(training):
-            # We train the model and check the loss
-            batch_loss = self.step(batch_data, train=train)
-
-            loss_value = batch_loss.tolist()
-            losses.append(loss_value)
-
-            self.print_progress(
-                batch_i, n_batches, loss_value, np.mean(losses), train
-            )
-
-        return np.mean(losses)
-
-    def print_progress(self, batch_i, n_batches, b_loss, mean_loss, train=True):
-        init_c = '\033[0m' if train else '\033[38;5;238m'
-        whites = ' '.join([''] * 12)
-        percent = 20 * (batch_i + 1) / n_batches
-        progress_s = ''.join(['-'] * percent)
-        remainder_s = ''.join([' '] * (20 - percent))
-        loss_name = 'train_loss' if train else 'val_loss'
-
-        if train:
-            t_out = time.time() - self.t_train
-        else:
-            t_out = time.time() - self.t_val
-        time_s = time_to_string(t_out)
-
-        t_eta = (t_out / (batch_i + 1)) * (n_batches - (batch_i + 1))
-        eta_s = time_to_string(t_eta)
-
-        batch_s = '%s%sEpoch %03d (%03d/%03d) [%s>%s] %s %f (%f) %s / ETA %s%s' % (
-            init_c, whites, self.epoch, batch_i + 1, n_batches,
-            progress_s, remainder_s,
-            loss_name, b_loss, mean_loss, time_s, eta_s, '\033[0m'
-        )
-        print('\033[K', end='')
-        print(batch_s, end='\r')
-        sys.stdout.flush()
-
-    def fit(
-            self,
-            data,
-            target,
-            val_split=0,
-            criterion='xentr',
-            optimizer='adadelta',
-            patch_size=32,
-            epochs=100,
-            patience=10,
-            batch_size=32,
-            neg_ratio=1,
-            num_workers=32,
-            sample_rate=None,
-            device=torch.device(
-                "cuda:0" if torch.cuda.is_available() else "cpu"
-            ),
-            verbose=True
-    ):
-        # Init
-        self.to(device)
-        self.train()
-
-        best_e = 0
-        self.epoch = 0
-        best_loss_tr = np.inf
-        best_loss_val = np.inf
-        no_improv_e = 0
-        best_state = deepcopy(self.state_dict())
-
-        validation = val_split > 0
-
-        criterion_dict = {
-            'xentr': nn.CrossEntropyLoss,
-            'mse': nn.MSELoss,
-            # This is just a hacky way of adding my custom made criterions
-            # as "pytorch" modules.
-            'dsc': lambda: GenericLossLayer(multidsc_loss)
-        }
-
-        optimizer_dict = {
-            'adam': torch.optim.Adam,
-            'adadelta': torch.optim.Adadelta,
-            'adabound': AdaBound,
-        }
-
-        model_params = filter(lambda p: p.requires_grad, self.parameters())
-
-        is_string = isinstance(criterion, basestring)
-
-        self.criterion_alg = criterion_dict[criterion]() if is_string else criterion
-
-        is_string = isinstance(optimizer, basestring)
-
-        self.optimizer_alg = optimizer_dict[optimizer](model_params) if is_string\
-            else optimizer
-
-        t_start = time.time()
-
-        # Data split (using numpy) for train and validation.
-        # We also compute the number of batches for both training and
-        # validation according to the batch size.
-        if validation:
-            n_samples = len(data)
-
-            n_t_samples = int(n_samples * (1 - val_split))
-            n_v_samples = n_samples - n_t_samples
-
-            if verbose:
-                print(
-                    'Training / validation samples = %d / %d' % (
-                        n_t_samples, n_v_samples
-                    )
-                )
-
-            d_train = data[:n_t_samples]
-            d_val = data[n_t_samples:]
-
-            t_train = target[:n_t_samples]
-            t_val = target[n_t_samples:]
-
-            # Training
-            print('Dataset creation')
-            use_sampler = sample_rate is not None
-            train_dataset = GenericSegmentationCroppingDataset(
-                d_train, t_train, patch_size=patch_size,
-                neg_ratio=neg_ratio,
-                preload=True, sampler=use_sampler
-            )
-            print('Sampler creation')
-            if use_sampler:
-                self.sampler = WeightedSubsetRandomSampler(
-                    len(train_dataset), sample_rate
-                )
-                print('Dataloader creation')
-                train_loader = DataLoader(
-                    train_dataset, batch_size, num_workers=num_workers,
-                    sampler=self.sampler
-                )
-            else:
-                print('Dataloader creation')
-                train_loader = DataLoader(
-                    train_dataset, batch_size, True, num_workers=num_workers,
-                )
-
-            # Validation
-            val_dataset = GenericSegmentationCroppingDataset(
-                d_val, t_val, patch_size=patch_size, neg_ratio=neg_ratio,
-                preload=True
-            )
-            val_loader = DataLoader(
-                val_dataset, batch_size, True, num_workers=num_workers
-            )
-        else:
-            train_dataset = GenericSegmentationCroppingDataset(
-                data, target, patch_size=patch_size, neg_ratio=neg_ratio
-            )
-            self.sampler = WeightedSubsetRandomSampler(
-                len(train_dataset), sample_rate
-            )
-            train_loader = DataLoader(
-                train_dataset, batch_size, True, num_workers=num_workers,
-                sampler=self.sampler
-            )
-            val_loader = None
-
-        for self.epoch in range(epochs):
-            # Main epoch loop
-            t_in = time.time()
-            self.t_train = time.time()
-            loss_tr = self.mini_batch_loop(train_loader)
-            # train_dataset.update()
-            # Patience check and validation/real-training loss and accuracy
-            improvement = loss_tr < best_loss_tr
-            if loss_tr < best_loss_tr:
-                best_loss_tr = loss_tr
-                loss_s = '\033[32m%0.5f\033[0m' % loss_tr
-            else:
-                loss_s = '%0.5f' % loss_tr
-
-            if validation:
-                with torch.no_grad():
-                    self.t_val = time.time()
-                    loss_val = self.mini_batch_loop(val_loader, False)
-
-                improvement = loss_val < best_loss_val
-                if improvement:
-                    best_loss_val = loss_val
-                    loss_s += ' | \033[36m%0.5f\033[0m' % loss_val
-                    best_e = self.epoch
-                else:
-                    loss_s += ' | %0.5f' % loss_val
-
-            if improvement:
-                best_e = self.epoch
-                best_state = deepcopy(self.state_dict())
-                no_improv_e = 0
-            else:
-                no_improv_e += 1
-
-            t_out = time.time() - t_in
-
-            t_out_s = time_to_string(t_out)
-
-            if verbose:
-                print('\033[K', end='')
-                if self.epoch == 0:
-                    print(
-                        '%sEpoch num | tr_loss%s |  time  ' % (
-                            ' '.join([''] * 12),
-                            ' | vl_loss' if validation else '')
-                    )
-                    print(
-                        '%s----------|--------%s-|--------' % (
-                            ' '.join([''] * 12),
-                            '-|--------' if validation else '')
-                    )
-                print(
-                    '%sEpoch %03d | %s | %s' % (
-                        ' '.join([''] * 12), self.epoch, loss_s, t_out_s
-                    )
-                )
-
-            if no_improv_e == patience:
-                self.load_state_dict(best_state)
-                break
-
-        t_end = time.time() - t_start
-        t_end_s = time_to_string(t_end)
-        if verbose:
-            print(
-                'Training finished in %d epochs (%s) '
-                'with minimum loss = %f (epoch %d)' % (
-                    self.epoch + 1, t_end_s, best_loss_tr, best_e)
-            )
-
-    def predict(
-            self,
-            data,
-            masks,
-            patch_size=32,
-            batch_size=32,
-            num_workers=32,
-            device=torch.device(
-                "cuda:0" if torch.cuda.is_available() else "cpu"
-            ),
-            verbose=True
-    ):
-        # Init
-        self.to(device)
-        self.eval()
-        whites = ' '.join([''] * 12)
-        y_pred = map(lambda d: np.zeros_like(get_image(d)[0, ...]), data)
-
-        test_set = GenericSegmentationCroppingDataset(
-            data, masks=masks, patch_size=patch_size
-        )
-        test_loader = DataLoader(
-            test_set, batch_size, num_workers=num_workers
-        )
-
-        n_batches = len(test_loader)
-
-        with torch.no_grad():
-            for batch_i, (batch_x, cases, slices) in enumerate(test_loader):
-                # Print stuff
-                if verbose:
-                    percent = 20 * (batch_i + 1) / n_batches
-                    progress_s = ''.join(['-'] * percent)
-                    remainder_s = ''.join([' '] * (20 - percent))
-                    print(
-                        '\033[K%sTesting batch (%02d/%02d) [%s>%s]' % (
-                            whites, batch_i, n_batches, progress_s, remainder_s
-                        ),
-                        end='\r'
-                    )
-
-                # We test the model with the current batch
-                torch.cuda.synchronize()
-                pred = self(batch_x).tolist()
-                torch.cuda.synchronize()
-                torch.cuda.empty_cache()
-
-                for c, slice_i, pred_i in zip(cases, slices, pred):
-                    slice_i = tuple(
-                        map(
-                            lambda (p_ini, p_end): slice(p_ini, p_end), slice_i
-                        )
-                    )
-                    y_pred[c][slice_i] += pred_i.tolist()
-
-        if verbose:
-            print('\033[K%sTesting finished succesfully' % whites)
-
-        return y_pred
-
-
 class BratsSegmentationNet(nn.Module):
     """
     This class is based on the nnUnet (No-New Unet).
@@ -400,9 +42,18 @@ class BratsSegmentationNet(nn.Module):
             pool_size=2,
             depth=4,
             n_images=4,
+            device=torch.device(
+                "cuda:0" if torch.cuda.is_available() else "cpu"
+            ),
     ):
         super(BratsSegmentationNet, self).__init__()
         # Init
+        self.sampler = None
+        self.t_train = 0
+        self.t_val = 0
+        self.epoch = 0
+        self.optimizer_alg = None
+        self.device = device
         padding = kernel_size // 2
 
         # Down path
@@ -547,6 +198,7 @@ class BratsSegmentationNet(nn.Module):
             self, training, train=True
     ):
         losses = list()
+        mid_losses = list()
         n_batches = len(training)
         for batch_i, batch_data in enumerate(training):
             # We train the model and check the loss
@@ -556,6 +208,7 @@ class BratsSegmentationNet(nn.Module):
                 loss_value = batch_loss.tolist()
             else:
                 loss_value = torch.mean(batch_loss).tolist()
+                mid_losses.append(batch_loss.tolist())
             losses.append(loss_value)
 
             self.print_progress(
@@ -565,7 +218,10 @@ class BratsSegmentationNet(nn.Module):
         if self.sampler is not None:
             self.sampler.update()
 
-        return np.mean(losses)
+        if train:
+            return np.mean(losses)
+        else:
+            return np.mean(losses), np.mean(zip(*losses_list), axis=1)
 
     def print_progress(self, batch_i, n_batches, b_loss, mean_loss, train=True):
         init_c = '\033[0m' if train else '\033[38;5;238m'
@@ -623,15 +279,6 @@ class BratsSegmentationNet(nn.Module):
         best_state = deepcopy(self.state_dict())
 
         validation = val_split > 0
-
-        criterion_dict = {
-            'xentr': nn.CrossEntropyLoss,
-            'mse': nn.MSELoss,
-            # This is just a hacky way of adding my custom made criterions
-            # as "pytorch" modules.
-            'dsc': lambda: GenericLossLayer(multidsc_loss)
-        }
-
         optimizer_dict = {
             'adam': torch.optim.Adam,
             'adadelta': torch.optim.Adadelta,
@@ -716,65 +363,69 @@ class BratsSegmentationNet(nn.Module):
 
         for self.epoch in range(epochs):
             # Main epoch loop
-            t_in = time.time()
             self.t_train = time.time()
             loss_tr = self.mini_batch_loop(train_loader)
-            # train_dataset.update()
-            # Patience check and validation/real-training loss and accuracy
-            improvement = loss_tr < best_loss_tr
             if loss_tr < best_loss_tr:
                 best_loss_tr = loss_tr
-                loss_s = '\033[32m%0.5f\033[0m' % loss_tr
+                tr_loss_s = '\033[32m%0.5f\033[0m' % loss_tr
             else:
-                loss_s = '%0.5f' % loss_tr
+                tr_loss_s = '%0.5f' % loss_tr
 
-            if validation:
-                with torch.no_grad():
-                    self.t_val = time.time()
-                    loss_val = self.mini_batch_loop(val_loader, False)
+            with torch.no_grad():
+                self.t_val = time.time()
+                loss_val, mid_losses = self.mini_batch_loop(val_loader, False)
 
-                improvement = loss_val < best_loss_val
-                if improvement:
-                    best_loss_val = loss_val
-                    loss_s += ' | \033[36m%0.5f\033[0m' % loss_val
-                    best_e = self.epoch
-                else:
-                    loss_s += ' | %0.5f' % loss_val
+            losses_color = map(
+                lambda (pl, l): '\033[36m%s\033[0m' if l < pl else '%s',
+                zip(best_losses, mid_losses)
+            )
+            losses_s = map(
+                lambda (c, l): c % '{:8.4f}'.format(l),
+                zip(losses_color, mid_losses)
+            )
+            best_losses = map(
+                lambda (pl, l): l if l < pl else pl,
+                zip(best_losses, mid_losses)
+            )
 
+            # Patience check
+            improvement = loss_val < best_loss_val
+            loss_s = '{:7.3f}'.format(loss_val)
             if improvement:
+                best_loss_val = loss_val
+                epoch_s = '\033[32mEpoch %03d\033[0m' % self.epoch
+                loss_s = '\033[32m%s\033[0m' % loss_s
                 best_e = self.epoch
                 best_state = deepcopy(self.state_dict())
                 no_improv_e = 0
             else:
+                epoch_s = 'Epoch %03d' % self.epoch
                 no_improv_e += 1
 
-            t_out = time.time() - t_in
-
-            t_out_s = time_to_string(t_out)
+            t_out = time.time() - self.t_train
+            t_s = time_to_string(t_out)
 
             if verbose:
+                l_names = ['train', ' val ', ' BCK ', '  NET ', '  ED  ', '  ET  ']
                 print('\033[K', end='')
+                whites = ' '.join([''] * 12)
                 if self.epoch == 0:
-                    print(
-                        '%sEpoch num | tr_loss%s |  time  ' % (
-                            ' '.join([''] * 12),
-                            ' | vl_loss' if validation else '')
+                    l_bars = '--|--'.join(
+                        ['-' * 5] * 2 + ['-' * 6] * len(l_names[2:])
                     )
-                    print(
-                        '%s----------|--------%s-|--------' % (
-                            ' '.join([''] * 12),
-                            '-|--------' if validation else '')
-                    )
-                print(
-                    '%sEpoch %03d | %s | %s' % (
-                        ' '.join([''] * 12), self.epoch, loss_s, t_out_s
-                    )
+                    l_hdr = '  |  '.join(l_names)
+                    print('%sEpoch num |  %s  |' % (whites, l_hdr))
+                    print('%s----------|--%s--|' % (whites, l_bars))
+                final_s = whites + ' | '.join(
+                    [epoch_s, tr_loss_s, loss_s] + losses_s + [t_s]
                 )
+                print(final_s)
 
             if no_improv_e == patience:
-                self.load_state_dict(best_state)
                 break
 
+        self.epoch = best_e
+        self.load_state_dict(best_state)
         t_end = time.time() - t_start
         t_end_s = time_to_string(t_end)
         if verbose:

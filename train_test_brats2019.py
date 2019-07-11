@@ -1,14 +1,11 @@
 from __future__ import print_function
 import argparse
 import os
-import csv
 from time import strftime
 import numpy as np
-from nibabel import load as load_nii
-from skimage.transform import resize
-from sklearn import decomposition
-import torch
-from models import BratsSegmentationNet, BratsSurvivalNet
+from models import BratsSegmentationNet
+from utils import color_codes, get_dirs, find_file, run_command, print_message
+from utils import get_mask, get_normalised_image
 
 
 def color_codes():
@@ -146,19 +143,19 @@ def main():
     batch_size = options['batch_size']
     epochs = options['epochs']
     patience = options['patience']
+    images = ['_flair.nii.gz', '_t1.nii.gz', '_t1ce.nii.gz', '_t2.nii.gz']
 
     # Prepare the sufix that will be added to the results for the net and images
-    train_data, train_labels = get_names_from_path()
 
     print(
         '%s[%s] %s<BRATS 2019 pipeline testing>%s' % (
             c['c'], strftime("%H:%M:%S"), c['y'], c['nc']
         )
     )
-    # Block center computation
+    d_path = options['loo_dir']
+    patients = get_dirs(d_path)
 
     ''' <Segmentation task> '''
-    # n_folds = len(tst_simage_names)
     n_folds = 5
     print(
         '%s[%s] %sStarting cross-validation (segmentation) - %d folds%s' % (
@@ -167,20 +164,37 @@ def main():
     )
     for i in range(n_folds):
         ''' Training '''
-        ini_p = len(train_data) * i / n_folds
-        end_p = len(train_data) * (i + 1) / n_folds
+        ini_p = len(patients) * i / n_folds
+        end_p = len(patients) * (i + 1) / n_folds
 
         # Training data
-        train_x = np.concatenate(
-            [train_data[:ini_p], train_data[end_p:]]
-        ).tolist()
-        train_y = np.concatenate(
-            [train_labels[:ini_p], train_labels[end_p:]]
-        ).tolist()
-
-        # Testing data
-        test_x = train_data[ini_p:end_p].tolist()
-        test_y = train_labels[ini_p:end_p].tolist()
+        train_patients = patients[:ini_p] + patients[end_p:]
+        patient_paths = map(lambda p: os.path.join(d_path, p), train_patients)
+        brain_names = map(
+            lambda (p_path, p): os.path.join(
+                p_path, p + '_t1.nii.gz'
+            ),
+            zip(patient_paths, train_patients)
+        )
+        brains = map(get_mask, brain_names)
+        lesion_names = map(
+            lambda (p_path, p): os.path.join(p_path, p + '_seg.nii.gz'),
+            zip(patient_paths, train_patients)
+        )
+        train_y = map(get_mask, lesion_names)
+        train_x = map(
+            lambda (p_path, p, mask_i): np.stack(
+                map(
+                    lambda im: get_normalised_image(
+                        os.path.join(p_path, p + im),
+                        mask_i,
+                    ),
+                    images
+                ),
+                axis=0
+            ),
+            zip(patient_paths, train_patients, brains)
+        )
 
         # Training itself
         print(
@@ -202,10 +216,11 @@ def main():
 
         net.fit(
             train_x, train_y,
-            val_split=0.1, criterion='dsc',
-            epochs=epochs, patience=patience, batch_size=batch_size,
-            sample_rate=10, num_workers=16
+            val_split=0.1, epochs=epochs, patience=patience,
+            batch_size=batch_size, sample_rate=10, num_workers=16
         )
+
+        # Testing data
 
         print(
             '%s[%s] %sStarting training (%ssegmentation%s)%s' % (
