@@ -200,7 +200,8 @@ class CustomModel(nn.Module):
                 train_dataset, batch_size, True, num_workers=num_workers
             )
             val_dataset = GenericSegmentationCroppingDataset(
-                d_val, t_val, patch_size=patch_size, neg_ratio=neg_ratio
+                d_val, t_val, patch_size=patch_size, neg_ratio=neg_ratio,
+                preload=True
             )
             val_loader = DataLoader(
                 val_dataset, batch_size, True, num_workers=num_workers
@@ -1072,7 +1073,7 @@ class MaskAtrophyNet(nn.Module):
 class NewLesionsUNet(nn.Module):
     def __init__(
             self,
-            conv_filters=list([32, 64, 64, 64, 64]),
+            conv_filters=list([32, 64, 64, 64]),
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
             n_images=1,
     ):
@@ -1089,7 +1090,8 @@ class NewLesionsUNet(nn.Module):
 
         self.down = map(
             lambda (f_in, f_out): nn.Conv3d(
-                f_in, f_out, 3, padding=1,
+                f_in, f_out, 3,
+                # padding=1,
             ),
             zip(conv_in, conv_filters[:-1])
         )
@@ -1097,7 +1099,8 @@ class NewLesionsUNet(nn.Module):
             c.to(device)
 
         self.u = nn.Conv3d(
-            conv_filters[-2], conv_filters[-1], 3, padding=1
+            conv_filters[-2], conv_filters[-1], 3,
+            # padding=1
         )
         self.u.to(self.device)
 
@@ -1107,7 +1110,8 @@ class NewLesionsUNet(nn.Module):
         deconv_in = map(sum, zip(down_out, up_out))
         self.up = map(
             lambda (f_in, f_out): nn.ConvTranspose3d(
-                f_in, f_out, 3, padding=1
+                f_in, f_out, 3,
+                # padding=1
             ),
             zip(
                 deconv_in,
