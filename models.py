@@ -160,7 +160,7 @@ class BratsSegmentationNet(nn.Module):
     ):
         # We train the model and check the loss
         torch.cuda.synchronize()
-        if self.sampler is not None:
+        if self.sampler is not None and train:
             x, y, idx = data
             pred_labels = self(x.to(self.device))
             b_losses = torch.stack(
@@ -215,7 +215,7 @@ class BratsSegmentationNet(nn.Module):
                 batch_i, n_batches, loss_value, np.mean(losses), train
             )
 
-        if self.sampler is not None:
+        if self.sampler is not None and train:
             self.sampler.update()
 
         if train:
@@ -357,7 +357,9 @@ class BratsSegmentationNet(nn.Module):
                 train_dataset, batch_size, True, num_workers=num_workers,
                 sampler=self.sampler
             )
-            val_loader = None
+            val_loader = DataLoader(
+                train_dataset, batch_size, True, num_workers=num_workers,
+            )
 
         for self.epoch in range(epochs):
             # Main epoch loop
