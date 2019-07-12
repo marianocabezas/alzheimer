@@ -163,7 +163,7 @@ class BratsSegmentationNet(nn.Module):
         if self.sampler is not None and train:
             x, y, idx = data
             pred_labels = self(x.to(self.device))
-            b_losses = torch.stack(
+            b_loss = torch.stack(
                 map(
                     lambda (ypred_i, y_i): multidsc_loss(
                         torch.unsqueeze(ypred_i, 0),
@@ -173,17 +173,14 @@ class BratsSegmentationNet(nn.Module):
                     zip(pred_labels, y.to(self.device))
                 )
             )
-            self.sampler.update_weights(b_losses.clone().detach().cpu(), idx)
-            if train:
-                b_loss = torch.mean(b_losses)
-            else:
-                b_loss = b_losses
+            self.sampler.update_weights(b_loss.clone().detach().cpu(), idx)
         else:
             x, y = data
             pred_labels = self(x.to(self.device))
-            b_loss = multidsc_loss(pred_labels, y.to(self.device))
+            b_loss = multidsc_loss(pred_labels, y.to(self.device), train)
 
         if train:
+            b_loss = torch.mean(b_loss)
             self.optimizer_alg.zero_grad()
             b_loss.backward()
             self.optimizer_alg.step()
