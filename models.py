@@ -344,7 +344,7 @@ class BratsSegmentationNet(nn.Module):
                 d_val, t_val, patch_size=patch_size, neg_ratio=neg_ratio,
             )
             val_loader = DataLoader(
-                val_dataset, batch_size, True, num_workers=num_workers
+                val_dataset, batch_size, num_workers=num_workers
             )
         else:
             train_dataset = GenericSegmentationCroppingDataset(
@@ -358,7 +358,7 @@ class BratsSegmentationNet(nn.Module):
                 sampler=self.sampler
             )
             val_loader = DataLoader(
-                train_dataset, batch_size, True, num_workers=num_workers,
+                train_dataset, batch_size, num_workers=num_workers,
             )
 
         for self.epoch in range(epochs):
