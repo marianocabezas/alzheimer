@@ -132,7 +132,7 @@ class BratsSegmentationNet(nn.Module):
 
         # Segmentation
         self.out = nn.Sequential(
-            nn.Conv3d(filters, 5, 1),
+            nn.Conv3d(filters, 4, 1),
             nn.Softmax(dim=1)
         )
         self.out.to(self.device)

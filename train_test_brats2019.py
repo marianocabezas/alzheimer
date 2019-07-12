@@ -121,6 +121,8 @@ def main():
             zip(patient_paths, train_patients)
         )
         train_y = map(get_mask, lesion_names)
+        for yi in train_y:
+            yi[yi == 4] = 3
         train_x = map(
             lambda (p_path, p, mask_i): np.stack(
                 map(
