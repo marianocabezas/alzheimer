@@ -30,14 +30,15 @@ def multidsc_loss(pred, target, smooth=1, averaged=True):
         target = target.type_as(pred)
 
     reduce_dims = tuple(range(2, len(dims)))
-    num = (2 * torch.sum(pred * target, dim=reduce_dims)) + smooth
-    den = torch.sum(pred + target, dim=reduce_dims) + smooth
+    num = (2 * torch.sum(pred * target, dim=reduce_dims[1:])) + smooth
+    den = torch.sum(pred + target, dim=reduce_dims[1:]) + smooth
     dsc_k = num / den
     if averaged:
-        class_sum = torch.sum(target, dim=reduce_dims)
-        total_sum = torch.sum(target, dim=(2,) + reduce_dims)
+        class_sum = torch.sum(target, dim=reduce_dims[1:])
+        total_sum = torch.sum(target, dim=reduce_dims)
         if (total_sum > 0).all():
             class_pr = class_sum / total_sum
+            print(class_sum, total_sum, class_pr)
             dsc = 1 - torch.sum(dsc_k * class_pr) / dims[0]
         else:
             dsc = 1 - torch.mean(dsc_k)
