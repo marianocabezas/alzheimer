@@ -36,6 +36,7 @@ def multidsc_loss(pred, target, smooth=1, averaged=True):
     if averaged:
         class_sum = torch.sum(target, dim=reduce_dims[1:])
         total_sum = torch.sum(target, dim=reduce_dims)
+        print(class_sum, total_sum)
         if (total_sum > 0).all():
             class_pr = 1 - class_sum / total_sum
             dsc = 1 - torch.sum(dsc_k * class_pr) / dims[0]
