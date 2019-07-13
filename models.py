@@ -178,7 +178,9 @@ class BratsSegmentationNet(nn.Module):
         else:
             x, y = data
             pred_labels = self(x.to(self.device))
-            b_loss = multidsc_loss(pred_labels, y.to(self.device), train)
+            b_loss = multidsc_loss(
+                pred_labels, y.to(self.device), averaged=train
+            )
 
         if train:
             self.optimizer_alg.zero_grad()
@@ -205,6 +207,7 @@ class BratsSegmentationNet(nn.Module):
                 loss_value = batch_loss.tolist()
             else:
                 loss_value = torch.mean(batch_loss).tolist()
+                b_losses = tuple(map(lambda l: l.tolist(), batch_loss))
                 mid_losses.append(batch_loss.tolist())
             losses.append(loss_value)
 
