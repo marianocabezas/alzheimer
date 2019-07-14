@@ -361,6 +361,10 @@ class BratsSegmentationNet(nn.Module):
                 train_dataset, batch_size, num_workers=num_workers,
             )
 
+        l_names = ['train', ' val ', ' BCK ', '  NET ', '  ED  ', '  ET  ']
+        best_losses = [np.inf] * (len(l_names))
+        best_e = 0
+
         for self.epoch in range(epochs):
             # Main epoch loop
             self.t_train = time.time()
@@ -406,7 +410,6 @@ class BratsSegmentationNet(nn.Module):
             t_s = time_to_string(t_out)
 
             if verbose:
-                l_names = ['train', ' val ', ' BCK ', '  NET ', '  ED  ', '  ET  ']
                 print('\033[K', end='')
                 whites = ' '.join([''] * 12)
                 if self.epoch == 0:
