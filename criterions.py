@@ -44,7 +44,7 @@ def multidsc_loss(pred, target, smooth=1, averaged=True):
     else:
         dsc = 1 - torch.mean(dsc_k, dim=0)
 
-    return dsc
+    return torch.clamp(dsc, 0., 1.)
 
 
 class GenericLossLayer(torch.nn.Module):
