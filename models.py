@@ -260,7 +260,7 @@ class BratsSegmentationNet(nn.Module):
             batch_size=32,
             neg_ratio=1,
             num_workers=32,
-            sample_rate=None,
+            sample_rate=1,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -315,7 +315,7 @@ class BratsSegmentationNet(nn.Module):
 
             # Training
             print('Dataset creation')
-            use_sampler = sample_rate is not None
+            use_sampler = sample_rate > 1
             train_dataset = GenericSegmentationCroppingDataset(
                 d_train, t_train, patch_size=patch_size,
                 neg_ratio=neg_ratio, sampler=use_sampler
