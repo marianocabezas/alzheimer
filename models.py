@@ -207,7 +207,6 @@ class BratsSegmentationNet(nn.Module):
                 loss_value = batch_loss.tolist()
             else:
                 loss_value = torch.mean(batch_loss).tolist()
-                b_losses = tuple(map(lambda l: l.tolist(), batch_loss))
                 mid_losses.append(batch_loss.tolist())
             losses.append(loss_value)
 
@@ -271,8 +270,6 @@ class BratsSegmentationNet(nn.Module):
         self.to(device)
         self.train()
 
-        best_e = 0
-        self.epoch = 0
         best_loss_tr = np.inf
         best_loss_val = np.inf
         no_improv_e = 0
@@ -328,7 +325,7 @@ class BratsSegmentationNet(nn.Module):
                 self.sampler = WeightedSubsetRandomSampler(
                     len(train_dataset), sample_rate
                 )
-                print('Dataloader creation')
+                print('Dataloader creation with sampler')
                 train_loader = DataLoader(
                     train_dataset, batch_size, num_workers=num_workers,
                     sampler=self.sampler
