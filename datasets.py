@@ -268,7 +268,7 @@ class WeightedSubsetRandomSampler(Sampler):
         return self.num_samples
 
     def update_weights(self, weights, idx):
-        print(len(weights), len(idx), weights)
+        print(weights.shape, idx.shape, weights)
         self.weights[idx] = weights.type_as(self.weights)
 
     def update(self):
