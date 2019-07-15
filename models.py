@@ -178,7 +178,9 @@ class BratsSegmentationNet(nn.Module):
         else:
             x, y = data
             pred_labels = self(x.to(self.device))
-            b_loss = multidsc_loss(pred_labels, y.to(self.device), train)
+            b_loss = multidsc_loss(
+                pred_labels, y.to(self.device), averaged=train
+            )
 
         if train:
             self.optimizer_alg.zero_grad()
@@ -205,6 +207,7 @@ class BratsSegmentationNet(nn.Module):
                 loss_value = batch_loss.tolist()
             else:
                 loss_value = torch.mean(batch_loss).tolist()
+                b_losses = tuple(map(lambda l: l.tolist(), batch_loss))
                 mid_losses.append(batch_loss.tolist())
             losses.append(loss_value)
 
@@ -358,6 +361,10 @@ class BratsSegmentationNet(nn.Module):
                 train_dataset, batch_size, num_workers=num_workers,
             )
 
+        l_names = ['train', ' val ', ' BCK ', '  NET ', '  ED  ', '  ET  ']
+        best_losses = [np.inf] * (len(l_names))
+        best_e = 0
+
         for self.epoch in range(epochs):
             # Main epoch loop
             self.t_train = time.time()
@@ -403,7 +410,6 @@ class BratsSegmentationNet(nn.Module):
             t_s = time_to_string(t_out)
 
             if verbose:
-                l_names = ['train', ' val ', ' BCK ', '  NET ', '  ED  ', '  ET  ']
                 print('\033[K', end='')
                 whites = ' '.join([''] * 12)
                 if self.epoch == 0:

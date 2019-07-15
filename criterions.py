@@ -1,3 +1,4 @@
+from __future__ import division
 import torch
 import torch.nn.functional as F
 
@@ -28,13 +29,13 @@ def multidsc_loss(pred, target, smooth=1, averaged=True):
         )
         target = target.type_as(pred)
 
-    reduce_dims = tuple(range(2, len(dims)))
-    num = (2 * torch.sum(pred * target, dim=reduce_dims)) + smooth
-    den = torch.sum(pred + target, dim=reduce_dims) + smooth
+    reduce_dims = tuple(range(1, len(dims)))
+    num = (2 * torch.sum(pred * target, dim=reduce_dims[1:])) + smooth
+    den = torch.sum(pred + target, dim=reduce_dims[1:]) + smooth
     dsc_k = num / den
     if averaged:
-        class_sum = torch.sum(target, dim=reduce_dims)
-        total_sum = torch.sum(target, dim=(2,) + reduce_dims)
+        class_sum = torch.sum(target, dim=reduce_dims[1:])
+        total_sum = torch.unsqueeze(torch.sum(target, dim=reduce_dims), dim=1)
         if (total_sum > 0).all():
             class_pr = 1 - class_sum / total_sum
             dsc = 1 - torch.sum(dsc_k * class_pr) / dims[0]
