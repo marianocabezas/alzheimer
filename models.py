@@ -320,8 +320,8 @@ class BratsSegmentationNet(nn.Module):
                 d_train, t_train, patch_size=patch_size,
                 neg_ratio=neg_ratio, sampler=use_sampler
             )
-            print('Sampler creation')
             if use_sampler:
+                print('Sampler creation')
                 self.sampler = WeightedSubsetRandomSampler(
                     len(train_dataset), sample_rate
                 )
@@ -341,7 +341,7 @@ class BratsSegmentationNet(nn.Module):
                 d_val, t_val, patch_size=patch_size, neg_ratio=neg_ratio,
             )
             val_loader = DataLoader(
-                val_dataset, batch_size, num_workers=num_workers
+                val_dataset, 2 * batch_size, num_workers=num_workers
             )
         else:
             train_dataset = GenericSegmentationCroppingDataset(

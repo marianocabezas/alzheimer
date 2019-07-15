@@ -51,13 +51,13 @@ def parse_inputs():
     parser.add_argument(
         '-e', '--epochs',
         dest='epochs',
-        type=int,  default=500,
+        type=int,  default=50,
         help='Number of epochs'
     )
     parser.add_argument(
         '-p', '--patience',
         dest='patience',
-        type=int, default=25,
+        type=int, default=5,
         help='Patience for early stopping'
     )
 
@@ -182,7 +182,7 @@ def main():
             net.fit(
                 train_x, train_y,
                 val_split=0.1, epochs=epochs, patience=patience,
-                batch_size=batch_size, sample_rate=100, num_workers=16
+                batch_size=batch_size, sample_rate=10, num_workers=16
             )
 
             net.save_model(os.path.join(d_path, model_name))
