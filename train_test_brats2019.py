@@ -57,7 +57,7 @@ def parse_inputs():
     parser.add_argument(
         '-p', '--patience',
         dest='patience',
-        type=int, default=5,
+        type=int, default=2,
         help='Patience for early stopping'
     )
     parser.add_argument(
