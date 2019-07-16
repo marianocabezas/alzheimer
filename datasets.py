@@ -220,7 +220,7 @@ class GenericSegmentationCroppingDataset(Dataset):
                 )
                 self.patch_slices = get_slices_bb(data_single, self.patch_size, 0)
         else:
-            overlap =  int(self.patch_size[0] // 1.25)
+            overlap = int(self.patch_size[0] // 1.1)
             if self.masks is not None:
                 self.patch_slices = get_slices_bb(
                     self.masks, self.patch_size, overlap=overlap,
@@ -305,3 +305,4 @@ class WeightedSubsetRandomSampler(Sampler):
             p_[b] = 0
             have += b.size(-1)
         self.indices = indices[torch.randperm(len(indices))]
+        print(self.indices)
