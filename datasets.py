@@ -241,6 +241,7 @@ class GenericSegmentationCroppingDataset(Dataset):
                     data_single, self.patch_size, self.patch_size[0] // 2,
                     filtered=True
                 )
+        self.max_slice = np.cumsum(map(len, self.patch_slices))
 
     def __getitem__(self, index):
         # We select the case
