@@ -60,6 +60,12 @@ def parse_inputs():
         type=int, default=5,
         help='Patience for early stopping'
     )
+    parser.add_argument(
+        '-s', '--sampling-rate',
+        dest='sampling_rate',
+        type=int,  default=1,
+        help='Number of epochs'
+    )
 
     options = vars(parser.parse_args())
 
