@@ -162,7 +162,6 @@ def main():
             zip(patient_paths, test_patients)
         )
         brains = map(get_mask, brain_names)
-        test_y = map(get_mask, lesion_names)
         test_x = map(
             lambda (p_path, p, mask_i): np.stack(
                 map(
@@ -207,10 +206,12 @@ def main():
             net.save_model(os.path.join(d_path, model_name))
 
         # Testing data
-        pred_y = net.segment(train_x, brains)
+        pred_y = net.segment(test_x, brains)
+
         for (path_i, p_i, pred_i) in zip(patient_paths, test_patients, pred_y):
             seg_i = np.argmax(pred_i)
             seg_i[seg_i == 3] = 4
+
             niiname = os.path.join(path_i, p_i + 'seg.nii.gz')
             nii = load_nii(niiname)
             seg = nii.get_data()
