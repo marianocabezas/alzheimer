@@ -181,7 +181,7 @@ def get_mesh(shape):
 class GenericSegmentationCroppingDataset(Dataset):
     def __init__(
             self,
-            cases, labels=None, masks=None,
+            cases, labels=None, masks=None, balanced=False,
             patch_size=32, neg_ratio=1, sampler=False
     ):
         # Init
@@ -200,7 +200,7 @@ class GenericSegmentationCroppingDataset(Dataset):
         self.patch_size = patch_size
 
         self.patch_slices = []
-        if not self.sampler:
+        if not self.sampler and balanced:
             if self.masks is not None:
                 self.patch_slices = get_balanced_slices(
                     self.labels, self.patch_size, self.masks,
@@ -222,12 +222,12 @@ class GenericSegmentationCroppingDataset(Dataset):
         else:
             if self.masks is not None:
                 self.patch_slices = get_slices_bb(
-                    self.masks, self.patch_size, self.patch_size[0] // 2,
+                    self.masks, self.patch_size, self.patch_size[0] // 4,
                     filtered=True
                 )
             elif self.labels is not None:
                 self.patch_slices = get_slices_bb(
-                    self.labels, self.patch_size, self.patch_size[0] // 2,
+                    self.labels, self.patch_size, self.patch_size[0] // 4,
                     filtered=True
                 )
             else:
