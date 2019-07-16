@@ -181,7 +181,7 @@ def get_mesh(shape):
 class GenericSegmentationCroppingDataset(Dataset):
     def __init__(
             self,
-            cases, labels=None, masks=None, balanced=False,
+            cases, labels=None, masks=None, balanced=True,
             patch_size=32, neg_ratio=1, sampler=False
     ):
         # Init
