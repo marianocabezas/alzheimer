@@ -358,7 +358,7 @@ class BratsSegmentationNet(nn.Module):
                 train_dataset, batch_size, num_workers=num_workers,
             )
 
-        l_names = ['train', ' val ', ' BCK ', '  NET ', '  ED  ', '  ET  ']
+        l_names = ['train', ' val ', '  BCK ', '  NET ', '  ED  ', '  ET  ']
         best_losses = [np.inf] * (len(l_names))
         best_e = 0
 
