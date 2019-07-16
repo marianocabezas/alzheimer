@@ -200,26 +200,47 @@ class GenericSegmentationCroppingDataset(Dataset):
         self.patch_size = patch_size
 
         self.patch_slices = []
-
-        if self.masks is not None:
-            self.patch_slices = get_balanced_slices(
-                self.labels, self.patch_size, self.masks,
-                neg_ratio=self.neg_ratio
-            )
-        elif self.labels is not None:
-            self.patch_slices = get_balanced_slices(
-                self.labels, self.patch_size, self.labels,
-                neg_ratio=self.neg_ratio
-            )
+        if self.sampler is None:
+            if self.masks is not None:
+                self.patch_slices = get_balanced_slices(
+                    self.labels, self.patch_size, self.masks,
+                    neg_ratio=self.neg_ratio
+                )
+            elif self.labels is not None:
+                self.patch_slices = get_balanced_slices(
+                    self.labels, self.patch_size, self.labels,
+                    neg_ratio=self.neg_ratio
+                )
+            else:
+                data_single = map(
+                    lambda d: np.ones_like(
+                        d[0] if len(d) > 1 else d
+                    ),
+                    self.cases
+                )
+                self.patch_slices = get_slices_bb(data_single, self.patch_size, 0)
         else:
-            data_single = map(
-                lambda d: np.ones_like(
-                    d[0] if len(d) > 1 else d
-                ),
-                self.cases
-            )
-            self.patch_slices = get_slices_bb(data_single, self.patch_size, 0)
-        self.max_slice = np.cumsum(map(len, self.patch_slices))
+            if self.masks is not None:
+                self.patch_slices = get_slices_bb(
+                    self.masks, self.patch_size, self.patch_size[0] // 2,
+                    filtered=True
+                )
+            elif self.labels is not None:
+                self.patch_slices = get_slices_bb(
+                    self.labels, self.patch_size, self.patch_size[0] // 2,
+                    filtered=True
+                )
+            else:
+                data_single = map(
+                    lambda d: np.ones_like(
+                        d[0] > np.min(d[0]) if len(d) > 1 else d
+                    ),
+                    self.cases
+                )
+                self.patch_slices = get_slices_bb(
+                    data_single, self.patch_size, self.patch_size[0] // 2,
+                    filtered=True
+                )
 
     def __getitem__(self, index):
         # We select the case

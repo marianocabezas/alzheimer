@@ -73,6 +73,7 @@ def main():
     batch_size = options['batch_size']
     epochs = options['epochs']
     patience = options['patience']
+    sampling_rate = options['sampling_rate']
     images = ['_flair.nii.gz', '_t1.nii.gz', '_t1ce.nii.gz', '_t2.nii.gz']
 
     # Prepare the sufix that will be added to the results for the net and images
@@ -93,7 +94,7 @@ def main():
         )
     )
 
-    net_name = 'brats2019-nnunet_grouped'
+    net_name = 'brats2019-nnunet_grouped-sr%d' % sampling_rate
 
     for i in range(n_folds):
         print(
@@ -182,7 +183,8 @@ def main():
             net.fit(
                 train_x, train_y,
                 val_split=0.1, epochs=epochs, patience=patience,
-                batch_size=batch_size, num_workers=16
+                batch_size=batch_size, num_workers=16,
+                sample_rate=sampling_rate
             )
 
             net.save_model(os.path.join(d_path, model_name))
