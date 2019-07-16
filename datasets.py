@@ -220,14 +220,15 @@ class GenericSegmentationCroppingDataset(Dataset):
                 )
                 self.patch_slices = get_slices_bb(data_single, self.patch_size, 0)
         else:
+            overlap =  int(self.patch_size[0] // 1.5)
             if self.masks is not None:
                 self.patch_slices = get_slices_bb(
-                    self.masks, self.patch_size, self.patch_size[0] // 1.5,
+                    self.masks, self.patch_size, overlap=overlap,
                     filtered=True
                 )
             elif self.labels is not None:
                 self.patch_slices = get_slices_bb(
-                    self.labels, self.patch_size, self.patch_size[0] // 1.5,
+                    self.labels, self.patch_size, overlap=overlap,
                     filtered=True
                 )
             else:
@@ -238,7 +239,7 @@ class GenericSegmentationCroppingDataset(Dataset):
                     self.cases
                 )
                 self.patch_slices = get_slices_bb(
-                    data_single, self.patch_size, self.patch_size[0] // 1.5,
+                    data_single, self.patch_size, overlap=overlap,
                     filtered=True
                 )
         self.max_slice = np.cumsum(map(len, self.patch_slices))
