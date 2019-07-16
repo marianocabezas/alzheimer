@@ -220,7 +220,7 @@ class GenericSegmentationCroppingDataset(Dataset):
                 )
                 self.patch_slices = get_slices_bb(data_single, self.patch_size, 0)
         else:
-            overlap =  int(self.patch_size[0] // 1.5)
+            overlap =  int(self.patch_size[0] // 1.1)
             if self.masks is not None:
                 self.patch_slices = get_slices_bb(
                     self.masks, self.patch_size, overlap=overlap,

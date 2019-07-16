@@ -6,6 +6,9 @@ import numpy as np
 from models import BratsSegmentationNet
 from utils import color_codes, get_dirs, find_file, run_command, print_message
 from utils import get_mask, get_normalised_image
+from nibabel import save as save_nii
+from nibabel import load as load_nii
+from data_manipulation.metrics import dsc_seg
 
 
 def color_codes():
@@ -152,6 +155,13 @@ def main():
             lambda (p_path, p): os.path.join(p_path, p + '_seg.nii.gz'),
             zip(patient_paths, test_patients)
         )
+        brain_names = map(
+            lambda (p_path, p): os.path.join(
+                p_path, p + '_t1.nii.gz'
+            ),
+            zip(patient_paths, test_patients)
+        )
+        brains = map(get_mask, brain_names)
         test_y = map(get_mask, lesion_names)
         test_x = map(
             lambda (p_path, p, mask_i): np.stack(
@@ -197,6 +207,23 @@ def main():
             net.save_model(os.path.join(d_path, model_name))
 
         # Testing data
+        pred_y = net.segment(train_x, brains)
+        for (path_i, p_i, pred_i) in zip(patient_paths, test_patients, pred_y):
+            seg_i = np.argmax(pred_i)
+            seg_i[seg_i == 3] = 4
+            niiname = os.path.join(path_i, p_i + 'seg.nii.gz')
+            nii = load_nii(niiname)
+            seg = nii.get_data()
+            nii.get_data()[:] = seg_i
+            save_nii(nii, os.path.join(path_i, p_i))
+
+            dsc = map(
+                lambda label: dsc_seg(seg == label, seg_i == label), [1, 2, 4]
+            )
+
+            print(
+                'Patient %s: %s' % (p_i, ' / '.join(map(str, dsc)))
+            )
 
         print(
             '%s[%s] %sStarting training (%ssegmentation%s)%s' % (

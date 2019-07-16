@@ -496,6 +496,49 @@ class BratsSegmentationNet(nn.Module):
 
         return y_pred
 
+    def segment(
+            self,
+            data,
+            masks,
+            device=torch.device(
+                "cuda:0" if torch.cuda.is_available() else "cpu"
+            ),
+            verbose=True
+    ):
+        # Init
+        self.to(device)
+        self.eval()
+        whites = ' '.join([''] * 12)
+        results = []
+
+        with torch.no_grad():
+            cases = len(data)
+            for i, (data_i, m_i) in enumerate(zip(data, masks)):
+                # Print stuff
+                if verbose:
+                    percent = 20 * (i + 1) / cases
+                    progress_s = ''.join(['-'] * percent)
+                    remainder_s = ''.join([' '] * (20 - percent))
+                    print(
+                        '\033[K%sTesting case (%02d/%02d) [%s>%s]' % (
+                            whites, i, cases, progress_s, remainder_s
+                        ),
+                        end='\r'
+                    )
+
+                # We test the model with the current batch
+                torch.cuda.synchronize()
+                pred = self(data_i).tolist()
+                torch.cuda.synchronize()
+                torch.cuda.empty_cache()
+
+                results.appent(pred.tolist() * m_i)
+
+        if verbose:
+            print('\033[K%sTesting finished succesfully' % whites)
+
+        return results
+
     def save_model(self, net_name):
         torch.save(self.state_dict(), net_name)
 
