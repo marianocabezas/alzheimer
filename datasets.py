@@ -200,7 +200,7 @@ class GenericSegmentationCroppingDataset(Dataset):
         self.patch_size = patch_size
 
         self.patch_slices = []
-        if self.sampler is None:
+        if not self.sampler:
             if self.masks is not None:
                 self.patch_slices = get_balanced_slices(
                     self.labels, self.patch_size, self.masks,
