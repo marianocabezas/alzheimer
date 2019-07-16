@@ -254,7 +254,7 @@ class BratsSegmentationNet(nn.Module):
             target,
             val_split=0,
             optimizer='adadelta',
-            patch_size=32,
+            patch_size=64,
             epochs=100,
             patience=10,
             batch_size=32,
