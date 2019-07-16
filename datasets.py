@@ -305,4 +305,3 @@ class WeightedSubsetRandomSampler(Sampler):
             p_[b] = 0
             have += b.size(-1)
         self.indices = indices[torch.randperm(len(indices))]
-        print(len(self.indices), len(np.unique(self.indices)))
