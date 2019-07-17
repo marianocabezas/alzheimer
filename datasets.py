@@ -276,8 +276,17 @@ class GenericSegmentationCroppingDataset(Dataset):
 
 class WeightedSubsetRandomSampler(Sampler):
 
-    def __init__(self, num_samples, sample_div=2, *args):
+    def __init__(
+            self,
+            num_samples, sample_div=2,
+            initial_rate=0.1, rate_increase=0.05,
+            *args
+    ):
         super(WeightedSubsetRandomSampler, self).__init__(args)
+        self.step = 0
+        self.step_inc = sample_div
+        self.rate = initial_rate
+        self.rate_increase = rate_increase
         self.total_samples = num_samples
         self.num_samples = num_samples // sample_div
         self.weights = torch.tensor(
@@ -296,7 +305,7 @@ class WeightedSubsetRandomSampler(Sampler):
 
     def update(self):
         have = 0
-        want = self.num_samples // 2
+        want = int(self.num_samples * self.rate)
         n_rand = self.num_samples - want
         rand_indices = torch.randperm(self.total_samples)[:n_rand]
         p_ = self.weights.clone()
@@ -314,3 +323,7 @@ class WeightedSubsetRandomSampler(Sampler):
                 rand_indices
             )
         )
+
+        self.step += 1
+        if self.step > self.step_inc and self.step % self.step_inc == 0:
+            self.rate = min(self.rate + self.rate_increase, 1)
