@@ -317,12 +317,13 @@ class WeightedSubsetRandomSampler(Sampler):
             indices[have:have + b.size(-1)] = b
             p_[b] = 0
             have += b.size(-1)
-        self.indices = torch.cat(
+        mixed_indices = torch.cat(
             (
                 indices[torch.randperm(len(indices))],
                 rand_indices
             )
         )
+        self.indices = mixed_indices[torch.randperm(len(mixed_indices))]
 
         self.step += 1
         if self.step > self.step_inc and self.step % self.step_inc == 0:
