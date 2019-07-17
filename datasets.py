@@ -305,8 +305,12 @@ class WeightedSubsetRandomSampler(Sampler):
 
     def update(self):
         have = 0
-        want = int(self.num_samples * self.rate)
-        n_rand = self.num_samples - want
+        if self.step < self.step_inc:
+            want = int(self.num_samples * self.rate)
+            n_rand = self.num_samples - want
+        else:
+            want = self.num_samples
+            n_rand = 0
         rand_indices = torch.randperm(self.total_samples)[:n_rand]
         p_ = self.weights.clone()
         p_[rand_indices] = 0
