@@ -294,9 +294,13 @@ class WeightedSubsetRandomSampler(Sampler):
         self.weights[idx] = weights.type_as(self.weights)
 
     def update(self):
+        n_indices = len(self.indices)
         have = 0
-        want = len(self.indices)
+        want = n_indices // 2
+        n_rand = n_indices - want
+        rand_indices = torch.randperm(self.num_samples)[:n_rand]
         p_ = self.weights.clone()
+        p_[rand_indices] = 0
         indices = torch.empty(want, dtype=torch.long)
         while have < want:
             a = torch.multinomial(p_, want - have, replacement=True)
@@ -304,4 +308,9 @@ class WeightedSubsetRandomSampler(Sampler):
             indices[have:have + b.size(-1)] = b
             p_[b] = 0
             have += b.size(-1)
-        self.indices = indices[torch.randperm(len(indices))]
+        self.indices = torch.cat(
+            (
+                indices[torch.randperm(len(indices))],
+                rand_indices
+            )
+        )
