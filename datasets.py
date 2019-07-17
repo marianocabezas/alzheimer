@@ -305,7 +305,7 @@ class WeightedSubsetRandomSampler(Sampler):
 
     def update(self):
         have = 0
-        if self.step < self.step_inc:
+        if self.step <= self.step_inc:
             want = int(self.num_samples * self.rate)
             n_rand = self.num_samples - want
         else:
