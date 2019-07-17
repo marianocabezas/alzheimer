@@ -278,11 +278,12 @@ class WeightedSubsetRandomSampler(Sampler):
 
     def __init__(self, num_samples, sample_div=2, *args):
         super(WeightedSubsetRandomSampler, self).__init__(args)
+        self.total_samples = num_samples
         self.num_samples = num_samples // sample_div
         self.weights = torch.tensor(
             [np.iinfo(np.int16).max] * num_samples, dtype=torch.double
         )
-        self.indices = torch.randperm(num_samples)[::sample_div]
+        self.indices = torch.randperm(num_samples)[:self.num_samples]
 
     def __iter__(self):
         return (i for i in self.indices.tolist())
@@ -294,11 +295,10 @@ class WeightedSubsetRandomSampler(Sampler):
         self.weights[idx] = weights.type_as(self.weights)
 
     def update(self):
-        n_indices = len(self.indices)
         have = 0
-        want = n_indices // 2
-        n_rand = n_indices - want
-        rand_indices = torch.randperm(self.num_samples)[:n_rand]
+        want = self.num_samples // 2
+        n_rand = self.num_samples - want
+        rand_indices = torch.randperm(self.total_samples)[:n_rand]
         p_ = self.weights.clone()
         p_[rand_indices] = 0
         indices = torch.empty(want, dtype=torch.long)
