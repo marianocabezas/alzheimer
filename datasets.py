@@ -274,6 +274,19 @@ class GenericSegmentationCroppingDataset(Dataset):
         return self.max_slice[-1]
 
 
+def sample(weights, want):
+    have = 0
+    samples = torch.empty(want, dtype=torch.long)
+    while have < want:
+        a = torch.multinomial(weights, want - have, replacement=True)
+        b = a.unique()
+        samples[have:have + b.size(-1)] = b
+        weights[b] = 0
+        have += b.size(-1)
+
+    return samples
+
+
 class WeightedSubsetRandomSampler(Sampler):
 
     def __init__(
@@ -304,31 +317,38 @@ class WeightedSubsetRandomSampler(Sampler):
         self.weights[idx] = weights.type_as(self.weights)
 
     def update(self):
+        # We want to ensure that during the first sampling stages we use the
+        # whole dataset. After that, we will begin sampling a percentage of
+        # the worst samples.
         have = 0
         if self.step <= self.step_inc:
-            want = int(self.num_samples * self.rate)
-            n_rand = self.num_samples - want
+            n_hard = int(self.num_samples * self.rate)
+            n_easy = self.num_samples - n_hard
         else:
-            want = self.num_samples
-            n_rand = 0
-        rand_indices = torch.randperm(self.total_samples)[:n_rand]
-        p_ = self.weights.clone()
-        p_[rand_indices] = 0
-        indices = torch.empty(want, dtype=torch.long)
-        while have < want:
-            a = torch.multinomial(p_, want - have, replacement=True)
-            b = a.unique()
-            indices[have:have + b.size(-1)] = b
-            p_[b] = 0
-            have += b.size(-1)
+            n_hard = self.num_samples
+            n_easy = 0
+
+        # Here we actually collect either the hard samples, or the initial
+        # ones (which will always have a high weight, until used for training.
+        easy_w = torch.tensor(
+            [np.iinfo(np.int16).max] * self.total_samples, dtype=torch.double
+        ) - self.weights
+        easy_idx = sample(easy_w, n_hard)
+        hard_w = self.weights.clone()
+        hard_w[easy_idx] = 0
+        hard_idx = sample(hard_w, n_hard)
         mixed_indices = torch.cat(
             (
-                indices[torch.randperm(len(indices))],
-                rand_indices
+                hard_idx[torch.randperm(len(hard_idx))],
+                easy_idx
             )
         )
         self.indices = mixed_indices[torch.randperm(len(mixed_indices))]
 
+        # This part is to increase the percentage of "bad samples". The idea
+        # is to introduce them slowly, so that the classifier doesn't become
+        # unstable. Right now, the number of steps needed is fixed, but I might
+        # introduce a parameter for it.
         self.step += 1
         if self.step > self.step_inc and self.step % self.step_inc == 0:
             self.rate = min(self.rate + self.rate_increase, 1)
