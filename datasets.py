@@ -320,7 +320,6 @@ class WeightedSubsetRandomSampler(Sampler):
         # We want to ensure that during the first sampling stages we use the
         # whole dataset. After that, we will begin sampling a percentage of
         # the worst samples.
-        have = 0
         if self.step <= self.step_inc:
             n_hard = int(self.num_samples * self.rate)
             n_easy = self.num_samples - n_hard
@@ -333,16 +332,11 @@ class WeightedSubsetRandomSampler(Sampler):
         easy_w = torch.tensor(
             [np.iinfo(np.int16).max] * self.total_samples, dtype=torch.double
         ) - self.weights
-        easy_idx = sample(easy_w, n_hard)
+        easy_idx = sample(easy_w, n_easy)
         hard_w = self.weights.clone()
         hard_w[easy_idx] = 0
         hard_idx = sample(hard_w, n_hard)
-        mixed_indices = torch.cat(
-            (
-                hard_idx[torch.randperm(len(hard_idx))],
-                easy_idx
-            )
-        )
+        mixed_indices = torch.cat((hard_idx, easy_idx))
         self.indices = mixed_indices[torch.randperm(len(mixed_indices))]
 
         # This part is to increase the percentage of "bad samples". The idea
