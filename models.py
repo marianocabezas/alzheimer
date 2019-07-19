@@ -533,9 +533,13 @@ class BratsSegmentationNet(nn.Module):
                     percent = 20 * (i + 1) / cases
                     progress_s = ''.join(['-'] * percent)
                     remainder_s = ''.join([' '] * (20 - percent))
+                    t_eta = (t_out / (i + 1)) * (cases - (i + 1))
+                    eta_s = time_to_string(t_eta)
                     print(
-                        '\033[K%sTested case (%02d/%02d) [%s>%s]' % (
-                            whites, i, cases, progress_s, remainder_s
+                        '\033[K%sTested case (%02d/%02d) [%s>%s]'
+                        ' %s / ETA: %s' % (
+                            whites, i, cases, progress_s, remainder_s,
+                            t_s, eta_s
                         ),
                         end='\r'
                     )
