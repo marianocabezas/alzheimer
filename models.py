@@ -525,6 +525,7 @@ class BratsSegmentationNet(nn.Module):
                         ),
                         end='\r'
                     )
+                    sys.stdout.flush()
 
                 # We test the model with the current batch
                 input = torch.unsqueeze(to_torch_var(data_i, self.device), 0)
