@@ -212,7 +212,7 @@ def main():
             seg_i = np.argmax(pred_i, axis=0)
             seg_i[seg_i == 3] = 4
 
-            niiname = os.path.join(path_i, p_i + 'seg.nii.gz')
+            niiname = os.path.join(path_i, p_i + '_seg.nii.gz')
             nii = load_nii(niiname)
             seg = nii.get_data()
             nii.get_data()[:] = seg_i
