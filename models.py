@@ -529,11 +529,11 @@ class BratsSegmentationNet(nn.Module):
                 # We test the model with the current batch
                 input = torch.unsqueeze(to_torch_var(data_i, self.device), 0)
                 torch.cuda.synchronize()
-                pred = self(input).tolist()
+                pred = self(input).squeeze().tolist()
                 torch.cuda.synchronize()
                 torch.cuda.empty_cache()
 
-                results.append(pred.squeeze().tolist() * m_i)
+                results.append(pred * m_i)
 
         if verbose:
             print('\033[K%sTesting finished succesfully' % whites)
