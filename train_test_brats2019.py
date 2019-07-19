@@ -215,12 +215,13 @@ def main():
             niiname = os.path.join(path_i, p_i + '_seg.nii.gz')
             nii = load_nii(niiname)
             seg = nii.get_data()
-            nii.get_data()[:] = seg_i
-            save_nii(nii, os.path.join(path_i, p_i))
 
             dsc = map(
                 lambda label: dsc_seg(seg == label, seg_i == label), [1, 2, 4]
             )
+
+            nii.get_data()[:] = seg_i
+            save_nii(nii, os.path.join(path_i, p_i))
 
             print(
                 'Patient %s: %s' % (p_i, ' / '.join(map(str, dsc)))
