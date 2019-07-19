@@ -209,7 +209,7 @@ def main():
         pred_y = net.segment(test_x, brains)
 
         for (path_i, p_i, pred_i) in zip(patient_paths, test_patients, pred_y):
-            seg_i = np.argmax(pred_i)
+            seg_i = np.argmax(pred_i, axis=0)
             seg_i[seg_i == 3] = 4
 
             niiname = os.path.join(path_i, p_i + 'seg.nii.gz')

@@ -513,19 +513,9 @@ class BratsSegmentationNet(nn.Module):
 
         with torch.no_grad():
             cases = len(data)
+            t_in = time.time()
             for i, (data_i, m_i) in enumerate(zip(data, masks)):
-                # Print stuff
-                if verbose:
-                    percent = 20 * (i + 1) / cases
-                    progress_s = ''.join(['-'] * percent)
-                    remainder_s = ''.join([' '] * (20 - percent))
-                    print(
-                        '\033[K%sTesting case (%02d/%02d) [%s>%s]' % (
-                            whites, i, cases, progress_s, remainder_s
-                        ),
-                        end='\r'
-                    )
-                    sys.stdout.flush()
+
 
                 # We test the model with the current batch
                 input = torch.unsqueeze(to_torch_var(data_i, self.device), 0)
@@ -535,6 +525,21 @@ class BratsSegmentationNet(nn.Module):
                 torch.cuda.empty_cache()
 
                 results.append(pred * m_i)
+
+                t_out = time.time() - t_in
+                t_s = time_to_string(t_out)
+                # Print stuff
+                if verbose:
+                    percent = 20 * (i + 1) / cases
+                    progress_s = ''.join(['-'] * percent)
+                    remainder_s = ''.join([' '] * (20 - percent))
+                    print(
+                        '\033[K%sTested case (%02d/%02d) [%s>%s]' % (
+                            whites, i, cases, progress_s, remainder_s
+                        ),
+                        end='\r'
+                    )
+                    sys.stdout.flush()
 
         if verbose:
             print('\033[K%sTesting finished succesfully' % whites)
