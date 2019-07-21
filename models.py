@@ -499,7 +499,6 @@ class BratsSegmentationNet(nn.Module):
     def segment(
             self,
             data,
-            masks,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -514,7 +513,7 @@ class BratsSegmentationNet(nn.Module):
         with torch.no_grad():
             cases = len(data)
             t_in = time.time()
-            for i, (data_i, m_i) in enumerate(zip(data, masks)):
+            for i, data_i in enumerate(data):
 
 
                 # We test the model with the current batch
@@ -524,7 +523,7 @@ class BratsSegmentationNet(nn.Module):
                 torch.cuda.synchronize()
                 torch.cuda.empty_cache()
 
-                results.append(pred * m_i)
+                results.append(pred)
 
                 t_out = time.time() - t_in
                 t_s = time_to_string(t_out)

@@ -151,10 +151,6 @@ def main():
         # Testing data
         test_patients = patients[ini_p:end_p]
         patient_paths = map(lambda p: os.path.join(d_path, p), test_patients)
-        lesion_names = map(
-            lambda (p_path, p): os.path.join(p_path, p + '_seg.nii.gz'),
-            zip(patient_paths, test_patients)
-        )
         brain_names = map(
             lambda (p_path, p): os.path.join(
                 p_path, p + '_t1.nii.gz'
@@ -206,7 +202,7 @@ def main():
             net.save_model(os.path.join(d_path, model_name))
 
         # Testing data
-        pred_y = net.segment(test_x, brains)
+        pred_y = net.segment(test_x)
 
         for (path_i, p_i, pred_i) in zip(patient_paths, test_patients, pred_y):
             seg_i = np.argmax(pred_i, axis=0)
