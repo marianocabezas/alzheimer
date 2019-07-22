@@ -305,6 +305,7 @@ class WeightedSubsetRandomSampler(Sampler):
         self.weights = torch.tensor(
             [np.iinfo(np.int16).max] * num_samples, dtype=torch.double
         )
+        self.rand_idx = torch.randperm(num_samples)
         self.indices = torch.randperm(num_samples)[:self.num_samples]
 
     def __iter__(self):
@@ -344,5 +345,5 @@ class WeightedSubsetRandomSampler(Sampler):
         # unstable. Right now, the number of steps needed is fixed, but I might
         # introduce a parameter for it.
         self.step += 1
-        if self.step > self.step_inc and self.step % self.step_inc == 0:
+        if self.step > self.step_inc and (self.step % self.step_inc) == 0:
             self.rate = min(self.rate + self.rate_increase, 1)

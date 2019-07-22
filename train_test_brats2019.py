@@ -217,7 +217,7 @@ def main():
             )
 
             nii.get_data()[:] = seg_i
-            save_nii(nii, os.path.join(path_i, p_i))
+            save_nii(nii, os.path.join(path_i, p_i + '.nii.gz'))
 
             print(
                 'Patient %s: %s' % (p_i, ' / '.join(map(str, dsc)))

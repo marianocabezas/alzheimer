@@ -67,14 +67,14 @@ class BratsSegmentationNet(nn.Module):
                 nn.Conv3d(
                     ini, out, kernel_size,
                     padding=padding,
-                    groups=g
+                    # groups=g
                 ),
                 nn.InstanceNorm3d(out),
                 nn.LeakyReLU(),
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
-                    groups=2 * g
+                    # groups=2 * g
                 ),
                 nn.InstanceNorm3d(out),
                 nn.LeakyReLU(),
@@ -110,14 +110,14 @@ class BratsSegmentationNet(nn.Module):
                 nn.ConvTranspose3d(
                     2 * ini, ini, kernel_size,
                     padding=padding,
-                    groups=g
+                    # groups=g
                 ),
                 nn.InstanceNorm3d(filters),
                 nn.LeakyReLU(),
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
-                    groups=g
+                    # groups=g
                 ),
                 nn.InstanceNorm3d(filters),
                 nn.LeakyReLU(),
