@@ -69,14 +69,14 @@ class BratsSegmentationNet(nn.Module):
                     padding=padding,
                     groups=g
                 ),
-                nn.InstanceNorm3d(out),
+                # nn.InstanceNorm3d(out),
                 nn.LeakyReLU(),
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
                     groups=2 * g
                 ),
-                nn.InstanceNorm3d(out),
+                # nn.InstanceNorm3d(out),
                 nn.LeakyReLU(),
             ),
             zip([n_images] + filters_list[:-1], filters_list, groups_list)
@@ -90,14 +90,14 @@ class BratsSegmentationNet(nn.Module):
                 filters * (2 ** depth), kernel_size,
                 padding=padding
             ),
-            nn.InstanceNorm3d(filters * (2 ** depth)),
+            # nn.InstanceNorm3d(filters * (2 ** depth)),
             nn.LeakyReLU(),
             nn.Conv3d(
                 filters * (2 ** depth),
                 filters * (2 ** (depth - 1)), kernel_size,
                 padding=padding
             ),
-            nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
+            # nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
             nn.LeakyReLU(),
         )
         self.midconv.to(self.device)
@@ -112,14 +112,14 @@ class BratsSegmentationNet(nn.Module):
                     padding=padding,
                     groups=g
                 ),
-                nn.InstanceNorm3d(ini),
+                # nn.InstanceNorm3d(ini),
                 nn.LeakyReLU(),
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
                     groups=g
                 ),
-                nn.InstanceNorm3d(out),
+                # nn.InstanceNorm3d(out),
                 nn.LeakyReLU(),
             ),
             zip(
@@ -146,8 +146,10 @@ class BratsSegmentationNet(nn.Module):
             down_list.append(down)
             x = F.max_pool3d(down, self.pooling)
 
+        x = self.midconv(x)
+
         if dropout > 0:
-            x = self.midconv(x)
+            x = nn.functional.dropout3d(x, dropout)
 
         for d, prev in zip(self.deconvlist, down_list[::-1]):
             interp = F.interpolate(x, size=prev.shape[2:])
@@ -205,7 +207,6 @@ class BratsSegmentationNet(nn.Module):
         mid_losses = list()
         n_batches = len(training)
         for batch_i, batch_data in enumerate(training):
-            t_in = time.time()
             # We train the model and check the loss
             batch_loss = self.step(batch_data, train=train)
 
@@ -217,7 +218,7 @@ class BratsSegmentationNet(nn.Module):
             losses.append(loss_value)
 
             self.print_progress(
-                batch_i, n_batches, loss_value, np.mean(losses), t_in, train
+                batch_i, n_batches, loss_value, np.mean(losses), train
             )
 
         if self.sampler is not None and train:
@@ -228,9 +229,7 @@ class BratsSegmentationNet(nn.Module):
         else:
             return np.mean(losses), np.mean(zip(*mid_losses), axis=1)
 
-    def print_progress(
-            self, batch_i, n_batches, b_loss, mean_loss, t_in, train=True
-    ):
+    def print_progress(self, batch_i, n_batches, b_loss, mean_loss, train=True):
         init_c = '\033[0m' if train else '\033[38;5;238m'
         whites = ' '.join([''] * 12)
         percent = 20 * (batch_i + 1) / n_batches
@@ -244,9 +243,7 @@ class BratsSegmentationNet(nn.Module):
             t_out = time.time() - self.t_val
         time_s = time_to_string(t_out)
 
-        remaining_b = n_batches - (batch_i + 1)
-        t_batch = time.time() - t_in
-        t_eta = remaining_b * t_batch
+        t_eta = (t_out / (batch_i + 1)) * (n_batches - (batch_i + 1))
         eta_s = time_to_string(t_eta)
 
         batch_s = '%s%sEpoch %03d (%03d/%03d) [%s>%s] %s %f (%f) %s / ETA %s%s' % (
