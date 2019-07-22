@@ -70,6 +70,7 @@ class BratsSegmentationNet(nn.Module):
                     # groups=g
                 ),
                 # nn.InstanceNorm3d(out),
+                # nn.BatchNorm3d(out),
                 nn.LeakyReLU(),
                 nn.Conv3d(
                     out, out, kernel_size,
@@ -77,6 +78,7 @@ class BratsSegmentationNet(nn.Module):
                     # groups=2 * g
                 ),
                 # nn.InstanceNorm3d(out),
+                # nn.BatchNorm3d(out),
                 nn.LeakyReLU(),
             ),
             zip([n_images] + filters_list[:-1], filters_list, groups_list)
@@ -91,6 +93,7 @@ class BratsSegmentationNet(nn.Module):
                 padding=padding
             ),
             # nn.InstanceNorm3d(filters * (2 ** depth)),
+            # nn.BatchNorm3d(filters * (2 ** depth)),
             nn.LeakyReLU(),
             nn.Conv3d(
                 filters * (2 ** depth),
@@ -98,6 +101,7 @@ class BratsSegmentationNet(nn.Module):
                 padding=padding
             ),
             # nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
+            # nn.BatchNorm3d(filters * (2 ** (depth - 1))),
             nn.LeakyReLU(),
         )
         self.midconv.to(self.device)
@@ -113,6 +117,7 @@ class BratsSegmentationNet(nn.Module):
                     # groups=g
                 ),
                 # nn.InstanceNorm3d(ini),
+                # nn.BatchNorm3d(ini),
                 nn.LeakyReLU(),
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
@@ -120,6 +125,7 @@ class BratsSegmentationNet(nn.Module):
                     # groups=g
                 ),
                 # nn.InstanceNorm3d(out),
+                # nn.BatchNorm3d(out),
                 nn.LeakyReLU(),
             ),
             zip(
@@ -580,7 +586,6 @@ class BratsSegmentationNet(nn.Module):
             for i, data_i in enumerate(data):
                 outputs = []
                 for e in range(steps):
-                    t_in_e = time.time()
                     # We test the model with the current batch
                     input_i = torch.unsqueeze(
                         to_torch_var(data_i, self.device), 0
@@ -600,10 +605,11 @@ class BratsSegmentationNet(nn.Module):
                         progress_es = ''.join(['-'] * percent_e)
                         remainder_is = ''.join([' '] * (20 - percent_i))
                         remainder_es = ''.join([' '] * (20 - percent_e))
-                        t_out_e = time.time() - t_in_e
                         remaining_e = steps - (e + 1)
                         remaining_i = steps * (cases - (i + 1))
+                        completed = steps * cases - (remaining_i + remaining_e)
                         t_out = time.time() - t_in
+                        t_out_e = t_out / completed
                         t_s = time_to_string(t_out)
                         t_eta = (remaining_e + remaining_i) * t_out_e
                         eta_s = time_to_string(t_eta)
