@@ -180,7 +180,7 @@ def main():
 
         # Training itself
         model_name = '%s_f%d.mdl' % (net_name, i)
-        net = BratsSegmentationNet()
+        net = BratsSegmentationNet(depth=3)
         try:
             net.load_model(os.path.join(d_path, model_name))
         except IOError:
