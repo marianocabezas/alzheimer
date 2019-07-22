@@ -97,7 +97,7 @@ class BratsSegmentationNet(nn.Module):
                 filters * (2 ** (depth - 1)), kernel_size,
                 padding=padding
             ),
-            nn.InstanceNorm3d(filters * (2 ** depth)),
+            nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
             nn.LeakyReLU(),
         )
         self.midconv.to(self.device)
@@ -137,18 +137,23 @@ class BratsSegmentationNet(nn.Module):
         )
         self.out.to(self.device)
 
-    def forward(self, x):
+    def forward(self, x, dropout=0):
         down_list = []
         for c in self.convlist:
             down = c(x)
+            if dropout > 0:
+                down = nn.functional.dropout3d(down, dropout)
             down_list.append(down)
             x = F.max_pool3d(down, self.pooling)
 
-        x = self.midconv(x)
+        if dropout > 0:
+            x = self.midconv(x)
 
         for d, prev in zip(self.deconvlist, down_list[::-1]):
             interp = F.interpolate(x, size=prev.shape[2:])
             x = d(torch.cat((prev, interp), dim=1))
+            if dropout > 0:
+                x = nn.functional.dropout3d(x, dropout)
 
         output = self.out(x)
         return output
@@ -515,11 +520,12 @@ class BratsSegmentationNet(nn.Module):
             t_in = time.time()
             for i, data_i in enumerate(data):
 
-
                 # We test the model with the current batch
-                input = torch.unsqueeze(to_torch_var(data_i, self.device), 0)
+                input_i = torch.unsqueeze(
+                    to_torch_var(data_i, self.device), 0
+                )
                 torch.cuda.synchronize()
-                pred = self(input).squeeze().tolist()
+                pred = self(input_i).squeeze().tolist()
                 torch.cuda.synchronize()
                 torch.cuda.empty_cache()
 
@@ -548,6 +554,79 @@ class BratsSegmentationNet(nn.Module):
             print('\033[K%sTesting finished succesfully' % whites)
 
         return results
+
+    def uncertainty(
+            self,
+            data,
+            dropout=0.5,
+            steps=100,
+            device=torch.device(
+                "cuda:0" if torch.cuda.is_available() else "cpu"
+            ),
+            verbose=True
+    ):
+        # Init
+        self.to(device)
+        self.eval()
+        whites = ' '.join([''] * 12)
+        entropy_results = []
+        seg_results = []
+
+        with torch.no_grad():
+            cases = len(data)
+            t_in = time.time()
+            for i, data_i in enumerate(data):
+                outputs = []
+                for e in range(steps):
+                    t_in_e = time.time()
+                    # We test the model with the current batch
+                    input_i = torch.unsqueeze(
+                        to_torch_var(data_i, self.device), 0
+                    )
+                    torch.cuda.synchronize()
+                    pred = self(input_i, dropout).squeeze().tolist()
+                    torch.cuda.synchronize()
+                    torch.cuda.empty_cache()
+
+                    outputs.append(pred)
+
+                    # Print stuff
+                    if verbose:
+                        percent_i = 20 * (i + 1) / cases
+                        percent_e = 20 * (e + 1) / steps
+                        progress_is = ''.join(['-'] * percent_i)
+                        progress_es = ''.join(['-'] * percent_e)
+                        remainder_is = ''.join([' '] * (20 - percent_i))
+                        remainder_es = ''.join([' '] * (20 - percent_e))
+                        t_out_e = time.time() - t_in_e
+                        remaining_e = steps - (e + 1)
+                        remaining_i = steps * (cases - (i + 1))
+                        t_out = time.time() - t_in
+                        t_s = time_to_string(t_out)
+                        t_eta = (remaining_e + remaining_i) * t_out_e
+                        eta_s = time_to_string(t_eta)
+                        print(
+                            '\033[K%sTested case (%02d/%02d - %02d/%02d) '
+                            '[%s>%s][%s>%s] %s / ETA: %s' % (
+                                whites, e, steps, i, cases,
+                                progress_es, remainder_es,
+                                progress_is, remainder_is,
+                                t_s, eta_s
+                            ),
+                            end='\r'
+                        )
+                        sys.stdout.flush()
+
+                mean_output = np.mean(outputs, axis=0)
+                entropy = - np.sum(mean_output * np.log(mean_output), axis=0)
+
+                entropy_results.append(entropy)
+                seg_results.append(mean_output)
+
+        if verbose:
+            print('\033[K%sTesting finished succesfully' % whites)
+
+        return entropy_results, seg_results
 
     def save_model(self, net_name):
         torch.save(self.state_dict(), net_name)
