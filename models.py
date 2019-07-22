@@ -205,6 +205,7 @@ class BratsSegmentationNet(nn.Module):
         mid_losses = list()
         n_batches = len(training)
         for batch_i, batch_data in enumerate(training):
+            t_in = time.time()
             # We train the model and check the loss
             batch_loss = self.step(batch_data, train=train)
 
@@ -216,7 +217,7 @@ class BratsSegmentationNet(nn.Module):
             losses.append(loss_value)
 
             self.print_progress(
-                batch_i, n_batches, loss_value, np.mean(losses), train
+                batch_i, n_batches, loss_value, np.mean(losses), t_in, train
             )
 
         if self.sampler is not None and train:
@@ -227,7 +228,9 @@ class BratsSegmentationNet(nn.Module):
         else:
             return np.mean(losses), np.mean(zip(*mid_losses), axis=1)
 
-    def print_progress(self, batch_i, n_batches, b_loss, mean_loss, train=True):
+    def print_progress(
+            self, batch_i, n_batches, b_loss, mean_loss, t_in, train=True
+    ):
         init_c = '\033[0m' if train else '\033[38;5;238m'
         whites = ' '.join([''] * 12)
         percent = 20 * (batch_i + 1) / n_batches
@@ -241,7 +244,9 @@ class BratsSegmentationNet(nn.Module):
             t_out = time.time() - self.t_val
         time_s = time_to_string(t_out)
 
-        t_eta = (t_out / (batch_i + 1)) * (n_batches - (batch_i + 1))
+        remaining_b = n_batches - (batch_i + 1)
+        t_batch = time.time() - t_in
+        t_eta = remaining_b * t_batch
         eta_s = time_to_string(t_eta)
 
         batch_s = '%s%sEpoch %03d (%03d/%03d) [%s>%s] %s %f (%f) %s / ETA %s%s' % (
