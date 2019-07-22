@@ -66,17 +66,17 @@ class BratsSegmentationNet(nn.Module):
             lambda (ini, out, g): nn.Sequential(
                 nn.Conv3d(
                     ini, out, kernel_size,
-                    # padding=padding,
-                    # groups=g
+                    padding=padding,
+                    groups=g
                 ),
-                nn.BatchNorm3d(out),
+                nn.InstanceNorm3d(out),
                 nn.LeakyReLU(),
                 nn.Conv3d(
                     out, out, kernel_size,
-                    # padding=padding,
-                    # groups=2 * g
+                    padding=padding,
+                    groups=2 * g
                 ),
-                nn.BatchNorm3d(out),
+                nn.InstanceNorm3d(out),
                 nn.LeakyReLU(),
             ),
             zip([n_images] + filters_list[:-1], filters_list, groups_list)
@@ -88,16 +88,16 @@ class BratsSegmentationNet(nn.Module):
             nn.Conv3d(
                 filters * (2 ** (depth - 1)),
                 filters * (2 ** depth), kernel_size,
-                # padding=padding
+                padding=padding
             ),
-            nn.BatchNorm3d(filters),
+            nn.InstanceNorm3d(filters * (2 ** depth)),
             nn.LeakyReLU(),
             nn.Conv3d(
                 filters * (2 ** depth),
                 filters * (2 ** (depth - 1)), kernel_size,
-                # padding=padding
+                padding=padding
             ),
-            nn.BatchNorm3d(filters),
+            nn.InstanceNorm3d(filters * (2 ** depth)),
             nn.LeakyReLU(),
         )
         self.midconv.to(self.device)
@@ -109,17 +109,17 @@ class BratsSegmentationNet(nn.Module):
                 ),
                 nn.ConvTranspose3d(
                     2 * ini, ini, kernel_size,
-                    # padding=padding,
-                    # groups=g
+                    padding=padding,
+                    groups=g
                 ),
-                nn.BatchNorm3d(filters),
+                nn.InstanceNorm3d(ini),
                 nn.LeakyReLU(),
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
-                    # padding=padding,
-                    # groups=g
+                    padding=padding,
+                    groups=g
                 ),
-                nn.BatchNorm3d(filters),
+                nn.InstanceNorm3d(out),
                 nn.LeakyReLU(),
             ),
             zip(
