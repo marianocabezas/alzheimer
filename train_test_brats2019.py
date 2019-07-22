@@ -223,7 +223,7 @@ def main():
                 'Patient %s: %s' % (p_i, ' / '.join(map(str, dsc)))
             )
 
-        uncert_y, pred_y = net.uncertainty(test_x)
+        uncert_y, pred_y = net.uncertainty(test_x, steps=20)
         for (path_i, p_i, pred_i, uncert_i) in zip(
                 patient_paths, test_patients, pred_y, uncert_y
         ):
