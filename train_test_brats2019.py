@@ -223,6 +223,33 @@ def main():
                 'Patient %s: %s' % (p_i, ' / '.join(map(str, dsc)))
             )
 
+        uncert_y, pred_y = net.uncertainty(test_x)
+        for (path_i, p_i, pred_i, uncert_i) in zip(
+                patient_paths, test_patients, pred_y, uncert_y
+        ):
+            seg_i = np.argmax(pred_i, axis=0)
+            seg_i[seg_i == 3] = 4
+
+            niiname = os.path.join(path_i, p_i + '_seg.nii.gz')
+            nii = load_nii(niiname)
+            seg = nii.get_data()
+
+            dsc = map(
+                lambda label: dsc_seg(seg == label, seg_i == label), [1, 2, 4]
+            )
+
+            nii.get_data()[:] = seg_i
+            save_nii(nii, os.path.join(path_i, p_i + '_uncert-seg.nii.gz'))
+
+            niiname = os.path.join(path_i, p_i + '_flair.nii.gz')
+            nii = load_nii(niiname)
+            nii.get_data()[:] = uncert_i
+            save_nii(nii, os.path.join(path_i, p_i + '_uncert.nii.gz'))
+
+            print(
+                'Patient %s: %s' % (p_i, ' / '.join(map(str, dsc)))
+            )
+
         print(
             '%s[%s] %sStarting training (%ssegmentation%s)%s' % (
                 c['c'], strftime("%H:%M:%S"),
