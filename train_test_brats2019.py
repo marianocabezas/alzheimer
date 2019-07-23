@@ -94,6 +94,7 @@ def main():
     )
     d_path = options['loo_dir']
     patients = get_dirs(d_path)
+    patients = np.random.permutation(patients)
 
     ''' <Segmentation task> '''
     n_folds = 5
