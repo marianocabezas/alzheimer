@@ -95,7 +95,7 @@ def filter_size(slices, mask, min_size):
 
 
 def get_balanced_slices(
-        masks, patch_size, rois=None, min_size=-1,
+        masks, patch_size, rois=None, min_size=0,
         neg_ratio=2
 ):
     # Init
@@ -153,10 +153,13 @@ def get_balanced_slices(
     )
 
     # Minimum size filtering for background
-    fbck_slices = map(
-        lambda (slices, mask): filter_size(slices, mask, min_size),
-        zip(bck_slices, masks)
-    )
+    if min_size > 0:
+        fbck_slices = map(
+            lambda (slices, mask): filter_size(slices, mask, min_size),
+            zip(bck_slices, masks)
+        )
+    else:
+        fbck_slices = bck_slices
 
     # Final slice selection
     patch_slices = map(
