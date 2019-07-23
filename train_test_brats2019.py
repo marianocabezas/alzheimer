@@ -94,6 +94,7 @@ def main():
     )
     d_path = options['loo_dir']
     patients = get_dirs(d_path)
+    np.random.seed(42)
     patients = np.random.permutation(patients).tolist()
 
     ''' <Segmentation task> '''

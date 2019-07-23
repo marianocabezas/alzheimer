@@ -148,29 +148,48 @@ def get_balanced_slices(
     lesion_slices = map(
         lambda vox: centers_to_slice(vox, patch_half), lesion_voxels
     )
-    bck_slices = map(
-        lambda vox: centers_to_slice(vox, patch_half), bck_voxels
-    )
 
-    # Minimum size filtering for background
     if min_size > 0:
+        bck_slices = map(
+            lambda vox: centers_to_slice(vox, patch_half), bck_voxels
+        )
+
+        # Minimum size filtering for background
         fbck_slices = map(
             lambda (slices, mask): filter_size(slices, mask, min_size),
             zip(bck_slices, masks)
         )
-    else:
-        fbck_slices = bck_slices
 
-    # Final slice selection
-    patch_slices = map(
-        lambda (pos_s, neg_s): pos_s + map(
-            lambda idx: neg_s[idx],
-            np.random.permutation(
-                len(neg_s)
-            )[:int(neg_ratio * len(pos_s))]
-        ),
-        zip(lesion_slices, fbck_slices)
-    )
+        # Final slice selection
+        patch_slices = map(
+            lambda (pos_s, neg_s): pos_s + map(
+                lambda idx: neg_s[idx],
+                np.random.permutation(
+                    len(neg_s)
+                )[:int(neg_ratio * len(pos_s))]
+            ),
+            zip(lesion_slices, fbck_slices)
+        )
+
+    else:
+        fbck_slices = map(
+            lambda (lvox, bvox): centers_to_slice(
+                map(
+                    lambda idx: bvox[idx],
+                    np.random.permutation(
+                        len(bvox)
+                    )[:int(neg_ratio * len(lvox))]
+                ),
+                patch_half
+            ),
+            zip(lesion_voxels, bck_voxels)
+        )
+
+        # Final slice selection
+        patch_slices = map(
+            lambda (pos_s, neg_s): pos_s + neg_s,
+            zip(lesion_slices, fbck_slices)
+        )
 
     return patch_slices
 
