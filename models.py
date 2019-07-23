@@ -265,6 +265,7 @@ class BratsSegmentationNet(nn.Module):
             self,
             data,
             target,
+            rois=None,
             val_split=0,
             optimizer='adadelta',
             patch_size=32,
@@ -326,11 +327,18 @@ class BratsSegmentationNet(nn.Module):
             t_train = target[:n_t_samples]
             t_val = target[n_t_samples:]
 
+            if rois is not None:
+                r_train = rois[:n_t_samples]
+                r_val = rois[n_t_samples:]
+            else:
+                r_train = None
+                r_val = None
+
             # Training
             print('Dataset creation')
             use_sampler = sample_rate > 1
             train_dataset = GenericSegmentationCroppingDataset(
-                d_train, t_train, patch_size=patch_size,
+                d_train, t_train, masks=r_train, patch_size=patch_size,
                 neg_ratio=neg_ratio, sampler=use_sampler,
             )
             if use_sampler:
@@ -351,8 +359,8 @@ class BratsSegmentationNet(nn.Module):
 
             # Validation
             val_dataset = GenericSegmentationCroppingDataset(
-                d_val, t_val, patch_size=patch_size, neg_ratio=neg_ratio,
-                balanced=False
+                d_val, t_val, masks=r_val, patch_size=patch_size,
+                neg_ratio=neg_ratio, balanced=False
             )
             val_loader = DataLoader(
                 val_dataset, 2 * batch_size, num_workers=num_workers

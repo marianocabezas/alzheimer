@@ -157,7 +157,7 @@ def main():
             ),
             zip(patient_paths, test_patients)
         )
-        brains = map(get_mask, brain_names)
+        brains_test = map(get_mask, brain_names)
         test_x = map(
             lambda (p_path, p, mask_i): np.stack(
                 map(
@@ -169,7 +169,7 @@ def main():
                 ),
                 axis=0
             ),
-            zip(patient_paths, test_patients, brains)
+            zip(patient_paths, test_patients, brains_test)
         )
 
         print(
@@ -193,7 +193,7 @@ def main():
             )
 
             net.fit(
-                train_x, train_y,
+                train_x, train_y, rois=brains,
                 val_split=0.1, epochs=epochs, patience=patience,
                 batch_size=batch_size, num_workers=16,
                 sample_rate=sampling_rate

@@ -95,7 +95,7 @@ def filter_size(slices, mask, min_size):
 
 
 def get_balanced_slices(
-        masks, patch_size, rois=None, min_size=0,
+        masks, patch_size, rois=None, min_size=-1,
         neg_ratio=2
 ):
     # Init
