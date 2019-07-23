@@ -96,7 +96,7 @@ def filter_size(slices, mask, min_size):
 
 def get_balanced_slices(
         masks, patch_size, rois=None, min_size=0,
-        neg_ratio=2
+        neg_ratio=1
 ):
     # Init
     patch_half = map(lambda p_length: p_length // 2, patch_size)
@@ -242,7 +242,7 @@ class GenericSegmentationCroppingDataset(Dataset):
                 )
                 self.patch_slices = get_slices_bb(data_single, self.patch_size, 0)
         else:
-            overlap = int(self.patch_size[0] // 1.1)
+            overlap = 0
             if self.masks is not None:
                 self.patch_slices = get_slices_bb(
                     self.masks, self.patch_size, overlap=overlap,
