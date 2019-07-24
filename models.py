@@ -745,7 +745,6 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
         # Data split (using numpy) for train and validation.
         # We also compute the number of batches for both training and
         # validation according to the batch size.
-        use_sampler = sample_rate > 1
         n_samples = len(data)
 
         n_t_samples = int(n_samples * (1 - val_split))
@@ -775,7 +774,7 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
         # Full image one
         print('Dataset creation images')
         image_dataset = BBImageDataset(
-            d_train, t_train, r_train, sampler=use_sampler
+            d_train, t_train, r_train, sampler=True
         )
         print('Sampler creation <image>')
         self.image_sampler = WeightedSubsetRandomSampler(
@@ -791,7 +790,7 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
         print('Dataset creation unbalanced patches')
         patch_dataset = GenericSegmentationCroppingDataset(
             d_train, t_train, masks=r_train, patch_size=patch_size,
-            balanced=False, neg_ratio=neg_ratio, sampler=use_sampler,
+            neg_ratio=neg_ratio, sampler=True,
         )
 
         print('Sampler creation <patches>')
