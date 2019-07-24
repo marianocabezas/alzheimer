@@ -365,10 +365,10 @@ class BBImageDataset(Dataset):
         else:
             bb = self.bb
 
-        inputs = self.cases[index][[slice(None)] + bb]
+        inputs = self.cases[index][tuple([slice(None)] + bb)]
 
         if self.labels is not None:
-            targets = self.labels[index][bb]
+            targets = self.labels[index][tuple(bb)]
 
             if self.sampler:
                 return inputs, targets, index
