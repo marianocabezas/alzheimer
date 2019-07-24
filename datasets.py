@@ -408,7 +408,7 @@ class WeightedSubsetRandomSampler(Sampler):
         self.rate = initial_rate
         self.rate_increase = rate_increase
         self.total_samples = num_samples
-        self.num_samples = num_samples // sample_div
+        self.num_samples = int(np.ceil(num_samples / sample_div))
         self.weights = torch.tensor(
             [np.iinfo(np.int16).max] * num_samples, dtype=torch.double
         )
@@ -430,8 +430,8 @@ class WeightedSubsetRandomSampler(Sampler):
         # the worst samples.
         self.step += 1
         if self.step < self.step_inc:
-            idx_ini = (self.step + 1) * self.num_samples
-            idx_end = (self.step + 2) * self.num_samples
+            idx_ini = self.step * self.num_samples
+            idx_end = (self.step + 1) * self.num_samples
             self.indices = self.initial[idx_ini:idx_end]
         else:
             n_hard = self.num_samples
