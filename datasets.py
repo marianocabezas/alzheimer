@@ -361,14 +361,13 @@ class BBImageDataset(Dataset):
 
     def __getitem__(self, index):
         if len(self.bb) == len(self.cases):
-            bb = [slice(None)] + self.bb[index]
+            bb = self.bb[index]
         else:
-            bb = [slice(None)] + self.bb
+            bb = self.bb
 
-        inputs = self.cases[index][bb]
+        inputs = self.cases[index][[slice(None)] + bb]
 
         if self.labels is not None:
-            print(self.labels[index].shape)
             targets = self.labels[index][bb]
 
             if self.sampler:
