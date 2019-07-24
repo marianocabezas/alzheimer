@@ -154,24 +154,24 @@ def main():
         test_patients = patients[ini_p:end_p]
         patient_paths = map(lambda p: os.path.join(d_path, p), test_patients)
         brain_names = map(
-            lambda (p_path, p): os.path.join(
-                p_path, p + '_t1.nii.gz'
+            lambda p: os.path.join(
+                d_path, p, p + '_t1.nii.gz'
             ),
-            zip(patient_paths, test_patients)
+            test_patients
         )
         brains_test = map(get_mask, brain_names)
         test_x = map(
-            lambda (p_path, p, mask_i): np.stack(
+            lambda (p, mask_i): np.stack(
                 map(
                     lambda im: get_normalised_image(
-                        os.path.join(p_path, p + im),
+                        os.path.join(d_path, p, p + im),
                         mask_i,
                     ),
                     images
                 ),
                 axis=0
             ),
-            zip(patient_paths, test_patients, brains_test)
+            zip(test_patients, brains_test)
         )
 
         print(

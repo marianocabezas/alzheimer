@@ -41,6 +41,7 @@ def multidsc_loss(pred, target, smooth=1, averaged=True):
             dsc = 1 - torch.sum(dsc_k * class_pr) / dims[0]
         else:
             dsc = 1 - torch.mean(dsc_k)
+        # dsc = 1 - torch.mean(dsc_k)
     else:
         dsc = 1 - torch.mean(dsc_k, dim=0)
 

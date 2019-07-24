@@ -11,7 +11,7 @@ import numpy as np
 from layers import ScalingLayer
 from criterions import GenericLossLayer, multidsc_loss
 from datasets import WeightedSubsetRandomSampler
-from datasets import GenericSegmentationCroppingDataset
+from datasets import GenericSegmentationCroppingDataset, BBImageDataset
 from optimizers import AdaBound
 from utils import time_to_string
 
@@ -337,37 +337,54 @@ class BratsSegmentationNet(nn.Module):
             # Training
             print('Dataset creation')
             use_sampler = sample_rate > 1
-            train_dataset = GenericSegmentationCroppingDataset(
-                d_train, t_train, masks=r_train, patch_size=patch_size,
-                neg_ratio=neg_ratio, sampler=use_sampler,
+            # Full image one
+            train_dataset = BBImageDataset(
+                d_train, t_train, r_train
             )
+            # Unbalanced one
+            # train_dataset = GenericSegmentationCroppingDataset(
+            #     d_train, t_train, masks=r_train, patch_size=patch_size,
+            #     balanced=False, neg_ratio=neg_ratio, sampler=use_sampler,
+            # )
+            # Balanced one
+            # train_dataset = GenericSegmentationCroppingDataset(
+            #     d_train, t_train, masks=r_train, patch_size=patch_size,
+            #     neg_ratio=neg_ratio, sampler=use_sampler,
+            # )
             if use_sampler:
                 print('Sampler creation')
                 self.sampler = WeightedSubsetRandomSampler(
                     len(train_dataset), sample_rate
                 )
                 print('Dataloader creation with sampler')
+                # train_loader = DataLoader(
+                #     train_dataset, batch_size, num_workers=num_workers,
+                #     sampler=self.sampler
+                # )
                 train_loader = DataLoader(
-                    train_dataset, batch_size, num_workers=num_workers,
+                    train_dataset, 1, num_workers=num_workers,
                     sampler=self.sampler
                 )
             else:
                 print('Dataloader creation')
+                # train_loader = DataLoader(
+                #     train_dataset, batch_size, True, num_workers=num_workers,
+                # )
                 train_loader = DataLoader(
-                    train_dataset, batch_size, True, num_workers=num_workers,
+                    train_dataset, 1, True, num_workers=num_workers,
                 )
 
             # Validation
-            val_dataset = GenericSegmentationCroppingDataset(
-                d_val, t_val, masks=r_val, patch_size=patch_size,
-                neg_ratio=neg_ratio, balanced=False
+            val_dataset = BBImageDataset(
+                d_val, t_val, r_val
             )
             val_loader = DataLoader(
-                val_dataset, 2 * batch_size, num_workers=num_workers
+                val_dataset, 1, num_workers=num_workers
             )
         else:
             train_dataset = GenericSegmentationCroppingDataset(
-                data, target, patch_size=patch_size, neg_ratio=neg_ratio
+                data, target, masks=rois, patch_size=patch_size,
+                neg_ratio=neg_ratio
             )
             self.sampler = WeightedSubsetRandomSampler(
                 len(train_dataset), sample_rate
@@ -376,8 +393,12 @@ class BratsSegmentationNet(nn.Module):
                 train_dataset, batch_size, True, num_workers=num_workers,
                 sampler=self.sampler
             )
+            # Validation
+            val_dataset = BBImageDataset(
+                data, target, rois
+            )
             val_loader = DataLoader(
-                train_dataset, batch_size, num_workers=num_workers,
+                val_dataset, 1, num_workers=num_workers
             )
 
         l_names = ['train', ' val ', '  BCK ', '  NET ', '  ED  ', '  ET  ']
