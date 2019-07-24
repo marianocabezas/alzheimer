@@ -713,7 +713,7 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
             epochs=50,
             patience=5,
             batch_size=32,
-            neg_ratio=0.25,
+            neg_ratio=0,
             num_workers=16,
             sample_rate=5,
             device=torch.device(
