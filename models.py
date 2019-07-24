@@ -339,7 +339,7 @@ class BratsSegmentationNet(nn.Module):
             print('Dataset creation')
             # Full image one
             train_dataset = BBImageDataset(
-                d_train, t_train, r_train
+                d_train, t_train, r_train, sampler=use_sampler
             )
             # Unbalanced one
             # train_dataset = GenericSegmentationCroppingDataset(
