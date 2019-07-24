@@ -347,7 +347,8 @@ class BratsSegmentationNet(nn.Module):
                 print('Dataset creation unbalanced patches <with validation>')
                 train_dataset = GenericSegmentationCroppingDataset(
                     d_train, t_train, masks=r_train, patch_size=patch_size,
-                    balanced=False, neg_ratio=neg_ratio, sampler=use_sampler,
+                    balanced=False, overlap=patch_size // 4,
+                    sampler=use_sampler,
                 )
                 # Balanced one
                 # train_dataset = GenericSegmentationCroppingDataset(
@@ -450,7 +451,8 @@ class BratsSegmentationNet(nn.Module):
                 no_improv_e = 0
             else:
                 epoch_s = 'Epoch %03d' % self.epoch
-                no_improv_e += 1
+                if self.epoch > sample_rate:
+                    no_improv_e += 1
 
             t_out = time.time() - self.t_train
             t_s = time_to_string(t_out)
@@ -861,7 +863,8 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
                 no_improv_e = 0
             else:
                 epoch_s = 'Epoch %03d' % self.epoch
-                no_improv_e += 1
+                if self.epoch > sample_rate:
+                    no_improv_e += 1
 
             t_out = time.time() - self.t_init
             t_s = time_to_string(t_out)

@@ -438,9 +438,7 @@ class WeightedSubsetRandomSampler(Sampler):
 
             # Here we actually collect either the hard samples, or the initial
             # ones (which will always have a high weight, until used for training.
-            easy_w = torch.tensor(
-                [np.iinfo(np.int16).max] * self.total_samples, dtype=torch.double
-            ) - self.weights
+            easy_w = torch.max(self.weights) - self.weights
             easy_idx = sample(easy_w, n_easy)
             hard_w = self.weights.clone()
             hard_w[easy_idx] = 0
