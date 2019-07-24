@@ -308,6 +308,7 @@ class BratsSegmentationNet(nn.Module):
         # Data split (using numpy) for train and validation.
         # We also compute the number of batches for both training and
         # validation according to the batch size.
+        use_sampler = sample_rate > 1
         if validation:
             n_samples = len(data)
 
@@ -336,7 +337,6 @@ class BratsSegmentationNet(nn.Module):
 
             # Training
             print('Dataset creation')
-            use_sampler = sample_rate > 1
             # Full image one
             train_dataset = BBImageDataset(
                 d_train, t_train, r_train

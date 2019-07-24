@@ -429,7 +429,7 @@ class WeightedSubsetRandomSampler(Sampler):
         # whole dataset. After that, we will begin sampling a percentage of
         # the worst samples.
         self.step += 1
-        if self.step < self.divs:
+        if self.step < self.step_inc:
             idx_ini = (self.step + 1) * self.num_samples
             idx_end = (self.step + 2) * self.num_samples
             self.indices = self.initial[idx_ini:idx_end]
