@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from torchvision import models
 import numpy as np
 from layers import ScalingLayer
-from criterions import GenericLossLayer, multidsc_loss
+from criterions import multidsc_loss
 from datasets import WeightedSubsetRandomSampler
 from datasets import GenericSegmentationCroppingDataset, BBImageDataset
 from optimizers import AdaBound
@@ -783,7 +783,7 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
         )
         print('Dataloader creation with sampler <image>')
         image_loader = DataLoader(
-            image_dataset, batch_size, num_workers=num_workers,
+            image_dataset, 1, num_workers=num_workers,
             sampler=self.image_sampler
         )
 
@@ -890,6 +890,7 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
                 'with minimum loss = %f (epoch %d)' % (
                     self.epoch + 1, t_end_s, best_loss_tr, best_e)
             )
+
 
 class BratsSurvivalNet(nn.Module):
     def __init__(
