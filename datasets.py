@@ -365,10 +365,14 @@ class BBImageDataset(Dataset):
         else:
             bb = self.bb
 
-        inputs = self.cases[index][tuple([slice(None)] + bb)]
+        inputs = np.expand_dims(
+            self.cases[index][tuple([slice(None)] + bb)], axis=0
+        )
 
         if self.labels is not None:
-            targets = self.labels[index][tuple(bb)]
+            targets = np.expand_dims(
+                self.labels[index][tuple(bb)], axis=0
+            )
 
             if self.sampler:
                 return inputs, targets, index
