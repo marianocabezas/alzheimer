@@ -368,6 +368,7 @@ class BBImageDataset(Dataset):
         inputs = self.cases[index][bb]
 
         if self.labels is not None:
+            print(self.labels[index].shape)
             targets = self.labels[index][bb]
 
             if self.sampler:
