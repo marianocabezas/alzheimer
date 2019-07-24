@@ -793,7 +793,7 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
         print('Dataset creation unbalanced patches')
         patch_dataset = GenericSegmentationCroppingDataset(
             d_train, t_train, masks=r_train, patch_size=patch_size,
-            balanced=False, overlap=patch_size // 4, min_size=10, sampler=True,
+            neg_ratio=0, min_size=10, sampler=True,
         )
 
         print('Sampler creation <patches>')
