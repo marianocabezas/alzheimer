@@ -362,7 +362,7 @@ class BratsSegmentationNet(nn.Module):
                 #     sampler=self.sampler
                 # )
                 train_loader = DataLoader(
-                    train_dataset, 1, num_workers=num_workers,
+                    train_dataset, 2, num_workers=num_workers,
                     sampler=self.sampler
                 )
             else:
