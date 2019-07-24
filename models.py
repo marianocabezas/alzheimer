@@ -69,16 +69,16 @@ class BratsSegmentationNet(nn.Module):
                     padding=padding,
                     # groups=g
                 ),
-                nn.InstanceNorm3d(out),
-                # nn.BatchNorm3d(out),
+                # nn.InstanceNorm3d(out),
+                nn.BatchNorm3d(out),
                 nn.LeakyReLU(),
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
                     # groups=2 * g
                 ),
-                nn.InstanceNorm3d(out),
-                # nn.BatchNorm3d(out),
+                # nn.InstanceNorm3d(out),
+                nn.BatchNorm3d(out),
                 nn.LeakyReLU(),
             ),
             zip([n_images] + filters_list[:-1], filters_list, groups_list)
@@ -92,8 +92,8 @@ class BratsSegmentationNet(nn.Module):
                 filters * (2 ** depth), kernel_size,
                 padding=padding
             ),
-            nn.InstanceNorm3d(filters * (2 ** depth)),
-            # nn.BatchNorm3d(filters * (2 ** depth)),
+            # nn.InstanceNorm3d(filters * (2 ** depth)),
+            nn.BatchNorm3d(filters * (2 ** depth)),
             nn.LeakyReLU(),
             nn.Conv3d(
                 filters * (2 ** depth),
@@ -101,7 +101,7 @@ class BratsSegmentationNet(nn.Module):
                 padding=padding
             ),
             # nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
-            # nn.BatchNorm3d(filters * (2 ** (depth - 1))),
+            nn.BatchNorm3d(filters * (2 ** (depth - 1))),
             nn.LeakyReLU(),
         )
         self.midconv.to(self.device)
@@ -116,16 +116,16 @@ class BratsSegmentationNet(nn.Module):
                     padding=padding,
                     # groups=g
                 ),
-                nn.InstanceNorm3d(ini),
-                # nn.BatchNorm3d(ini),
+                # nn.InstanceNorm3d(ini),
+                nn.BatchNorm3d(ini),
                 nn.LeakyReLU(),
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
                     # groups=g
                 ),
-                nn.InstanceNorm3d(out),
-                # nn.BatchNorm3d(out),
+                # nn.InstanceNorm3d(out),
+                nn.BatchNorm3d(out),
                 nn.LeakyReLU(),
             ),
             zip(
