@@ -69,7 +69,7 @@ class BratsSegmentationNet(nn.Module):
                     padding=padding,
                     # groups=g
                 ),
-                # nn.InstanceNorm3d(out),
+                nn.InstanceNorm3d(out),
                 # nn.BatchNorm3d(out),
                 nn.LeakyReLU(),
                 nn.Conv3d(
@@ -77,7 +77,7 @@ class BratsSegmentationNet(nn.Module):
                     padding=padding,
                     # groups=2 * g
                 ),
-                # nn.InstanceNorm3d(out),
+                nn.InstanceNorm3d(out),
                 # nn.BatchNorm3d(out),
                 nn.LeakyReLU(),
             ),
@@ -92,7 +92,7 @@ class BratsSegmentationNet(nn.Module):
                 filters * (2 ** depth), kernel_size,
                 padding=padding
             ),
-            # nn.InstanceNorm3d(filters * (2 ** depth)),
+            nn.InstanceNorm3d(filters * (2 ** depth)),
             # nn.BatchNorm3d(filters * (2 ** depth)),
             nn.LeakyReLU(),
             nn.Conv3d(
@@ -116,7 +116,7 @@ class BratsSegmentationNet(nn.Module):
                     padding=padding,
                     # groups=g
                 ),
-                # nn.InstanceNorm3d(ini),
+                nn.InstanceNorm3d(ini),
                 # nn.BatchNorm3d(ini),
                 nn.LeakyReLU(),
                 nn.ConvTranspose3d(
@@ -124,7 +124,7 @@ class BratsSegmentationNet(nn.Module):
                     padding=padding,
                     # groups=g
                 ),
-                # nn.InstanceNorm3d(out),
+                nn.InstanceNorm3d(out),
                 # nn.BatchNorm3d(out),
                 nn.LeakyReLU(),
             ),
@@ -268,10 +268,10 @@ class BratsSegmentationNet(nn.Module):
             rois=None,
             val_split=0,
             optimizer='adadelta',
-            patch_size=32,
+            patch_size=None,
             epochs=100,
             patience=10,
-            batch_size=32,
+            batch_size=1,
             neg_ratio=1,
             num_workers=32,
             sample_rate=1,
@@ -336,42 +336,38 @@ class BratsSegmentationNet(nn.Module):
                 r_val = None
 
             # Training
-            print('Dataset creation')
-            # Full image one
-            train_dataset = BBImageDataset(
-                d_train, t_train, r_train, sampler=use_sampler
-            )
-            # Unbalanced one
-            # train_dataset = GenericSegmentationCroppingDataset(
-            #     d_train, t_train, masks=r_train, patch_size=patch_size,
-            #     balanced=False, neg_ratio=neg_ratio, sampler=use_sampler,
-            # )
-            # Balanced one
-            # train_dataset = GenericSegmentationCroppingDataset(
-            #     d_train, t_train, masks=r_train, patch_size=patch_size,
-            #     neg_ratio=neg_ratio, sampler=use_sampler,
-            # )
+            if patch_size is None:
+                # Full image one
+                print('Dataset creation images <with validation>')
+                train_dataset = BBImageDataset(
+                    d_train, t_train, r_train, sampler=use_sampler
+                )
+            else:
+                # Unbalanced one
+                print('Dataset creation unbalanced patches <with validation>')
+                train_dataset = GenericSegmentationCroppingDataset(
+                    d_train, t_train, masks=r_train, patch_size=patch_size,
+                    balanced=False, neg_ratio=neg_ratio, sampler=use_sampler,
+                )
+                # Balanced one
+                # train_dataset = GenericSegmentationCroppingDataset(
+                #     d_train, t_train, masks=r_train, patch_size=patch_size,
+                #     neg_ratio=neg_ratio, sampler=use_sampler,
+                # )
             if use_sampler:
-                print('Sampler creation')
+                print('Sampler creation <with validation>')
                 self.sampler = WeightedSubsetRandomSampler(
                     len(train_dataset), sample_rate
                 )
-                print('Dataloader creation with sampler')
-                # train_loader = DataLoader(
-                #     train_dataset, batch_size, num_workers=num_workers,
-                #     sampler=self.sampler
-                # )
+                print('Dataloader creation with sampler <with validation>')
                 train_loader = DataLoader(
-                    train_dataset, 1, num_workers=num_workers,
+                    train_dataset, batch_size, num_workers=num_workers,
                     sampler=self.sampler
                 )
             else:
-                print('Dataloader creation')
-                # train_loader = DataLoader(
-                #     train_dataset, batch_size, True, num_workers=num_workers,
-                # )
+                print('Dataloader creation <with validation>')
                 train_loader = DataLoader(
-                    train_dataset, 1, True, num_workers=num_workers,
+                    train_dataset, batch_size, True, num_workers=num_workers,
                 )
 
             # Validation
@@ -382,19 +378,23 @@ class BratsSegmentationNet(nn.Module):
                 val_dataset, 1, num_workers=num_workers
             )
         else:
+            print('Dataset creation')
             train_dataset = GenericSegmentationCroppingDataset(
                 data, target, masks=rois, patch_size=patch_size,
                 neg_ratio=neg_ratio
             )
             if use_sampler:
+                print('Sampler creation')
                 self.sampler = WeightedSubsetRandomSampler(
                     len(train_dataset), sample_rate
                 )
+                print('Dataloader creation with sampler')
                 train_loader = DataLoader(
                     train_dataset, batch_size, True, num_workers=num_workers,
                     sampler=self.sampler
                 )
             else:
+                print('Dataloader creation')
                 train_loader = DataLoader(
                     train_dataset, batch_size, True, num_workers=num_workers,
                 )

@@ -194,11 +194,20 @@ def main():
                 (c['c'], c['nc'], n_params)
             )
 
+            # Image wise training
             net.fit(
                 train_x, train_y, rois=brains,
                 val_split=0.1, epochs=epochs, patience=patience,
-                batch_size=batch_size, num_workers=16,
+                batch_size=1, num_workers=16,
                 sample_rate=sampling_rate
+            )
+
+            # Patch wise training
+            net.fit(
+                train_x, train_y, rois=brains, patch_size=32,
+                val_split=0.1, epochs=epochs, patience=patience,
+                batch_size=batch_size, num_workers=16,
+                sample_rate=sampling_rate, neg_ratio=0.25
             )
 
             net.save_model(os.path.join(d_path, model_name))
