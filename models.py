@@ -818,7 +818,9 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
         for self.epoch in range(epochs):
             # Main epoch loop
             self.t_train = time.time()
+            self.sampler = self.image_sampler
             loss_im = self.mini_batch_loop(image_loader)
+            self.sampler = self.patch_sampler
             loss_pt = self.mini_batch_loop(patch_loader)
             loss_tr = loss_im + loss_pt
             if loss_tr < best_loss_tr:
