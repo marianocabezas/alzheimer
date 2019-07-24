@@ -21,9 +21,9 @@ def multidsc_loss(pred, target, smooth=1, averaged=True):
     :return: The mean DSC for the batch
     """
     dims = pred.shape
-    print(dims)
+    print(dims, target.shape)
     n_classes = dims[1]
-    if target.shape != pred.shape:
+    if target.shape != dims:
         assert torch.max(target) <= n_classes, 'Wrong number of classes for GT'
         target = torch.cat(
             map(lambda i: target == i, range(n_classes)), dim=1
