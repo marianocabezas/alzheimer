@@ -204,8 +204,8 @@ def get_mesh(shape):
 class GenericSegmentationCroppingDataset(Dataset):
     def __init__(
             self,
-            cases, labels=None, masks=None, balanced=True,
-            patch_size=32, neg_ratio=1, sampler=False
+            cases, labels=None, masks=None, balanced=True, overlap=0,
+            min_size=0, patch_size=32, neg_ratio=1, sampler=False,
     ):
         # Init
         self.neg_ratio = neg_ratio
@@ -243,16 +243,15 @@ class GenericSegmentationCroppingDataset(Dataset):
                 )
                 self.patch_slices = get_slices_bb(data_single, self.patch_size, 0)
         else:
-            overlap = 0
             if self.masks is not None:
                 self.patch_slices = get_slices_bb(
                     self.masks, self.patch_size, overlap=overlap,
-                    filtered=True
+                    min_size=min_size, filtered=True
                 )
             elif self.labels is not None:
                 self.patch_slices = get_slices_bb(
                     self.labels, self.patch_size, overlap=overlap,
-                    filtered=True
+                    min_size=min_size, filtered=True
                 )
             else:
                 data_single = map(
@@ -263,7 +262,7 @@ class GenericSegmentationCroppingDataset(Dataset):
                 )
                 self.patch_slices = get_slices_bb(
                     data_single, self.patch_size, overlap=overlap,
-                    filtered=True
+                    min_size=min_size, filtered=True
                 )
         self.max_slice = np.cumsum(map(len, self.patch_slices))
 

@@ -698,6 +698,7 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
         )
         self.patch_sampler = None
         self.image_sampler = None
+        self.t_init = 0
 
     def fit(
             self,
@@ -790,7 +791,7 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
         print('Dataset creation unbalanced patches')
         patch_dataset = GenericSegmentationCroppingDataset(
             d_train, t_train, masks=r_train, patch_size=patch_size,
-            neg_ratio=neg_ratio, sampler=True,
+            balanced=False, overlap=patch_size // 4, min_size=10, sampler=True,
         )
 
         print('Sampler creation <patches>')
@@ -817,9 +818,11 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
 
         for self.epoch in range(epochs):
             # Main epoch loop
+            self.t_init = time.time()
             self.t_train = time.time()
             self.sampler = self.image_sampler
             loss_im = self.mini_batch_loop(image_loader)
+            self.t_train = time.time()
             self.sampler = self.patch_sampler
             loss_pt = self.mini_batch_loop(patch_loader)
             loss_tr = loss_im + loss_pt
@@ -860,7 +863,7 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
                 epoch_s = 'Epoch %03d' % self.epoch
                 no_improv_e += 1
 
-            t_out = time.time() - self.t_train
+            t_out = time.time() - self.t_init
             t_s = time_to_string(t_out)
 
             if verbose:
