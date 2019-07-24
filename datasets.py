@@ -433,12 +433,13 @@ class WeightedSubsetRandomSampler(Sampler):
             idx_end = (self.step + 1) * self.num_samples
             self.indices = self.initial[idx_ini:idx_end]
         else:
-            n_hard = self.num_samples
-            n_easy = 0
+            n_hard = int(self.num_samples * self.rate)
+            n_easy = self.num_samples - n_hard
 
             # Here we actually collect either the hard samples, or the initial
             # ones (which will always have a high weight, until used for training.
-            easy_w = torch.max(self.weights) - self.weights
+            max_w = torch.max(self.weights)
+            easy_w = torch.clamp(max_w - self.weights, 0, max_w)
             easy_idx = sample(easy_w, n_easy)
             hard_w = self.weights.clone()
             hard_w[easy_idx] = 0
