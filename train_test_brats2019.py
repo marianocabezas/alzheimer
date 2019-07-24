@@ -3,7 +3,7 @@ import argparse
 import os
 from time import strftime
 import numpy as np
-from models import BratsSegmentationNet
+from models import BratsSegmentationNet, BratsSegmentationHybridNet
 from utils import color_codes, get_dirs, find_file, run_command, print_message
 from utils import get_mask, get_normalised_image
 from nibabel import save as save_nii
@@ -106,7 +106,7 @@ def main():
     )
 
     sampling_rate_s = '-sr%d' % sampling_rate if sampling_rate > 1 else ''
-    net_name = 'brats2019-nnunet-bl%s' % sampling_rate_s
+    net_name = 'brats2019-nnunet-hybrid%s' % sampling_rate_s
 
     for i in range(n_folds):
         print(
@@ -182,7 +182,8 @@ def main():
 
         # Training itself
         model_name = '%s_f%d.mdl' % (net_name, i)
-        net = BratsSegmentationNet()
+        # net = BratsSegmentationNet()
+        net = BratsSegmentationHybridNet()
         try:
             net.load_model(os.path.join(d_path, model_name))
         except IOError:
@@ -194,20 +195,25 @@ def main():
                 (c['c'], c['nc'], n_params)
             )
 
-            # Image wise training
+            # # Image wise training
+            # net.fit(
+            #     train_x, train_y, rois=brains,
+            #     val_split=0.1, epochs=epochs, patience=patience,
+            #     batch_size=1, num_workers=16,
+            #     sample_rate=sampling_rate
+            # )
+            #
+            # # Patch wise training
+            # net.fit(
+            #     train_x, train_y, rois=brains, patch_size=32,
+            #     val_split=0.1, epochs=epochs, patience=patience,
+            #     batch_size=batch_size, num_workers=16,
+            #     sample_rate=sampling_rate, neg_ratio=0.25
+            # )
             net.fit(
-                train_x, train_y, rois=brains,
-                val_split=0.1, epochs=epochs, patience=patience,
-                batch_size=1, num_workers=16,
+                train_x, train_y, rois=brains, epochs=epochs,
+                patience=patience, batch_size=batch_size,
                 sample_rate=sampling_rate
-            )
-
-            # Patch wise training
-            net.fit(
-                train_x, train_y, rois=brains, patch_size=32,
-                val_split=0.1, epochs=epochs, patience=patience,
-                batch_size=batch_size, num_workers=16,
-                sample_rate=sampling_rate, neg_ratio=0.25
             )
 
             net.save_model(os.path.join(d_path, model_name))

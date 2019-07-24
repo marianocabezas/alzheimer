@@ -678,6 +678,210 @@ class BratsSegmentationNet(nn.Module):
         self.load_state_dict(torch.load(net_name))
 
 
+class BratsSegmentationHybridNet(BratsSegmentationNet):
+    """
+    This class is based on the nnUnet (No-New Unet).
+    """
+    def __init__(
+            self,
+            *args
+    ):
+        super(BratsSegmentationHybridNet, self).__init__(args)
+        self.patch_sampler = None
+        self.image_sampler = None
+
+    def fit(
+            self,
+            data,
+            target,
+            rois=None,
+            val_split=0.1,
+            optimizer='adadelta',
+            patch_size=32,
+            epochs=50,
+            patience=5,
+            batch_size=32,
+            neg_ratio=0.25,
+            num_workers=16,
+            sample_rate=5,
+            device=torch.device(
+                "cuda:0" if torch.cuda.is_available() else "cpu"
+            ),
+            verbose=True
+    ):
+        # Init
+        self.to(device)
+        self.train()
+
+        best_loss_tr = np.inf
+        best_loss_val = np.inf
+        no_improv_e = 0
+        best_state = deepcopy(self.state_dict())
+
+        optimizer_dict = {
+            'adam': torch.optim.Adam,
+            'adadelta': torch.optim.Adadelta,
+            'adabound': AdaBound,
+        }
+
+        model_params = filter(lambda p: p.requires_grad, self.parameters())
+
+        is_string = isinstance(optimizer, basestring)
+
+        self.optimizer_alg = optimizer_dict[optimizer](model_params) if is_string\
+            else optimizer
+
+        t_start = time.time()
+
+        # Data split (using numpy) for train and validation.
+        # We also compute the number of batches for both training and
+        # validation according to the batch size.
+        use_sampler = sample_rate > 1
+        n_samples = len(data)
+
+        n_t_samples = int(n_samples * (1 - val_split))
+        n_v_samples = n_samples - n_t_samples
+
+        if verbose:
+            print(
+                'Training / validation samples = %d / %d' % (
+                    n_t_samples, n_v_samples
+                )
+            )
+
+        d_train = data[:n_t_samples]
+        d_val = data[n_t_samples:]
+
+        t_train = target[:n_t_samples]
+        t_val = target[n_t_samples:]
+
+        if rois is not None:
+            r_train = rois[:n_t_samples]
+            r_val = rois[n_t_samples:]
+        else:
+            r_train = None
+            r_val = None
+
+        # Training
+        # Full image one
+        print('Dataset creation images')
+        image_dataset = BBImageDataset(
+            d_train, t_train, r_train, sampler=use_sampler
+        )
+        print('Sampler creation <image>')
+        self.image_sampler = WeightedSubsetRandomSampler(
+            len(image_dataset), sample_rate
+        )
+        print('Dataloader creation with sampler <image>')
+        image_loader = DataLoader(
+            image_dataset, batch_size, num_workers=num_workers,
+            sampler=self.image_sampler
+        )
+
+        # Unbalanced one
+        print('Dataset creation unbalanced patches')
+        patch_dataset = GenericSegmentationCroppingDataset(
+            d_train, t_train, masks=r_train, patch_size=patch_size,
+            balanced=False, neg_ratio=neg_ratio, sampler=use_sampler,
+        )
+
+        print('Sampler creation <patches>')
+        self.patch_sampler = WeightedSubsetRandomSampler(
+            len(patch_dataset), sample_rate
+        )
+        print('Dataloader creation with sampler <patches>')
+        patch_loader = DataLoader(
+            patch_dataset, batch_size, num_workers=num_workers,
+            sampler=self.patch_sampler
+        )
+
+        # Validation
+        val_dataset = BBImageDataset(
+            d_val, t_val, r_val
+        )
+        val_loader = DataLoader(
+            val_dataset, 1, num_workers=num_workers
+        )
+
+        l_names = ['train', ' val ', '  BCK ', '  NET ', '  ED  ', '  ET  ']
+        best_losses = [np.inf] * (len(l_names))
+        best_e = 0
+
+        for self.epoch in range(epochs):
+            # Main epoch loop
+            self.t_train = time.time()
+            loss_im = self.mini_batch_loop(image_loader)
+            loss_pt = self.mini_batch_loop(patch_loader)
+            loss_tr = loss_im + loss_pt
+            if loss_tr < best_loss_tr:
+                best_loss_tr = loss_tr
+                tr_loss_s = '\033[32m%0.5f\033[0m' % loss_tr
+            else:
+                tr_loss_s = '%0.5f' % loss_tr
+
+            with torch.no_grad():
+                self.t_val = time.time()
+                loss_val, mid_losses = self.mini_batch_loop(val_loader, False)
+
+            losses_color = map(
+                lambda (pl, l): '\033[36m%s\033[0m' if l < pl else '%s',
+                zip(best_losses, mid_losses)
+            )
+            losses_s = map(
+                lambda (c, l): c % '{:8.4f}'.format(l),
+                zip(losses_color, mid_losses)
+            )
+            best_losses = map(
+                lambda (pl, l): l if l < pl else pl,
+                zip(best_losses, mid_losses)
+            )
+
+            # Patience check
+            improvement = loss_val < best_loss_val
+            loss_s = '{:7.3f}'.format(loss_val)
+            if improvement:
+                best_loss_val = loss_val
+                epoch_s = '\033[32mEpoch %03d\033[0m' % self.epoch
+                loss_s = '\033[32m%s\033[0m' % loss_s
+                best_e = self.epoch
+                best_state = deepcopy(self.state_dict())
+                no_improv_e = 0
+            else:
+                epoch_s = 'Epoch %03d' % self.epoch
+                no_improv_e += 1
+
+            t_out = time.time() - self.t_train
+            t_s = time_to_string(t_out)
+
+            if verbose:
+                print('\033[K', end='')
+                whites = ' '.join([''] * 12)
+                if self.epoch == 0:
+                    l_bars = '--|--'.join(
+                        ['-' * 5] * 2 + ['-' * 6] * len(l_names[2:])
+                    )
+                    l_hdr = '  |  '.join(l_names)
+                    print('%sEpoch num |  %s  |' % (whites, l_hdr))
+                    print('%s----------|--%s--|' % (whites, l_bars))
+                final_s = whites + ' | '.join(
+                    [epoch_s, tr_loss_s, loss_s] + losses_s + [t_s]
+                )
+                print(final_s)
+
+            if no_improv_e == patience:
+                break
+
+        self.epoch = best_e
+        self.load_state_dict(best_state)
+        t_end = time.time() - t_start
+        t_end_s = time_to_string(t_end)
+        if verbose:
+            print(
+                'Training finished in %d epochs (%s) '
+                'with minimum loss = %f (epoch %d)' % (
+                    self.epoch + 1, t_end_s, best_loss_tr, best_e)
+            )
+
 class BratsSurvivalNet(nn.Module):
     def __init__(
             self,
