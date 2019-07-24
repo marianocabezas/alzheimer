@@ -684,9 +684,18 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
     """
     def __init__(
             self,
-            *args
+            filters=16,
+            kernel_size=3,
+            pool_size=2,
+            depth=4,
+            n_images=4,
+            device=torch.device(
+                "cuda:0" if torch.cuda.is_available() else "cpu"
+            ),
     ):
-        super(BratsSegmentationHybridNet, self).__init__(args)
+        super(BratsSegmentationHybridNet, self).__init__(
+            filters, kernel_size, pool_size, depth, n_images, device
+        )
         self.patch_sampler = None
         self.image_sampler = None
 
