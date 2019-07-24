@@ -362,7 +362,7 @@ class BratsSegmentationNet(nn.Module):
                 #     sampler=self.sampler
                 # )
                 train_loader = DataLoader(
-                    train_dataset, 2, num_workers=num_workers,
+                    train_dataset, 1, num_workers=num_workers,
                     sampler=self.sampler
                 )
             else:
@@ -386,13 +386,19 @@ class BratsSegmentationNet(nn.Module):
                 data, target, masks=rois, patch_size=patch_size,
                 neg_ratio=neg_ratio
             )
-            self.sampler = WeightedSubsetRandomSampler(
-                len(train_dataset), sample_rate
-            )
-            train_loader = DataLoader(
-                train_dataset, batch_size, True, num_workers=num_workers,
-                sampler=self.sampler
-            )
+            if use_sampler:
+                self.sampler = WeightedSubsetRandomSampler(
+                    len(train_dataset), sample_rate
+                )
+                train_loader = DataLoader(
+                    train_dataset, batch_size, True, num_workers=num_workers,
+                    sampler=self.sampler
+                )
+            else:
+                train_loader = DataLoader(
+                    train_dataset, batch_size, True, num_workers=num_workers,
+                )
+
             # Validation
             val_dataset = BBImageDataset(
                 data, target, rois
