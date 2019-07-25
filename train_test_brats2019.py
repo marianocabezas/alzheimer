@@ -106,7 +106,7 @@ def main():
     )
 
     sampling_rate_s = '-sr%d' % sampling_rate if sampling_rate > 1 else ''
-    net_name = 'brats2019-nnunet-im%s' % sampling_rate_s
+    net_name = 'brats2019-nnunet-hybrid%s' % sampling_rate_s
 
     for i in range(n_folds):
         print(
@@ -182,8 +182,8 @@ def main():
 
         # Training itself
         model_name = '%s_f%d.mdl' % (net_name, i)
-        net = BratsSegmentationNet()
-        # net = BratsSegmentationHybridNet()
+        # net = BratsSegmentationNet()
+        net = BratsSegmentationHybridNet()
         try:
             net.load_model(os.path.join(d_path, model_name))
         except IOError:
@@ -195,13 +195,13 @@ def main():
                 (c['c'], c['nc'], n_params)
             )
 
-            # Image wise training
-            net.fit(
-                train_x, train_y, rois=brains,
-                val_split=0.1, epochs=epochs, patience=patience,
-                batch_size=1, num_workers=16,
-                sample_rate=sampling_rate
-            )
+            # # Image wise training
+            # net.fit(
+            #     train_x, train_y, rois=brains,
+            #     val_split=0.1, epochs=epochs, patience=patience,
+            #     batch_size=1, num_workers=16,
+            #     sample_rate=sampling_rate
+            # )
             #
             # # Patch wise training
             # net.fit(
@@ -219,11 +219,11 @@ def main():
             #     sample_rate=sampling_rate
             # )
 
-            # net.fit(
-            #     train_x, train_y, rois=brains, epochs=epochs,
-            #     patience=patience, batch_size=batch_size,
-            #     sample_rate=sampling_rate
-            # )
+            net.fit(
+                train_x, train_y, rois=brains, epochs=epochs,
+                patience=patience, batch_size=batch_size,
+                sample_rate=sampling_rate
+            )
 
             net.save_model(os.path.join(d_path, model_name))
 

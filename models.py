@@ -798,7 +798,7 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
 
         print('Sampler creation <patches>')
         self.patch_sampler = WeightedSubsetRandomSampler(
-            len(patch_dataset), sample_rate
+            len(patch_dataset), 10 * sample_rate
         )
         print('Dataloader creation with sampler <patches>')
         patch_loader = DataLoader(
