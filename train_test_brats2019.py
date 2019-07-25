@@ -106,7 +106,7 @@ def main():
     )
 
     sampling_rate_s = '-sr%d' % sampling_rate if sampling_rate > 1 else ''
-    net_name = 'brats2019-nnunet-hybrid%s' % sampling_rate_s
+    net_name = 'brats2019-nnunet-im%s' % sampling_rate_s
 
     for i in range(n_folds):
         print(
