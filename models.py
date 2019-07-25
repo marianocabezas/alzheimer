@@ -67,7 +67,7 @@ class BratsSegmentationNet(nn.Module):
                 nn.Conv3d(
                     ini, out, kernel_size,
                     padding=padding,
-                    groups=g
+                    # groups=g
                 ),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
@@ -75,7 +75,7 @@ class BratsSegmentationNet(nn.Module):
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
-                    groups=2 * g
+                    # groups=2 * g
                 ),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
@@ -114,7 +114,7 @@ class BratsSegmentationNet(nn.Module):
                 nn.ConvTranspose3d(
                     2 * ini, ini, kernel_size,
                     padding=padding,
-                    groups=g
+                    # groups=g
                 ),
                 # nn.InstanceNorm3d(ini),
                 nn.BatchNorm3d(ini),
@@ -122,7 +122,7 @@ class BratsSegmentationNet(nn.Module):
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
-                    groups=g
+                    # groups=g
                 ),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
@@ -686,7 +686,7 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
     """
     def __init__(
             self,
-            filters=16,
+            filters=32,
             kernel_size=3,
             pool_size=2,
             depth=4,
