@@ -37,7 +37,7 @@ class BratsSegmentationNet(nn.Module):
     """
     def __init__(
             self,
-            filters=16,
+            filters=32,
             kernel_size=3,
             pool_size=2,
             depth=4,
