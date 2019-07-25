@@ -182,8 +182,8 @@ def main():
 
         # Training itself
         model_name = '%s_f%d.mdl' % (net_name, i)
-        # net = BratsSegmentationNet()
-        net = BratsSegmentationHybridNet()
+        net = BratsSegmentationNet()
+        # net = BratsSegmentationHybridNet()
         try:
             net.load_model(os.path.join(d_path, model_name))
         except IOError:
@@ -196,13 +196,13 @@ def main():
             )
 
             # # Image wise training
-            # net.fit(
-            #     train_x, train_y, rois=brains,
-            #     val_split=0.1, epochs=epochs, patience=patience,
-            #     batch_size=1, num_workers=16,
-            #     sample_rate=sampling_rate
-            # )
-            #
+            net.fit(
+                train_x, train_y, rois=brains,
+                val_split=0.1, epochs=epochs, patience=patience,
+                batch_size=1, num_workers=16,
+                sample_rate=sampling_rate
+            )
+
             # # Patch wise training
             # net.fit(
             #     train_x, train_y, rois=brains, patch_size=32,
@@ -218,12 +218,12 @@ def main():
             #     batch_size=1, num_workers=16,
             #     sample_rate=sampling_rate
             # )
-
-            net.fit(
-                train_x, train_y, rois=brains, epochs=epochs,
-                patience=patience, batch_size=batch_size,
-                sample_rate=sampling_rate
-            )
+            #
+            # net.fit(
+            #     train_x, train_y, rois=brains, epochs=epochs,
+            #     patience=patience, batch_size=batch_size,
+            #     sample_rate=sampling_rate
+            # )
 
             net.save_model(os.path.join(d_path, model_name))
 
