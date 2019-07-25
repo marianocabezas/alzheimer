@@ -699,6 +699,7 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
             filters, kernel_size, pool_size, depth, n_images, device
         )
         self.patch_sampler = None
+        self.tumor_sampler = None
         self.image_sampler = None
         self.t_init = 0
 
@@ -812,13 +813,13 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
             d_train, t_train, t_train, sampler=True
         )
         print('Sampler creation <tumor>')
-        self.image_sampler = WeightedSubsetRandomSampler(
+        self.tumor_sampler = WeightedSubsetRandomSampler(
             len(image_dataset), sample_rate
         )
         print('Dataloader creation with sampler <tumor>')
-        image_loader = DataLoader(
+        tumor_loader = DataLoader(
             image_dataset, 1, num_workers=num_workers,
-            sampler=self.image_sampler
+            sampler=self.tumor_sampler
         )
 
         # Validation
@@ -840,8 +841,8 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
             self.sampler = self.image_sampler
             loss_im = self.mini_batch_loop(image_loader)
             self.t_train = time.time()
-            self.sampler = self.patch_sampler
-            loss_pt = self.mini_batch_loop(patch_loader)
+            self.sampler = self.tumor_sampler
+            loss_pt = self.mini_batch_loop(tumor_loader)
             loss_tr = loss_im + loss_pt
             if loss_tr < best_loss_tr:
                 best_loss_tr = loss_tr
