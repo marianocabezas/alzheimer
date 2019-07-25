@@ -789,21 +789,36 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
             sampler=self.image_sampler
         )
 
-        # Unbalanced one
-        print('Dataset creation unbalanced patches')
-        patch_dataset = GenericSegmentationCroppingDataset(
-            d_train, t_train, masks=r_train, patch_size=patch_size,
-            neg_ratio=0, sampler=True,
-        )
+        # # Unbalanced one
+        # print('Dataset creation unbalanced patches')
+        # patch_dataset = GenericSegmentationCroppingDataset(
+        #     d_train, t_train, masks=r_train, patch_size=patch_size,
+        #     neg_ratio=0, sampler=True,
+        # )
+        #
+        # print('Sampler creation <patches>')
+        # self.patch_sampler = WeightedSubsetRandomSampler(
+        #     len(patch_dataset), 10 * sample_rate
+        # )
+        # print('Dataloader creation with sampler <patches>')
+        # patch_loader = DataLoader(
+        #     patch_dataset, batch_size, num_workers=num_workers,
+        #     sampler=self.patch_sampler
+        # )
 
-        print('Sampler creation <patches>')
-        self.patch_sampler = WeightedSubsetRandomSampler(
-            len(patch_dataset), 10 * sample_rate
+        # Tumor one
+        print('Dataset creation tumors')
+        image_dataset = BBImageDataset(
+            d_train, t_train, t_train, sampler=True
         )
-        print('Dataloader creation with sampler <patches>')
-        patch_loader = DataLoader(
-            patch_dataset, batch_size, num_workers=num_workers,
-            sampler=self.patch_sampler
+        print('Sampler creation <tumor>')
+        self.image_sampler = WeightedSubsetRandomSampler(
+            len(image_dataset), sample_rate
+        )
+        print('Dataloader creation with sampler <tumor>')
+        image_loader = DataLoader(
+            image_dataset, 1, num_workers=num_workers,
+            sampler=self.image_sampler
         )
 
         # Validation
