@@ -873,6 +873,13 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
         b_losst = multidsc_loss(
             predt, yt.to(self.device), averaged=train
         )
+        b_loss_mix = multidsc_loss(
+            torch.unsqueeze(predr[:, -1, ...], dim=1),
+            torch.sum(predt[:, 1:, ...], dim=1, keepdim=True),
+            averaged=train
+        )
+
+        b_loss = b_lossr + b_losst + b_loss_mix
 
         if train:
             self.optimizer_alg.zero_grad()
