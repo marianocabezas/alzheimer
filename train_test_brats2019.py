@@ -69,6 +69,12 @@ def parse_inputs():
         type=int,  default=1,
         help='Number of epochs'
     )
+    parser.add_argument(
+        '-h', '--hybrid',
+        dest='hybrid',
+        default=False, action='store_true',
+        help='Whether to use a hybrid net. Default is False'
+    )
 
     options = vars(parser.parse_args())
 
@@ -83,6 +89,7 @@ def main():
     epochs = options['epochs']
     patience = options['patience']
     sampling_rate = options['sampling_rate']
+    hybrid = options['hybrid']
     images = ['_flair.nii.gz', '_t1.nii.gz', '_t1ce.nii.gz', '_t2.nii.gz']
 
     # Prepare the sufix that will be added to the results for the net and images
@@ -106,7 +113,8 @@ def main():
     )
 
     sampling_rate_s = '-sr%d' % sampling_rate if sampling_rate > 1 else ''
-    net_name = 'brats2019-nnunet-hybrid%s' % sampling_rate_s
+    mode_s = '-hybrid' if hybrid else ''
+    net_name = 'brats2019-nnunet-%s%s' % (mode_s, sampling_rate_s)
 
     for i in range(n_folds):
         print(
@@ -182,8 +190,10 @@ def main():
 
         # Training itself
         model_name = '%s_f%d.mdl' % (net_name, i)
-        net = BratsSegmentationNet()
-        # net = BratsSegmentationHybridNet()
+        if hybrid:
+            net = BratsSegmentationHybridNet()
+        else:
+            net = BratsSegmentationNet()
         try:
             net.load_model(os.path.join(d_path, model_name))
         except IOError:
@@ -196,12 +206,19 @@ def main():
             )
 
             # Image wise training
-            net.fit(
-                train_x, train_y, rois=brains,
-                val_split=0.1, epochs=epochs, patience=patience,
-                batch_size=1, num_workers=16,
-                sample_rate=sampling_rate
-            )
+            if hybrid:
+                net.fit(
+                    train_x, train_y, rois=brains,
+                    val_split=0.1, epochs=epochs, patience=patience,
+                    num_workers=16,
+                )
+            else:
+                net.fit(
+                    train_x, train_y, rois=brains,
+                    val_split=0.1, epochs=epochs, patience=patience,
+                    batch_size=1, num_workers=16,
+                    sample_rate=sampling_rate
+                )
 
             net.save_model(os.path.join(d_path, model_name))
 

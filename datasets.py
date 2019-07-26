@@ -380,6 +380,91 @@ class BBImageDataset(Dataset):
         return len(self.cases)
 
 
+class BBImageTupleDataset(Dataset):
+    def __init__(
+            self,
+            cases, labels, masks, mode=None,
+    ):
+        # Init
+        # Image and mask should be numpy arrays
+        self.cases = cases
+        self.labels = labels
+
+        self.masks = masks
+
+        indices = map(lambda mask: np.where(mask > 0), self.masks)
+
+        self.labels_mix = map(
+            lambda l, r:  (l > 0).astype(np.uint8) + r.astype(np.uint8),
+            zip(self.labels, self.masks)
+        )
+
+        if mode is None:
+            self.bb = map(
+                lambda idx: map(
+                    lambda (min_i, max_i): slice(min_i, max_i),
+                    zip(np.min(idx, axis=-1), np.max(idx, axis=-1))
+                ),
+                indices
+            )
+        elif mode is 'min':
+            min_bb = np.max(
+                map(
+                    lambda idx: np.min(idx, axis=-1),
+                    indices
+                ),
+                axis=0
+            )
+            max_bb = np.min(
+                map(
+                    lambda idx: np.min(idx, axis=-1),
+                    indices
+                ),
+                axis=0
+            )
+            self.bb = map(
+                lambda (min_i, max_i): slice(min_i, max_i),
+                zip(min_bb, max_bb)
+            ),
+        elif mode is 'max':
+            min_bb = np.min(
+                map(
+                    lambda idx: np.min(idx, axis=-1),
+                    indices
+                ),
+                axis=0
+            )
+            max_bb = np.max(
+                map(
+                    lambda idx: np.min(idx, axis=-1),
+                    indices
+                ),
+                axis=0
+            )
+            self.bb = map(
+                lambda (min_i, max_i): slice(min_i, max_i),
+                zip(min_bb, max_bb)
+            ),
+
+    def __getitem__(self, index):
+        if len(self.bb) == len(self.cases):
+            bb = self.bb[index]
+        else:
+            bb = self.bb
+
+        inputs = self.cases[index][tuple([slice(None)] + bb)]
+
+        targets = (
+            np.expand_dims(self.labels[index][tuple(bb)], axis=0),
+            np.expand_dims(self.labels_mix[index][tuple(bb)], axis=0)
+        )
+
+        return inputs, targets
+
+    def __len__(self):
+        return len(self.cases)
+
+
 def sample(weights, want):
     have = 0
     samples = torch.empty(want, dtype=torch.long)

@@ -11,7 +11,8 @@ import numpy as np
 from layers import ScalingLayer
 from criterions import multidsc_loss
 from datasets import WeightedSubsetRandomSampler
-from datasets import GenericSegmentationCroppingDataset, BBImageDataset
+from datasets import GenericSegmentationCroppingDataset
+from datasets import BBImageDataset, BBImageTupleDataset
 from optimizers import AdaBound
 from utils import time_to_string
 
@@ -680,7 +681,7 @@ class BratsSegmentationNet(nn.Module):
         self.load_state_dict(torch.load(net_name))
 
 
-class BratsSegmentationHybridNet(BratsSegmentationNet):
+class BratsSegmentationHybridNet(nn.Module):
     """
     This class is based on the nnUnet (No-New Unet).
     """
@@ -696,7 +697,7 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
     ):
-        super(BratsSegmentationNet, self).__init__()
+        super(BratsSegmentationHybridNet, self).__init__()
         # Init
         self.sampler = None
         self.t_train = 0
@@ -879,33 +880,83 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
             averaged=train
         )
 
-        b_loss = b_lossr + b_losst + b_loss_mix
+
 
         if train:
+            b_loss = b_lossr + b_losst + b_loss_mix
             self.optimizer_alg.zero_grad()
             b_loss.backward()
             self.optimizer_alg.step()
+        else:
+            b_loss = torch.mean(b_lossr) + torch.mean(b_losst) + b_loss_mix
 
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
 
-        # return b_loss
-        return b_loss
+        return b_loss.tolist(), b_lossr, b_losst, b_loss_mix
+
+    def mini_batch_loop(
+            self, training, train=True
+    ):
+        losses = list()
+        mid_losses = list()
+        n_batches = len(training)
+        for batch_i, batch_data in enumerate(training):
+            # We train the model and check the loss
+            loss_value, b_lossr, b_losst, b_lossmix = self.step(
+                batch_data, train=train
+            )
+
+            mid_losses.append(
+                b_lossr.tolist() + b_losst.tolist() + b_lossmix.tolist()
+            )
+            losses.append(loss_value)
+
+            self.print_progress(
+                batch_i, n_batches, loss_value, np.mean(losses), train
+            )
+
+        if train:
+            return np.mean(losses)
+        else:
+            return np.mean(losses), np.mean(zip(*mid_losses), axis=1)
+
+    def print_progress(self, batch_i, n_batches, b_loss, mean_loss, train=True):
+        init_c = '\033[0m' if train else '\033[38;5;238m'
+        whites = ' '.join([''] * 12)
+        percent = 20 * (batch_i + 1) / n_batches
+        progress_s = ''.join(['-'] * percent)
+        remainder_s = ''.join([' '] * (20 - percent))
+        loss_name = 'train_loss' if train else 'val_loss'
+
+        if train:
+            t_out = time.time() - self.t_train
+        else:
+            t_out = time.time() - self.t_val
+        time_s = time_to_string(t_out)
+
+        t_eta = (t_out / (batch_i + 1)) * (n_batches - (batch_i + 1))
+        eta_s = time_to_string(t_eta)
+
+        batch_s = '%s%sEpoch %03d (%03d/%03d) [%s>%s] %s %f (%f) %s / ETA %s%s' % (
+            init_c, whites, self.epoch, batch_i + 1, n_batches,
+            progress_s, remainder_s,
+            loss_name, b_loss, mean_loss, time_s, eta_s, '\033[0m'
+        )
+        print('\033[K', end='')
+        print(batch_s, end='\r')
+        sys.stdout.flush()
 
     def fit(
             self,
             data,
             target,
-            rois=None,
+            rois,
             val_split=0.1,
             optimizer='adadelta',
-            patch_size=32,
             epochs=50,
             patience=5,
-            batch_size=32,
-            neg_ratio=0,
             num_workers=16,
-            sample_rate=5,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -963,82 +1014,47 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
             r_train = None
             r_val = None
 
-        # Training
+        # < Training >
         # Full image one
-        print('Dataset creation images')
-        image_dataset = BBImageDataset(
-            d_train, t_train, r_train, sampler=True
+        print('Dataset creation')
+        train_dataset = BBImageTupleDataset(
+            d_train, t_train, r_train
         )
-        print('Sampler creation <image>')
-        self.image_sampler = WeightedSubsetRandomSampler(
-            len(image_dataset), sample_rate
-        )
-        print('Dataloader creation with sampler <image>')
-        image_loader = DataLoader(
-            image_dataset, 1, num_workers=num_workers,
-            sampler=self.image_sampler
+        print('Dataloader creation')
+        train_loader = DataLoader(
+            train_dataset, 1, num_workers=num_workers,
         )
 
-        # # Unbalanced one
-        # print('Dataset creation unbalanced patches')
-        # patch_dataset = GenericSegmentationCroppingDataset(
-        #     d_train, t_train, masks=r_train, patch_size=patch_size,
-        #     neg_ratio=0, sampler=True,
-        # )
-        #
-        # print('Sampler creation <patches>')
-        # self.patch_sampler = WeightedSubsetRandomSampler(
-        #     len(patch_dataset), 10 * sample_rate
-        # )
-        # print('Dataloader creation with sampler <patches>')
-        # patch_loader = DataLoader(
-        #     patch_dataset, batch_size, num_workers=num_workers,
-        #     sampler=self.patch_sampler
-        # )
-
-        # Tumor one
-        print('Dataset creation tumors')
-        image_dataset = BBImageDataset(
-            d_train, t_train, t_train, sampler=True
-        )
-        print('Sampler creation <tumor>')
-        self.tumor_sampler = WeightedSubsetRandomSampler(
-            len(image_dataset), sample_rate
-        )
-        print('Dataloader creation with sampler <tumor>')
-        tumor_loader = DataLoader(
-            image_dataset, 1, num_workers=num_workers,
-            sampler=self.tumor_sampler
-        )
-
-        # Validation
-        val_dataset = BBImageDataset(
+        # < Validation >
+        val_dataset = BBImageTupleDataset(
             d_val, t_val, r_val
         )
         val_loader = DataLoader(
             val_dataset, 1, num_workers=num_workers
         )
 
-        l_names = ['train', ' val ', '  BCK ', '  NET ', '  ED  ', '  ET  ']
+        l_names = [
+            'train', ' val ',
+            '  BCK ', '  NET ', '  ED  ', '  ET  ',
+            ' BRAIN', ' TUMOR', ' OVER '
+        ]
         best_losses = [np.inf] * (len(l_names))
         best_e = 0
 
         for self.epoch in range(epochs):
             # Main epoch loop
-            self.t_init = time.time()
+
+            # < Training >
             self.t_train = time.time()
             self.sampler = self.image_sampler
-            loss_im = self.mini_batch_loop(image_loader)
-            self.t_train = time.time()
-            self.sampler = self.tumor_sampler
-            loss_pt = self.mini_batch_loop(tumor_loader)
-            loss_tr = loss_im + loss_pt
+            loss_tr = self.mini_batch_loop(train_loader)
             if loss_tr < best_loss_tr:
                 best_loss_tr = loss_tr
                 tr_loss_s = '\033[32m%0.5f\033[0m' % loss_tr
             else:
                 tr_loss_s = '%0.5f' % loss_tr
 
+            # < Validation >
             with torch.no_grad():
                 self.t_val = time.time()
                 loss_val, mid_losses = self.mini_batch_loop(val_loader, False)
@@ -1068,10 +1084,9 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
                 no_improv_e = 0
             else:
                 epoch_s = 'Epoch %03d' % self.epoch
-                if self.epoch > sample_rate:
-                    no_improv_e += 1
+                no_improv_e += 1
 
-            t_out = time.time() - self.t_init
+            t_out = time.time() - self.t_train
             t_s = time_to_string(t_out)
 
             if verbose:
@@ -1103,6 +1118,11 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
                     self.epoch + 1, t_end_s, best_loss_tr, best_e)
             )
 
+    def save_model(self, net_name):
+        torch.save(self.state_dict(), net_name)
+
+    def load_model(self, net_name):
+        self.load_state_dict(torch.load(net_name))
 
 class BratsSurvivalNet(nn.Module):
     def __init__(
