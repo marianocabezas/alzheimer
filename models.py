@@ -684,6 +684,7 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
     """
     This class is based on the nnUnet (No-New Unet).
     """
+
     def __init__(
             self,
             filters=32,
@@ -695,13 +696,194 @@ class BratsSegmentationHybridNet(BratsSegmentationNet):
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
     ):
-        super(BratsSegmentationHybridNet, self).__init__(
-            filters, kernel_size, pool_size, depth, n_images, device
+        super(BratsSegmentationNet, self).__init__()
+        # Init
+        self.sampler = None
+        self.t_train = 0
+        self.t_val = 0
+        self.epoch = 0
+        self.optimizer_alg = None
+        self.device = device
+        padding = kernel_size // 2
+
+        # Down path
+        self.pooling = pool_size
+        filters_list = map(lambda i: filters * 2 ** i, range(depth))
+        groups_list = map(
+            lambda i: n_images * 2 ** i, range(depth)
         )
-        self.patch_sampler = None
-        self.tumor_sampler = None
-        self.image_sampler = None
-        self.t_init = 0
+        self.convlist = map(
+            lambda (ini, out, g): nn.Sequential(
+                nn.Conv3d(
+                    ini, out, kernel_size,
+                    padding=padding,
+                    # groups=g
+                ),
+                # nn.InstanceNorm3d(out),
+                nn.BatchNorm3d(out),
+                nn.LeakyReLU(),
+                nn.Conv3d(
+                    out, out, kernel_size,
+                    padding=padding,
+                    # groups=2 * g
+                ),
+                # nn.InstanceNorm3d(out),
+                nn.BatchNorm3d(out),
+                nn.LeakyReLU(),
+            ),
+            zip([n_images] + filters_list[:-1], filters_list, groups_list)
+        )
+        for c in self.convlist:
+            c.to(self.device)
+
+        self.midconv = nn.Sequential(
+            nn.Conv3d(
+                filters * (2 ** (depth - 1)),
+                filters * (2 ** depth), kernel_size,
+                padding=padding
+            ),
+            # nn.InstanceNorm3d(filters * (2 ** depth)),
+            nn.BatchNorm3d(filters * (2 ** depth)),
+            nn.LeakyReLU(),
+            nn.Conv3d(
+                filters * (2 ** depth),
+                filters * (2 ** (depth - 1)), kernel_size,
+                padding=padding
+            ),
+            # nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
+            nn.BatchNorm3d(filters * (2 ** (depth - 1))),
+            nn.LeakyReLU(),
+        )
+        self.midconv.to(self.device)
+
+        self.deconvlist_roi = map(
+            lambda (ini, out, g): nn.Sequential(
+                # nn.ConvTranspose3d(
+                #   2 * ini, 2 * ini, 1,
+                # ),
+                nn.ConvTranspose3d(
+                    2 * ini, ini, kernel_size,
+                    padding=padding,
+                    # groups=g
+                ),
+                # nn.InstanceNorm3d(ini),
+                nn.BatchNorm3d(ini),
+                nn.LeakyReLU(),
+                nn.ConvTranspose3d(
+                    ini, out, kernel_size,
+                    padding=padding,
+                    # groups=g
+                ),
+                # nn.InstanceNorm3d(out),
+                nn.BatchNorm3d(out),
+                nn.LeakyReLU(),
+            ),
+            zip(
+                filters_list[::-1], filters_list[-2::-1] + [filters],
+                groups_list[::-1]
+            )
+        )
+        for d in self.deconvlist_roi:
+            d.to(self.device)
+
+        self.deconvlist_tumor = map(
+            lambda (ini, out, g): nn.Sequential(
+                # nn.ConvTranspose3d(
+                #   2 * ini, 2 * ini, 1,
+                # ),
+                nn.ConvTranspose3d(
+                    2 * ini, ini, kernel_size,
+                    padding=padding,
+                    # groups=g
+                ),
+                # nn.InstanceNorm3d(ini),
+                nn.BatchNorm3d(ini),
+                nn.LeakyReLU(),
+                nn.ConvTranspose3d(
+                    ini, out, kernel_size,
+                    padding=padding,
+                    # groups=g
+                ),
+                # nn.InstanceNorm3d(out),
+                nn.BatchNorm3d(out),
+                nn.LeakyReLU(),
+            ),
+            zip(
+                filters_list[::-1], filters_list[-2::-1] + [filters],
+                groups_list[::-1]
+            )
+        )
+        for d in self.deconvlist_tumor:
+            d.to(self.device)
+
+        # Segmentation
+        self.out_tumor = nn.Sequential(
+            nn.Conv3d(filters, 4, 1),
+            nn.Softmax(dim=1)
+        )
+        self.out_tumor.to(self.device)
+
+        self.out_roi = nn.Sequential(
+            nn.Conv3d(filters, 3, 1),
+            nn.Softmax(dim=1)
+        )
+        self.out_roi.to(self.device)
+
+    def forward(self, x, dropout=0):
+        down_list = []
+        for c in self.convlist:
+            down = c(x)
+            if dropout > 0:
+                down = nn.functional.dropout3d(down, dropout)
+            down_list.append(down)
+            x = F.max_pool3d(down, self.pooling)
+
+        xr = xt = self.midconv(x)
+
+        if dropout > 0:
+            x = nn.functional.dropout3d(x, dropout)
+
+        for dr, dt, prev in zip(
+                self.deconvlist_roi, self.deconvlist_tumor, down_list[::-1]
+        ):
+            interp = F.interpolate(xr, size=prev.shape[2:])
+            xr = dr(torch.cat((prev, interp), dim=1))
+            if dropout > 0:
+                xr = nn.functional.dropout3d(x, dropout)
+            xt = dr(torch.cat((prev, interp), dim=1))
+            if dropout > 0:
+                xt = nn.functional.dropout3d(x, dropout)
+
+        output_roi = self.out_roi(xr)
+        output_tumor = self.out_tumor(xt)
+        return output_roi, output_tumor
+
+    def step(
+            self,
+            data,
+            train=True
+    ):
+        # We train the model and check the loss
+        torch.cuda.synchronize()
+        x, yr, yt = data
+        predr, predt = self(x.to(self.device))
+        b_lossr = multidsc_loss(
+            predr, yr.to(self.device), averaged=train
+        )
+        b_losst = multidsc_loss(
+            predt, yt.to(self.device), averaged=train
+        )
+
+        if train:
+            self.optimizer_alg.zero_grad()
+            b_loss.backward()
+            self.optimizer_alg.step()
+
+        torch.cuda.synchronize()
+        torch.cuda.empty_cache()
+
+        # return b_loss
+        return b_loss
 
     def fit(
             self,
