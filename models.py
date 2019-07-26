@@ -688,7 +688,7 @@ class BratsSegmentationHybridNet(nn.Module):
 
     def __init__(
             self,
-            filters=32,
+            filters=16,
             kernel_size=3,
             pool_size=2,
             depth=4,
@@ -1121,6 +1121,7 @@ class BratsSegmentationHybridNet(nn.Module):
 
     def load_model(self, net_name):
         self.load_state_dict(torch.load(net_name))
+
 
 class BratsSurvivalNet(nn.Module):
     def __init__(
