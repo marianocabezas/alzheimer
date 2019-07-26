@@ -395,7 +395,7 @@ class BBImageTupleDataset(Dataset):
         indices = map(lambda mask: np.where(mask > 0), self.masks)
 
         self.labels_mix = map(
-            lambda (l, r):  (l > 0).astype(np.uint8) + r.astype(np.uint8),
+            lambda (l, r):  (l > 0).astype(int) + (r > 0).astype(int),
             zip(self.labels, self.masks)
         )
 
