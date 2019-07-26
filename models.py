@@ -866,7 +866,7 @@ class BratsSegmentationHybridNet(nn.Module):
     ):
         # We train the model and check the loss
         torch.cuda.synchronize()
-        x, yr, yt = data
+        x, (yt, yr) = data
         predr, predt = self(x.to(self.device))
         b_lossr = multidsc_loss(
             predr, yr.to(self.device), averaged=train
