@@ -70,7 +70,7 @@ def parse_inputs():
         help='Number of epochs'
     )
     parser.add_argument(
-        '--hybrid',
+        '-y', '--use-hybrid',
         dest='hybrid',
         default=False, action='store_true',
         help='Whether to use a hybrid net. Default is False'
