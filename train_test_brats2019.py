@@ -46,12 +46,6 @@ def parse_inputs():
              'folder with all the patients.'
     )
     parser.add_argument(
-        '-b', '--batch_size',
-        dest='batch_size',
-        type=int, default=32,
-        help='Batch size for training'
-    )
-    parser.add_argument(
         '-e', '--epochs',
         dest='epochs',
         type=int,  default=10,
@@ -85,18 +79,18 @@ def main():
     # Init
     c = color_codes()
     options = parse_inputs()
-    batch_size = options['batch_size']
     epochs = options['epochs']
     patience = options['patience']
     sampling_rate = options['sampling_rate']
     hybrid = options['hybrid']
+    mode_s = '-hybrid' if hybrid else ''
     images = ['_flair.nii.gz', '_t1.nii.gz', '_t1ce.nii.gz', '_t2.nii.gz']
 
     # Prepare the sufix that will be added to the results for the net and images
 
     print(
-        '%s[%s] %s<BRATS 2019 pipeline testing>%s' % (
-            c['c'], strftime("%H:%M:%S"), c['y'], c['nc']
+        '%s[%s] %s<BRATS 2019 pipeline%s testing>%s' % (
+            c['c'], strftime("%H:%M:%S"), c['y'], mode_s, c['nc']
         )
     )
     d_path = options['loo_dir']
@@ -113,7 +107,6 @@ def main():
     )
 
     sampling_rate_s = '-sr%d' % sampling_rate if sampling_rate > 1 else ''
-    mode_s = '-hybrid' if hybrid else ''
     net_name = 'brats2019-nnunet-%s%s' % (mode_s, sampling_rate_s)
 
     for i in range(n_folds):
