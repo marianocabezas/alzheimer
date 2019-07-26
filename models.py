@@ -1043,10 +1043,8 @@ class BratsSegmentationHybridNet(nn.Module):
 
         for self.epoch in range(epochs):
             # Main epoch loop
-
             # < Training >
             self.t_train = time.time()
-            self.sampler = self.image_sampler
             loss_tr = self.mini_batch_loop(train_loader)
             if loss_tr < best_loss_tr:
                 best_loss_tr = loss_tr
