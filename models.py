@@ -880,8 +880,6 @@ class BratsSegmentationHybridNet(nn.Module):
             averaged=train
         )
 
-
-
         if train:
             b_loss = b_lossr + b_losst + b_loss_mix
             self.optimizer_alg.zero_grad()
@@ -893,7 +891,7 @@ class BratsSegmentationHybridNet(nn.Module):
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
 
-        return b_loss.tolist(), b_lossr, b_losst, b_loss_mix
+        return torch.squeeze(b_loss).tolist(), b_lossr, b_losst, b_loss_mix
 
     def mini_batch_loop(
             self, training, train=True
