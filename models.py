@@ -1047,11 +1047,10 @@ class BratsSegmentationHybridNet(nn.Module):
             # < Training >
             self.t_train = time.time()
             loss_tr = self.mini_batch_loop(train_loader)
+            tr_loss_s = '{:7.5f}'.format(loss_tr)
             if loss_tr < best_loss_tr:
                 best_loss_tr = loss_tr
-                tr_loss_s = '\033[32m%0.5f\033[0m' % loss_tr
-            else:
-                tr_loss_s = '%0.5f' % loss_tr
+                tr_loss_s = '\033[32m%s\033[0m' % tr_loss_s
 
             # < Validation >
             with torch.no_grad():
@@ -1073,7 +1072,7 @@ class BratsSegmentationHybridNet(nn.Module):
 
             # Patience check
             improvement = loss_val < best_loss_val
-            loss_s = '{:7.3f}'.format(loss_val)
+            loss_s = '{:7.5f}'.format(loss_val)
             if improvement:
                 best_loss_val = loss_val
                 epoch_s = '\033[32mEpoch %03d\033[0m' % self.epoch
