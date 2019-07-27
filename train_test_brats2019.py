@@ -40,7 +40,7 @@ def parse_inputs():
 
     # Mode selector
     parser.add_argument(
-        '-f', '--file-directory',
+        '-d', '--file-directory',
         dest='loo_dir', default='/home/mariano/DATA/Brats19TrainingData',
         help='Option to use leave-one-out. The second parameter is the '
              'folder with all the patients.'
@@ -50,6 +50,12 @@ def parse_inputs():
         dest='epochs',
         type=int,  default=10,
         help='Number of epochs'
+    )
+    parser.add_argument(
+        '-f', '--filters',
+        dest='filters',
+        type=int,  default=20,
+        help='Number of starting filters (30 for NNNet)'
     )
     parser.add_argument(
         '-p', '--patience',
@@ -82,6 +88,7 @@ def main():
     epochs = options['epochs']
     patience = options['patience']
     sampling_rate = options['sampling_rate']
+    filters = options['filters']
     hybrid = options['hybrid']
     mode_s = '-hybrid' if hybrid else ''
     images = ['_flair.nii.gz', '_t1.nii.gz', '_t1ce.nii.gz', '_t2.nii.gz']
@@ -106,8 +113,9 @@ def main():
         )
     )
 
+    filters_s = '-f%d' % filters
     sampling_rate_s = '-sr%d' % sampling_rate if sampling_rate > 1 else ''
-    net_name = 'brats2019-nnunet-%s%s' % (mode_s, sampling_rate_s)
+    net_name = 'brats2019-nnunet-%s%s%s' % (mode_s, sampling_rate_s, filters_s)
 
     for i in range(n_folds):
         print(
@@ -184,7 +192,7 @@ def main():
         # Training itself
         model_name = '%s_f%d.mdl' % (net_name, i)
         if hybrid:
-            net = BratsSegmentationHybridNet()
+            net = BratsSegmentationHybridNet(filters=filters)
         else:
             net = BratsSegmentationNet()
         try:
