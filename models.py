@@ -954,7 +954,7 @@ class BratsSegmentationHybridNet(nn.Module):
             target,
             rois,
             val_split=0.1,
-            optimizer='adadelta',
+            optimizer='adam',
             epochs=50,
             patience=5,
             num_workers=16,
@@ -973,7 +973,7 @@ class BratsSegmentationHybridNet(nn.Module):
         best_state = deepcopy(self.state_dict())
 
         optimizer_dict = {
-            'adam': torch.optim.Adam,
+            'adam': lambda param: torch.optim.Adam(param, lr=1e-2),
             'adadelta': torch.optim.Adadelta,
             'adabound': AdaBound,
         }
