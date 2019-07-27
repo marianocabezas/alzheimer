@@ -980,8 +980,7 @@ class BratsSegmentationHybridNet(nn.Module):
         )
 
         l_names = [
-            'train', ' val ',
-            ' BCKr ', ' BRAIN', ' TUMOR',
+            'train', ' val ', ' BCKr ', ' TUMOR',
             ' BCKt ', '  NET ', '  ED  ', '  ET  ',
         ]
         best_losses = [np.inf] * (len(l_names))
