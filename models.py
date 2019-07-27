@@ -954,7 +954,7 @@ class BratsSegmentationHybridNet(nn.Module):
             target,
             rois,
             val_split=0.1,
-            optimizer='adam',
+            optimizer='adadelta',
             epochs=50,
             patience=5,
             num_workers=16,
