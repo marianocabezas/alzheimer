@@ -847,11 +847,12 @@ class BratsSegmentationHybridNet(nn.Module):
         for dr, dt, prev in zip(
                 self.deconvlist_roi, self.deconvlist_tumor, down_list[::-1]
         ):
-            interp = F.interpolate(xr, size=prev.shape[2:])
-            xr = dr(torch.cat((prev, interp), dim=1))
+            interpr = F.interpolate(xr, size=prev.shape[2:])
+            xr = dr(torch.cat((prev, interpr), dim=1))
             if dropout > 0:
                 xr = nn.functional.dropout3d(x, dropout)
-            xt = dr(torch.cat((prev, interp), dim=1))
+            interpt = F.interpolate(xr, size=prev.shape[2:])
+            xt = dr(torch.cat((prev, interpt), dim=1))
             if dropout > 0:
                 xt = nn.functional.dropout3d(x, dropout)
 
