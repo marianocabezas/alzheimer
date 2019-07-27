@@ -756,7 +756,7 @@ class BratsSegmentationHybridNet(nn.Module):
         )
         self.midconv.to(self.device)
 
-        self.deconvlist_roi = map(
+        self.deconvlist = map(
             lambda (ini, out): nn.Sequential(
                 nn.ConvTranspose3d(
                     2 * ini, ini, kernel_size,
@@ -777,45 +777,15 @@ class BratsSegmentationHybridNet(nn.Module):
                 filters_list[::-1], filters_list[-2::-1] + [filters]
             )
         )
-        for d in self.deconvlist_roi:
-            d.to(self.device)
-
-        self.deconvlist_tumor = map(
-            lambda (ini, out): nn.Sequential(
-                nn.ConvTranspose3d(
-                    2 * ini, ini, kernel_size,
-                    padding=padding,
-                ),
-                # nn.InstanceNorm3d(ini),
-                nn.BatchNorm3d(ini),
-                nn.LeakyReLU(),
-                nn.ConvTranspose3d(
-                    ini, out, kernel_size,
-                    padding=padding,
-                ),
-                # nn.InstanceNorm3d(out),
-                nn.BatchNorm3d(out),
-                nn.LeakyReLU(),
-            ),
-            zip(
-                filters_list[::-1], filters_list[-2::-1] + [filters]
-            )
-        )
-        for d in self.deconvlist_tumor:
+        for d in self.deconvlist:
             d.to(self.device)
 
         # Segmentation
-        self.out_tumor = nn.Sequential(
+        self.out = nn.Sequential(
             nn.Conv3d(filters, 4, 1),
             nn.Softmax(dim=1)
         )
-        self.out_tumor.to(self.device)
-
-        self.out_roi = nn.Sequential(
-            nn.Conv3d(filters, 3, 1),
-            nn.Softmax(dim=1)
-        )
-        self.out_roi.to(self.device)
+        self.out.to(self.device)
 
     def forward(self, x, dropout=0):
         down_list = []
@@ -826,28 +796,18 @@ class BratsSegmentationHybridNet(nn.Module):
             down_list.append(down)
             x = F.max_pool3d(down, self.pooling)
 
-        xr = xt = self.midconv(x)
+        x = self.midconv(x)
 
         if dropout > 0:
-            xr = nn.functional.dropout3d(xr, dropout)
-            xt = nn.functional.dropout3d(xt, dropout)
+            x = nn.functional.dropout3d(x, dropout)
 
-        for dr, dt, prev in zip(
-                self.deconvlist_roi, self.deconvlist_tumor, down_list[::-1]
-        ):
-            interpr = F.interpolate(xr, size=prev.shape[2:])
-            xr = dr(torch.cat((prev, interpr), dim=1))
+        for d, prev in zip(self.deconvlist, down_list[::-1]):
+            interp = F.interpolate(x, size=prev.shape[2:])
+            x = d(torch.cat((prev, interp), dim=1))
             if dropout > 0:
-                xr = nn.functional.dropout3d(xr, dropout)
+                x = nn.functional.dropout3d(x, dropout)
 
-            interpt = F.interpolate(xt, size=prev.shape[2:])
-            xt = dt(torch.cat((prev, interpt), dim=1))
-            if dropout > 0:
-                xt = nn.functional.dropout3d(xt, dropout)
-
-        output_roi = self.out_roi(xr)
-        output_tumor = self.out_tumor(xt)
-        return output_roi, output_tumor
+        return self.out(x)
 
     def step(
             self,
@@ -857,44 +817,33 @@ class BratsSegmentationHybridNet(nn.Module):
         # We train the model and check the loss
         torch.cuda.synchronize()
         x, (yt, yr) = data
-        predr, predt = self(x.to(self.device))
-        b_lossr = multidsc_loss(
-            predr, yr.to(self.device), averaged=train
-        )
+        pred = self(x.to(self.device))
         b_losst = multidsc_loss(
-            predt, yt.to(self.device), averaged=train
+            pred, yt.to(self.device), averaged=train
         )
-        b_loss_mix = multidsc_loss(
+        b_lossr = multidsc_loss(
             torch.stack(
                 (
-                    torch.sum(predr[:, :-1, ...], dim=1, keepdim=True),
-                    torch.unsqueeze(predr[:, -1, ...], dim=1),
+                    torch.unsqueeze(pred[:, 0, ...], dim=1),
+                    torch.sum(pred[:, 1:, ...], dim=1, keepdim=True),
                 ),
                 dim=1
             ),
-            torch.stack(
-                (
-                    torch.unsqueeze(predt[:, 0, ...], dim=1),
-                    torch.sum(predt[:, 1:, ...], dim=1, keepdim=True),
-                ),
-                dim=1
-            ),
-            averaged=train
+            yr.to(self.device), averaged=train
         )
 
         if train:
-            b_loss = b_lossr + b_losst + b_loss_mix
+            b_loss = b_lossr + b_losst
             self.optimizer_alg.zero_grad()
             b_loss.backward()
             self.optimizer_alg.step()
         else:
-            b_loss = torch.mean(b_lossr) + torch.mean(b_losst) +\
-                     torch.mean(b_loss_mix)
+            b_loss = torch.mean(b_lossr) + torch.mean(b_losst)
 
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
 
-        return torch.squeeze(b_loss).tolist(), b_lossr, b_losst, b_loss_mix
+        return torch.squeeze(b_loss).tolist(), b_lossr, b_losst
 
     def mini_batch_loop(
             self, training, train=True
@@ -904,13 +853,9 @@ class BratsSegmentationHybridNet(nn.Module):
         n_batches = len(training)
         for batch_i, batch_data in enumerate(training):
             # We train the model and check the loss
-            loss_value, b_lossr, b_losst, b_lossmix = self.step(
-                batch_data, train=train
-            )
+            loss_value, b_lossr, b_losst = self.step(batch_data, train=train)
 
-            mid_losses.append(
-                b_lossr.tolist() + b_losst.tolist() + b_lossmix.tolist()
-            )
+            mid_losses.append(b_lossr.tolist() + b_losst.tolist())
             losses.append(loss_value)
 
             self.print_progress(
@@ -1038,7 +983,6 @@ class BratsSegmentationHybridNet(nn.Module):
             'train', ' val ',
             ' BCKr ', ' BRAIN', ' TUMOR',
             ' BCKt ', '  NET ', '  ED  ', '  ET  ',
-            ' BCKo ', ' TMRo '
         ]
         best_losses = [np.inf] * (len(l_names))
         best_e = 0

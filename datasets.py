@@ -394,10 +394,7 @@ class BBImageTupleDataset(Dataset):
 
         indices = map(lambda mask: np.where(mask > 0), self.masks)
 
-        self.labels_mix = map(
-            lambda (l, r):  (l > 0).astype(int) + (r > 0).astype(int),
-            zip(self.labels, self.masks)
-        )
+        self.labels_bin = map(lambda l: (l > 0).astype(int), self.labels)
 
         if mode is None:
             self.bb = map(
@@ -456,7 +453,7 @@ class BBImageTupleDataset(Dataset):
 
         targets = (
             np.expand_dims(self.labels[index][tuple(bb)], axis=0),
-            np.expand_dims(self.labels_mix[index][tuple(bb)], axis=0)
+            np.expand_dims(self.labels_bin[index][tuple(bb)], axis=0)
         )
 
         return inputs, targets
