@@ -688,7 +688,7 @@ class BratsSegmentationHybridNet(nn.Module):
 
     def __init__(
             self,
-            filters=16,
+            filters=20,
             kernel_size=3,
             pool_size=2,
             depth=4,
@@ -710,15 +710,12 @@ class BratsSegmentationHybridNet(nn.Module):
         # Down path
         self.pooling = pool_size
         filters_list = map(lambda i: filters * 2 ** i, range(depth))
-        groups_list = map(
-            lambda i: n_images * 2 ** i, range(depth)
-        )
         self.convlist = map(
-            lambda (ini, out, g): nn.Sequential(
+            lambda (ini, out): nn.Sequential(
                 nn.Conv3d(
                     ini, out, kernel_size,
                     padding=padding,
-                    # groups=g
+                    # groups=n_images
                 ),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
@@ -726,13 +723,13 @@ class BratsSegmentationHybridNet(nn.Module):
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
-                    # groups=2 * g
+                    # groups=n_images
                 ),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
                 nn.LeakyReLU(),
             ),
-            zip([n_images] + filters_list[:-1], filters_list, groups_list)
+            zip([n_images] + filters_list[:-1], filters_list)
         )
         for c in self.convlist:
             c.to(self.device)
@@ -741,7 +738,8 @@ class BratsSegmentationHybridNet(nn.Module):
             nn.Conv3d(
                 filters * (2 ** (depth - 1)),
                 filters * (2 ** depth), kernel_size,
-                padding=padding
+                padding=padding,
+                # groups=n_imges
             ),
             # nn.InstanceNorm3d(filters * (2 ** depth)),
             nn.BatchNorm3d(filters * (2 ** depth)),
@@ -749,7 +747,8 @@ class BratsSegmentationHybridNet(nn.Module):
             nn.Conv3d(
                 filters * (2 ** depth),
                 filters * (2 ** (depth - 1)), kernel_size,
-                padding=padding
+                padding=padding,
+                # groups=n_images
             ),
             # nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
             nn.BatchNorm3d(filters * (2 ** (depth - 1))),
@@ -758,14 +757,10 @@ class BratsSegmentationHybridNet(nn.Module):
         self.midconv.to(self.device)
 
         self.deconvlist_roi = map(
-            lambda (ini, out, g): nn.Sequential(
-                # nn.ConvTranspose3d(
-                #   2 * ini, 2 * ini, 1,
-                # ),
+            lambda (ini, out): nn.Sequential(
                 nn.ConvTranspose3d(
                     2 * ini, ini, kernel_size,
                     padding=padding,
-                    # groups=g
                 ),
                 # nn.InstanceNorm3d(ini),
                 nn.BatchNorm3d(ini),
@@ -773,29 +768,23 @@ class BratsSegmentationHybridNet(nn.Module):
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
-                    # groups=g
                 ),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
                 nn.LeakyReLU(),
             ),
             zip(
-                filters_list[::-1], filters_list[-2::-1] + [filters],
-                groups_list[::-1]
+                filters_list[::-1], filters_list[-2::-1] + [filters]
             )
         )
         for d in self.deconvlist_roi:
             d.to(self.device)
 
         self.deconvlist_tumor = map(
-            lambda (ini, out, g): nn.Sequential(
-                # nn.ConvTranspose3d(
-                #   2 * ini, 2 * ini, 1,
-                # ),
+            lambda (ini, out): nn.Sequential(
                 nn.ConvTranspose3d(
                     2 * ini, ini, kernel_size,
                     padding=padding,
-                    # groups=g
                 ),
                 # nn.InstanceNorm3d(ini),
                 nn.BatchNorm3d(ini),
@@ -803,15 +792,13 @@ class BratsSegmentationHybridNet(nn.Module):
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
-                    # groups=g
                 ),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
                 nn.LeakyReLU(),
             ),
             zip(
-                filters_list[::-1], filters_list[-2::-1] + [filters],
-                groups_list[::-1]
+                filters_list[::-1], filters_list[-2::-1] + [filters]
             )
         )
         for d in self.deconvlist_tumor:
