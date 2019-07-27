@@ -878,8 +878,16 @@ class BratsSegmentationHybridNet(nn.Module):
             predt, yt.to(self.device), averaged=train
         )
         b_loss_mix = multidsc_loss(
-            torch.unsqueeze(predr[:, -1, ...], dim=1),
-            torch.sum(predt[:, 1:, ...], dim=1, keepdim=True),
+            torch.stack(
+                torch.sum(predr[:, :-1, ...], dim=1, keepdim=True),
+                torch.unsqueeze(predr[:, -1, ...], dim=1),
+                dim=1
+            ),
+            torch.stack(
+                torch.unsqueeze(predt[:, 0, ...], dim=1),
+                torch.sum(predt[:, 1:, ...], dim=1, keepdim=True),
+                dim=1
+            ),
             averaged=train
         )
 
@@ -889,7 +897,8 @@ class BratsSegmentationHybridNet(nn.Module):
             b_loss.backward()
             self.optimizer_alg.step()
         else:
-            b_loss = torch.mean(b_lossr) + torch.mean(b_losst) + b_loss_mix
+            b_loss = torch.mean(b_lossr) + torch.mean(b_losst) +\
+                     torch.mean(b_loss_mix)
 
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
@@ -1037,7 +1046,7 @@ class BratsSegmentationHybridNet(nn.Module):
         l_names = [
             'train', ' val ',
             ' BCKt ', '  NET ', '  ED  ', '  ET  ',
-            ' BCKr ', ' BRAIN', ' TUMOR', ' OVER '
+            ' BCKr ', ' BRAIN', ' TUMOR', ' BCKo ', ' TMRo '
         ]
         best_losses = [np.inf] * (len(l_names))
         best_e = 0
