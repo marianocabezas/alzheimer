@@ -688,7 +688,7 @@ class BratsSegmentationHybridNet(nn.Module):
 
     def __init__(
             self,
-            filters=20,
+            filters=25,
             kernel_size=3,
             pool_size=2,
             depth=4,
