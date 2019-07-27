@@ -822,7 +822,7 @@ class BratsSegmentationHybridNet(nn.Module):
             pred, yt.to(self.device), averaged=train
         )
         b_lossr = multidsc_loss(
-            torch.stack(
+            torch.cat(
                 (
                     torch.unsqueeze(pred[:, 0, ...], dim=1),
                     torch.sum(pred[:, 1:, ...], dim=1, keepdim=True),
