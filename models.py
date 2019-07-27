@@ -817,20 +817,13 @@ class BratsSegmentationHybridNet(nn.Module):
         # We train the model and check the loss
         torch.cuda.synchronize()
         x, (yt, yr) = data
-        pred = self(x.to(self.device))
-        b_losst = multidsc_loss(
-            pred, yt.to(self.device), averaged=train
+        pred_t = self(x.to(self.device))
+        b_losst = multidsc_loss(pred_t, yt.to(self.device), averaged=train)
+
+        pred_r = torch.stack(
+            (pred_t[:, 0, ...], torch.sum(pred_t[:, 1:, ...], dim=1)), dim=1
         )
-        b_lossr = multidsc_loss(
-            torch.cat(
-                (
-                    torch.unsqueeze(pred[:, 0, ...], dim=1),
-                    torch.sum(pred[:, 1:, ...], dim=1, keepdim=True),
-                ),
-                dim=1
-            ),
-            yr.to(self.device), averaged=train
-        )
+        b_lossr = multidsc_loss(pred_r, yr.to(self.device), averaged=train)
 
         if train:
             b_loss = b_lossr + b_losst
