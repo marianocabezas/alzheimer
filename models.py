@@ -758,7 +758,7 @@ class BratsSegmentationHybridNet(nn.Module):
             nn.ReLU(),
             nn.Conv3d(
                 filters * (2 ** depth),
-                filters * (2 ** (depth - 1)), kernel_size,
+                filters * (2 ** depth), kernel_size,
                 padding=padding,
                 groups=n_images
             ),
