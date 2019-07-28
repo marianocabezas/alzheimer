@@ -894,20 +894,21 @@ class BratsSegmentationHybridNet(nn.Module):
 
         pred_bckr = torch.sum(predr[:, :-1, ...], dim=1)
         pred_tmrr = predr[:, -1, ...]
+        predr_mix = torch.stack((pred_bckr, pred_tmrr), dim=1)
 
         pred_bckt = predt[:, 0, ...]
         pred_tmrt = torch.sum(predt[:, 1:, ...], dim=1)
+        predt_mix = torch.stack((pred_bckt, pred_tmrt), dim=1)
 
-        b_loss_mix = multidsc_loss(
-            torch.stack((pred_bckr, pred_tmrr), dim=1),
-            torch.stack((pred_bckt, pred_tmrt), dim=1),
-            averaged=train
-        )
+        b_loss_mix = multidsc_loss(predr_mix, predt_mix, averaged=train)
 
         if train:
-            b_loss = b_lossr + b_losst + b_loss_mix
+            b_loss_s = b_lossr + b_losst + b_loss_mix
             self.optimizer_alg.zero_grad()
-            b_loss.backward()
+            xentr_r = F.cross_entropy(predr, yr.to(self.device))
+            xentr_t = F.cross_entropy(predt, yt.to(self.device))
+            xentr_mix = F.cross_entropy(predr_mix, predt_mix)
+            (xentr_r + xentr_t + xentr_mix).backward()
             self.optimizer_alg.step()
         else:
             b_mean_r = torch.mean(b_lossr)
@@ -919,7 +920,7 @@ class BratsSegmentationHybridNet(nn.Module):
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
 
-        return b_loss.tolist(), 1 - b_lossr, 1 - b_losst, 1 - b_loss_mix
+        return b_loss_s.tolist(), 1 - b_lossr, 1 - b_losst, 1 - b_loss_mix
 
     def mini_batch_loop(
             self, training, train=True
