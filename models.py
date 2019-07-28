@@ -889,7 +889,7 @@ class BratsSegmentationHybridNet(nn.Module):
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
 
-        return torch.squeeze(b_loss).tolist(), b_lossr, b_losst, b_loss_mix
+        return b_loss.tolist(), b_lossr_s, b_losst_s, b_loss_mix_s
 
     def mini_batch_loop(
             self, training, train=True
