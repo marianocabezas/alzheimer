@@ -715,19 +715,30 @@ class BratsSegmentationHybridNet(nn.Module):
                 nn.Conv3d(
                     ini, out, kernel_size,
                     padding=padding,
-                    # groups=n_images
+                    groups=n_images
                 ),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
-                nn.LeakyReLU(),
+                # nn.LeakyReLU(),
+                nn.ReLU(),
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
-                    # groups=n_images
+                    groups=n_images
                 ),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
-                nn.LeakyReLU(),
+                # nn.LeakyReLU(),
+                nn.ReLU(),
+                nn.Conv3d(
+                    out, out, kernel_size,
+                    padding=padding,
+                    groups=n_images
+                ),
+                # nn.InstanceNorm3d(out),
+                nn.BatchNorm3d(out),
+                # nn.LeakyReLU(),
+                nn.ReLU(),
             ),
             zip([n_images] + filters_list[:-1], filters_list)
         )
@@ -739,20 +750,32 @@ class BratsSegmentationHybridNet(nn.Module):
                 filters * (2 ** (depth - 1)),
                 filters * (2 ** depth), kernel_size,
                 padding=padding,
-                # groups=n_imges
+                groups=n_imges
             ),
             # nn.InstanceNorm3d(filters * (2 ** depth)),
             nn.BatchNorm3d(filters * (2 ** depth)),
-            nn.LeakyReLU(),
+            # nn.LeakyReLU(),
+            nn.ReLU(),
             nn.Conv3d(
                 filters * (2 ** depth),
                 filters * (2 ** (depth - 1)), kernel_size,
                 padding=padding,
-                # groups=n_images
+                groups=n_images
             ),
             # nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
             nn.BatchNorm3d(filters * (2 ** (depth - 1))),
-            nn.LeakyReLU(),
+            # nn.LeakyReLU(),
+            nn.ReLU(),
+            nn.Conv3d(
+                filters * (2 ** depth),
+                filters * (2 ** (depth - 1)), kernel_size,
+                padding=padding,
+                groups=n_images
+            ),
+            # nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
+            nn.BatchNorm3d(filters * (2 ** (depth - 1))),
+            # nn.LeakyReLU(),
+            nn.ReLU(),
         )
         self.midconv.to(self.device)
 
@@ -764,14 +787,16 @@ class BratsSegmentationHybridNet(nn.Module):
                 ),
                 # nn.InstanceNorm3d(ini),
                 nn.BatchNorm3d(ini),
-                nn.LeakyReLU(),
+                # nn.LeakyReLU(),
+                nn.ReLU(),
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
                 ),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
-                nn.LeakyReLU(),
+                # nn.LeakyReLU(),
+                nn.ReLU(),
             ),
             zip(
                 filters_list[::-1], filters_list[-2::-1] + [filters]
@@ -788,14 +813,16 @@ class BratsSegmentationHybridNet(nn.Module):
                 ),
                 # nn.InstanceNorm3d(ini),
                 nn.BatchNorm3d(ini),
-                nn.LeakyReLU(),
+                # nn.LeakyReLU(),
+                nn.ReLU(),
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
                 ),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
-                nn.LeakyReLU(),
+                # nn.LeakyReLU(),
+                nn.ReLU(),
             ),
             zip(
                 filters_list[::-1], filters_list[-2::-1] + [filters]
@@ -858,10 +885,10 @@ class BratsSegmentationHybridNet(nn.Module):
         torch.cuda.synchronize()
         x, (yt, yr) = data
         predr, predt = self(x.to(self.device))
-        b_lossr_t, b_lossr_s = multidsc_loss(
+        b_lossr = multidsc_loss(
             predr, yr.to(self.device), averaged=train
         )
-        b_losst_t, b_losst_s = multidsc_loss(
+        b_losst = multidsc_loss(
             predt, yt.to(self.device), averaged=train
         )
 
@@ -871,25 +898,28 @@ class BratsSegmentationHybridNet(nn.Module):
         pred_bckt = predt[:, 0, ...]
         pred_tmrt = torch.sum(predt[:, 1:, ...], dim=1)
 
-        b_loss_mix_t, b_loss_mix_s = multidsc_loss(
+        b_loss_mix = multidsc_loss(
             torch.stack((pred_bckr, pred_tmrr), dim=1),
             torch.stack((pred_bckt, pred_tmrt), dim=1),
             averaged=train
         )
 
         if train:
-            b_loss = b_lossr_s + b_losst_s + b_loss_mix_s
+            b_loss = b_lossr + b_losst + b_loss_mix
             self.optimizer_alg.zero_grad()
-            (b_lossr_t + b_losst_t + b_loss_mix_t).backward()
+            b_loss.backward()
             self.optimizer_alg.step()
         else:
-            b_loss = torch.mean(b_lossr_s) + torch.mean(b_losst_s) +\
-                     torch.mean(b_loss_mix_s)
+            b_mean_r = torch.mean(b_lossr)
+            b_mean_t = torch.mean(b_losst)
+            b_mean_mix = torch.mean(b_loss_mix)
+            b_loss = b_mean_r + b_mean_t + b_mean_mix
+
 
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
 
-        return b_loss.tolist(), b_lossr_s, b_losst_s, b_loss_mix_s
+        return b_loss.tolist(), 1 - b_lossr, 1 - b_losst, 1 - b_loss_mix
 
     def mini_batch_loop(
             self, training, train=True
