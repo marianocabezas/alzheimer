@@ -858,10 +858,10 @@ class BratsSegmentationHybridNet(nn.Module):
         torch.cuda.synchronize()
         x, (yt, yr) = data
         predr, predt = self(x.to(self.device))
-        b_lossr = multidsc_loss(
+        b_lossr_t, b_lossr_s = multidsc_loss(
             predr, yr.to(self.device), averaged=train
         )
-        b_losst = multidsc_loss(
+        b_losst_t, b_losst_s = multidsc_loss(
             predt, yt.to(self.device), averaged=train
         )
 
@@ -871,20 +871,20 @@ class BratsSegmentationHybridNet(nn.Module):
         pred_bckt = predt[:, 0, ...]
         pred_tmrt = torch.sum(predt[:, 1:, ...], dim=1)
 
-        b_loss_mix = multidsc_loss(
+        b_loss_mix_t, b_loss_mix_s = multidsc_loss(
             torch.stack((pred_bckr, pred_tmrr), dim=1),
             torch.stack((pred_bckt, pred_tmrt), dim=1),
             averaged=train
         )
 
         if train:
-            b_loss = b_lossr + b_losst + b_loss_mix
+            b_loss = b_lossr_s + b_losst_s + b_loss_mix_s
             self.optimizer_alg.zero_grad()
-            b_loss.backward()
+            (b_lossr_t + b_losst_t + b_loss_mix_t).backward()
             self.optimizer_alg.step()
         else:
-            b_loss = torch.mean(b_lossr) + torch.mean(b_losst) +\
-                     torch.mean(b_loss_mix)
+            b_loss = torch.mean(b_lossr_s) + torch.mean(b_losst_s) +\
+                     torch.mean(b_loss_mix_s)
 
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
