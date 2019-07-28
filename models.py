@@ -914,8 +914,7 @@ class BratsSegmentationHybridNet(nn.Module):
             b_mean_r = torch.mean(b_lossr)
             b_mean_t = torch.mean(b_losst)
             b_mean_mix = torch.mean(b_loss_mix)
-            b_loss = b_mean_r + b_mean_t + b_mean_mix
-
+            b_loss_s = b_mean_r + b_mean_t + b_mean_mix
 
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
