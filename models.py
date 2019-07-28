@@ -763,7 +763,7 @@ class BratsSegmentationHybridNet(nn.Module):
                 groups=n_images
             ),
             # nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
-            nn.BatchNorm3d(filters * (2 ** (depth - 1))),
+            nn.BatchNorm3d(filters * (2 ** depth)),
             # nn.LeakyReLU(),
             nn.ReLU(),
             nn.Conv3d(
