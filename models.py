@@ -750,7 +750,7 @@ class BratsSegmentationHybridNet(nn.Module):
                 filters * (2 ** (depth - 1)),
                 filters * (2 ** depth), kernel_size,
                 padding=padding,
-                groups=n_imges
+                groups=n_images
             ),
             # nn.InstanceNorm3d(filters * (2 ** depth)),
             nn.BatchNorm3d(filters * (2 ** depth)),
