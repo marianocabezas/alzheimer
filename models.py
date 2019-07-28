@@ -715,7 +715,7 @@ class BratsSegmentationHybridNet(nn.Module):
                 nn.Conv3d(
                     ini, out, kernel_size,
                     padding=padding,
-                    groups=n_images
+                    # groups=n_images
                 ),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
@@ -724,7 +724,7 @@ class BratsSegmentationHybridNet(nn.Module):
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
-                    groups=n_images
+                    # groups=n_images
                 ),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
@@ -733,7 +733,7 @@ class BratsSegmentationHybridNet(nn.Module):
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
-                    groups=n_images
+                    # groups=n_images
                 ),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
@@ -750,7 +750,7 @@ class BratsSegmentationHybridNet(nn.Module):
                 filters * (2 ** (depth - 1)),
                 filters * (2 ** depth), kernel_size,
                 padding=padding,
-                groups=n_images
+                # groups=n_images
             ),
             # nn.InstanceNorm3d(filters * (2 ** depth)),
             nn.BatchNorm3d(filters * (2 ** depth)),
@@ -760,7 +760,7 @@ class BratsSegmentationHybridNet(nn.Module):
                 filters * (2 ** depth),
                 filters * (2 ** depth), kernel_size,
                 padding=padding,
-                groups=n_images
+                # groups=n_images
             ),
             # nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
             nn.BatchNorm3d(filters * (2 ** depth)),
@@ -770,7 +770,7 @@ class BratsSegmentationHybridNet(nn.Module):
                 filters * (2 ** depth),
                 filters * (2 ** (depth - 1)), kernel_size,
                 padding=padding,
-                groups=n_images
+                # groups=n_images
             ),
             # nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
             nn.BatchNorm3d(filters * (2 ** (depth - 1))),
@@ -903,23 +903,21 @@ class BratsSegmentationHybridNet(nn.Module):
         b_loss_mix = multidsc_loss(predr_mix, predt_mix, averaged=train)
 
         if train:
-            b_loss_s = b_lossr + b_losst + b_loss_mix
+            b_loss = b_lossr + b_losst + b_loss_mix
             self.optimizer_alg.zero_grad()
-            xentr_r = F.cross_entropy(predr, yr.to(self.device))
-            xentr_t = F.cross_entropy(predt, yt.to(self.device))
-            xentr_mix = F.cross_entropy(predr_mix, predt_mix)
-            (xentr_r + xentr_t + xentr_mix).backward()
+            b_loss.backward()
             self.optimizer_alg.step()
         else:
             b_mean_r = torch.mean(b_lossr)
             b_mean_t = torch.mean(b_losst)
             b_mean_mix = torch.mean(b_loss_mix)
-            b_loss_s = b_mean_r + b_mean_t + b_mean_mix
+            b_loss = b_mean_r + b_mean_t + b_mean_mix
+
 
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
 
-        return b_loss_s.tolist(), 1 - b_lossr, 1 - b_losst, 1 - b_loss_mix
+        return b_loss.tolist(), 1 - b_lossr, 1 - b_losst, 1 - b_loss_mix
 
     def mini_batch_loop(
             self, training, train=True
