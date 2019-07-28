@@ -22,7 +22,7 @@ def multidsc_loss(pred, target, smooth=1, averaged=True):
     """
     dims = pred.shape
     n_classes = dims[1]
-    if target.shape != dims:
+    if target.shape != pred.shape:
         assert torch.max(target) <= n_classes, 'Wrong number of classes for GT'
         target = torch.cat(
             map(lambda i: target == i, range(n_classes)), dim=1
@@ -32,13 +32,15 @@ def multidsc_loss(pred, target, smooth=1, averaged=True):
     reduce_dims = tuple(range(1, len(dims)))
     num = (2 * torch.sum(pred * target, dim=reduce_dims[1:])) + smooth
     den = torch.sum(pred + target, dim=reduce_dims[1:]) + smooth
-    dsc_k = num / den
+    dsc_k = (den - num)
     if averaged:
-        dsc = 1 - torch.mean(dsc_k)
+        dsc_t = torch.mean(dsc_k)
+        dsc_s = torch.mean(dsc_k / den)
     else:
-        dsc = 1 - torch.mean(dsc_k, dim=0)
+        dsc_t = torch.mean(dsc_k, dim=0)
+        dsc_s = torch.mean(dsc_k / den, dim=0)
 
-    return torch.clamp(dsc, 0., 1.)
+    return dsc_t, torch.clamp(dsc_s, 0., 1.)
 
 
 class GenericLossLayer(torch.nn.Module):
