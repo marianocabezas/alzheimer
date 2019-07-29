@@ -58,7 +58,7 @@ def time_to_string(time_val):
     else:
         time_s = '%dh %dm %ds' % (
             time_val // 3600,
-            (time_val % 3660) // 60,
+            (time_val % 3600) // 60,
             time_val % 60
         )
     return time_s
