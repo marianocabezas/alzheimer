@@ -719,8 +719,8 @@ class BratsSegmentationHybridNet(nn.Module):
                 ),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
-                # nn.LeakyReLU(),
-                nn.ReLU(),
+                nn.LeakyReLU(),
+                # nn.ReLU(),
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
@@ -728,8 +728,8 @@ class BratsSegmentationHybridNet(nn.Module):
                 ),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
-                # nn.LeakyReLU(),
-                nn.ReLU(),
+                nn.LeakyReLU(),
+                # nn.ReLU(),
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
@@ -737,8 +737,8 @@ class BratsSegmentationHybridNet(nn.Module):
                 ),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
-                # nn.LeakyReLU(),
-                nn.ReLU(),
+                nn.LeakyReLU(),
+                # nn.ReLU(),
             ),
             zip([n_images] + filters_list[:-1], filters_list)
         )
@@ -754,8 +754,8 @@ class BratsSegmentationHybridNet(nn.Module):
             ),
             # nn.InstanceNorm3d(filters * (2 ** depth)),
             nn.BatchNorm3d(filters * (2 ** depth)),
-            # nn.LeakyReLU(),
-            nn.ReLU(),
+            nn.LeakyReLU(),
+            # nn.ReLU(),
             nn.Conv3d(
                 filters * (2 ** depth),
                 filters * (2 ** depth), kernel_size,
@@ -764,8 +764,8 @@ class BratsSegmentationHybridNet(nn.Module):
             ),
             # nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
             nn.BatchNorm3d(filters * (2 ** depth)),
-            # nn.LeakyReLU(),
-            nn.ReLU(),
+            #nn.LeakyReLU(),
+            # nn.ReLU(),
             nn.Conv3d(
                 filters * (2 ** depth),
                 filters * (2 ** (depth - 1)), kernel_size,
@@ -774,8 +774,8 @@ class BratsSegmentationHybridNet(nn.Module):
             ),
             # nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
             nn.BatchNorm3d(filters * (2 ** (depth - 1))),
-            # nn.LeakyReLU(),
-            nn.ReLU(),
+            nn.LeakyReLU(),
+            # nn.ReLU(),
         )
         self.midconv.to(self.device)
 
@@ -787,16 +787,16 @@ class BratsSegmentationHybridNet(nn.Module):
                 ),
                 # nn.InstanceNorm3d(ini),
                 nn.BatchNorm3d(ini),
-                # nn.LeakyReLU(),
-                nn.ReLU(),
+                nn.LeakyReLU(),
+                # nn.ReLU(),
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
                 ),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
-                # nn.LeakyReLU(),
-                nn.ReLU(),
+                nn.LeakyReLU(),
+                # nn.ReLU(),
             ),
             zip(
                 filters_list[::-1], filters_list[-2::-1] + [filters]
@@ -813,16 +813,16 @@ class BratsSegmentationHybridNet(nn.Module):
                 ),
                 # nn.InstanceNorm3d(ini),
                 nn.BatchNorm3d(ini),
-                # nn.LeakyReLU(),
-                nn.ReLU(),
+                nn.LeakyReLU(),
+                # nn.ReLU(),
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
                 ),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
-                # nn.LeakyReLU(),
-                nn.ReLU(),
+                nn.LeakyReLU(),
+                # nn.ReLU(),
             ),
             zip(
                 filters_list[::-1], filters_list[-2::-1] + [filters]
@@ -1082,7 +1082,7 @@ class BratsSegmentationHybridNet(nn.Module):
                 loss_val, mid_losses = self.mini_batch_loop(val_loader, False)
 
             losses_color = map(
-                lambda (pl, l): '\033[36m%s\033[0m' if l < pl else '%s',
+                lambda (pl, l): '\033[36m%s\033[0m' if l > pl else '%s',
                 zip(best_losses, mid_losses)
             )
             losses_s = map(
