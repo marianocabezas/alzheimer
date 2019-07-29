@@ -75,6 +75,12 @@ def parse_inputs():
         default=False, action='store_true',
         help='Whether to use a hybrid net. Default is False'
     )
+    parser.add_argument(
+        '-b', '--blocks',
+        dest='blocks',
+        type=int, default=3,
+        help='Number of blocks (or depth)'
+    )
 
     options = vars(parser.parse_args())
 
@@ -90,6 +96,7 @@ def main():
     sampling_rate = options['sampling_rate']
     filters = options['filters']
     hybrid = options['hybrid']
+    depth = options['blocks']
     mode_s = '-hybrid' if hybrid else ''
     images = ['_flair.nii.gz', '_t1.nii.gz', '_t1ce.nii.gz', '_t2.nii.gz']
 
@@ -113,9 +120,12 @@ def main():
         )
     )
 
+    depth_s = '-f%d' % depth
     filters_s = '-f%d' % filters
     sampling_rate_s = '-sr%d' % sampling_rate if sampling_rate > 1 else ''
-    net_name = 'brats2019-nnunet-%s%s%s' % (mode_s, sampling_rate_s, filters_s)
+    net_name = 'brats2019-nnunet-%s%s%s%s' % (
+        mode_s, sampling_rate_s, filters_s, depth_s
+    )
 
     for i in range(n_folds):
         print(
@@ -192,9 +202,9 @@ def main():
         # Training itself
         model_name = '%s_f%d.mdl' % (net_name, i)
         if hybrid:
-            net = BratsSegmentationHybridNet(filters=filters, depth=3)
+            net = BratsSegmentationHybridNet(filters=filters, depth=depth)
         else:
-            net = BratsSegmentationNet()
+            net = BratsSegmentationNet(depth=depth)
         try:
             net.load_model(os.path.join(d_path, model_name))
         except IOError:
