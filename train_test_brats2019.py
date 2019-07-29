@@ -140,33 +140,32 @@ def main():
 
         # Training data
         train_patients = patients[:ini_p] + patients[end_p:]
-        patient_paths = map(lambda p: os.path.join(d_path, p), train_patients)
         brain_names = map(
-            lambda (p_path, p): os.path.join(
-                p_path, p + '_t1.nii.gz'
+            lambda p: os.path.join(
+                d_path, p, p + '_t1.nii.gz'
             ),
-            zip(patient_paths, train_patients)
+            train_patients
         )
         brains = map(get_mask, brain_names)
         lesion_names = map(
-            lambda (p_path, p): os.path.join(p_path, p + '_seg.nii.gz'),
-            zip(patient_paths, train_patients)
+            lambda p: os.path.join(d_path, p, p + '_seg.nii.gz'),
+            train_patients
         )
         train_y = map(get_mask, lesion_names)
         for yi in train_y:
             yi[yi == 4] = 3
         train_x = map(
-            lambda (p_path, p, mask_i): np.stack(
+            lambda (p, mask_i): np.stack(
                 map(
                     lambda im: get_normalised_image(
-                        os.path.join(p_path, p + im),
+                        os.path.join(d_path, p, p + im),
                         mask_i, masked=True
                     ),
                     images
                 ),
                 axis=0
             ),
-            zip(patient_paths, train_patients, brains)
+            zip(train_patients, brains)
         )
 
         # Testing data
