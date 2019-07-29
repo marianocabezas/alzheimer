@@ -160,7 +160,7 @@ def main():
                 map(
                     lambda im: get_normalised_image(
                         os.path.join(p_path, p + im),
-                        mask_i,
+                        mask_i, masked=True
                     ),
                     images
                 ),
