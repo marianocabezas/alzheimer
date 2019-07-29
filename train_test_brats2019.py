@@ -75,6 +75,12 @@ def parse_inputs():
         default=False, action='store_true',
         help='Whether to use a hybrid net. Default is False'
     )
+    parser.add_argument(
+        '-b', '--blocks',
+        dest='blocks',
+        type=int, default=3,
+        help='Number of blocks (or depth)'
+    )
 
     options = vars(parser.parse_args())
 
@@ -90,6 +96,7 @@ def main():
     sampling_rate = options['sampling_rate']
     filters = options['filters']
     hybrid = options['hybrid']
+    depth = options['blocks']
     mode_s = '-hybrid' if hybrid else ''
     images = ['_flair.nii.gz', '_t1.nii.gz', '_t1ce.nii.gz', '_t2.nii.gz']
 
@@ -113,9 +120,12 @@ def main():
         )
     )
 
+    depth_s = '-f%d' % depth
     filters_s = '-f%d' % filters
     sampling_rate_s = '-sr%d' % sampling_rate if sampling_rate > 1 else ''
-    net_name = 'brats2019-nnunet-%s%s%s' % (mode_s, sampling_rate_s, filters_s)
+    net_name = 'brats2019-nnunet-%s%s%s%s' % (
+        mode_s, sampling_rate_s, filters_s, depth_s
+    )
 
     for i in range(n_folds):
         print(
@@ -130,33 +140,32 @@ def main():
 
         # Training data
         train_patients = patients[:ini_p] + patients[end_p:]
-        patient_paths = map(lambda p: os.path.join(d_path, p), train_patients)
         brain_names = map(
-            lambda (p_path, p): os.path.join(
-                p_path, p + '_t1.nii.gz'
+            lambda p: os.path.join(
+                d_path, p, p + '_t1.nii.gz'
             ),
-            zip(patient_paths, train_patients)
+            train_patients
         )
         brains = map(get_mask, brain_names)
         lesion_names = map(
-            lambda (p_path, p): os.path.join(p_path, p + '_seg.nii.gz'),
-            zip(patient_paths, train_patients)
+            lambda p: os.path.join(d_path, p, p + '_seg.nii.gz'),
+            train_patients
         )
         train_y = map(get_mask, lesion_names)
         for yi in train_y:
             yi[yi == 4] = 3
         train_x = map(
-            lambda (p_path, p, mask_i): np.stack(
+            lambda (p, mask_i): np.stack(
                 map(
                     lambda im: get_normalised_image(
-                        os.path.join(p_path, p + im),
-                        mask_i,
+                        os.path.join(d_path, p, p + im),
+                        mask_i, masked=True
                     ),
                     images
                 ),
                 axis=0
             ),
-            zip(patient_paths, train_patients, brains)
+            zip(train_patients, brains)
         )
 
         # Testing data
@@ -192,9 +201,9 @@ def main():
         # Training itself
         model_name = '%s_f%d.mdl' % (net_name, i)
         if hybrid:
-            net = BratsSegmentationHybridNet(filters=filters, depth=5)
+            net = BratsSegmentationHybridNet(filters=filters, depth=depth)
         else:
-            net = BratsSegmentationNet()
+            net = BratsSegmentationNet(depth=depth)
         try:
             net.load_model(os.path.join(d_path, model_name))
         except IOError:

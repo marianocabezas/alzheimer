@@ -58,8 +58,7 @@ class BratsSegmentationNet(nn.Module):
         padding = kernel_size // 2
 
         # Down path
-        self.pooling = pool_size
-        filters_list = map(lambda i: filters * 2 ** i, range(depth))
+        filter_list = map(lambda i: filters * 2 ** i, range(depth))
         groups_list = map(
             lambda i: n_images * 2 ** i, range(depth)
         )
@@ -70,22 +69,27 @@ class BratsSegmentationNet(nn.Module):
                     padding=padding,
                     # groups=g
                 ),
-                # nn.InstanceNorm3d(out),
-                nn.BatchNorm3d(out),
                 nn.LeakyReLU(),
+                nn.InstanceNorm3d(out),
+                # nn.BatchNorm3d(out),
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
                     # groups=2 * g
                 ),
-                # nn.InstanceNorm3d(out),
-                nn.BatchNorm3d(out),
                 nn.LeakyReLU(),
+                nn.InstanceNorm3d(out),
+                # nn.BatchNorm3d(out),
             ),
-            zip([n_images] + filters_list[:-1], filters_list, groups_list)
+            zip([n_images] + filter_list[:-1], filter_list, groups_list)
         )
-        for c in self.convlist:
+        self.pooling = map(
+            lambda f: nn.Conv3d(f, f, pool_size, stride=pool_size, groups=f),
+            filter_list
+        )
+        for c, p in zip(self.convlist, self.pooling):
             c.to(self.device)
+            p.to(self.device)
 
         self.midconv = nn.Sequential(
             nn.Conv3d(
@@ -93,17 +97,17 @@ class BratsSegmentationNet(nn.Module):
                 filters * (2 ** depth), kernel_size,
                 padding=padding
             ),
-            # nn.InstanceNorm3d(filters * (2 ** depth)),
-            nn.BatchNorm3d(filters * (2 ** depth)),
             nn.LeakyReLU(),
+            nn.InstanceNorm3d(filters * (2 ** depth)),
+            # nn.BatchNorm3d(filters * (2 ** depth)),
             nn.Conv3d(
                 filters * (2 ** depth),
                 filters * (2 ** (depth - 1)), kernel_size,
                 padding=padding
             ),
-            # nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
-            nn.BatchNorm3d(filters * (2 ** (depth - 1))),
             nn.LeakyReLU(),
+            nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
+            # nn.BatchNorm3d(filters * (2 ** (depth - 1))),
         )
         self.midconv.to(self.device)
 
@@ -117,20 +121,20 @@ class BratsSegmentationNet(nn.Module):
                     padding=padding,
                     # groups=g
                 ),
-                # nn.InstanceNorm3d(ini),
-                nn.BatchNorm3d(ini),
                 nn.LeakyReLU(),
+                nn.InstanceNorm3d(ini),
+                # nn.BatchNorm3d(ini),
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
                     # groups=g
                 ),
-                # nn.InstanceNorm3d(out),
-                nn.BatchNorm3d(out),
                 nn.LeakyReLU(),
+                nn.InstanceNorm3d(out),
+                # nn.BatchNorm3d(out),
             ),
             zip(
-                filters_list[::-1], filters_list[-2::-1] + [filters],
+                filter_list[::-1], filter_list[-2::-1] + [filters],
                 groups_list[::-1]
             )
         )
@@ -146,12 +150,13 @@ class BratsSegmentationNet(nn.Module):
 
     def forward(self, x, dropout=0):
         down_list = []
-        for c in self.convlist:
+        for c, p in zip(self.convlist, self.pooling):
             down = c(x)
             if dropout > 0:
                 down = nn.functional.dropout3d(down, dropout)
             down_list.append(down)
-            x = F.max_pool3d(down, self.pooling)
+            # x = F.max_pool3d(down, self.pooling)
+            x = p(down)
 
         x = self.midconv(x)
 
@@ -709,7 +714,7 @@ class BratsSegmentationHybridNet(nn.Module):
 
         # Down path
         self.pooling = pool_size
-        filters_list = map(lambda i: filters * 2 ** i, range(depth))
+        filter_list = map(lambda i: filters * 2 ** i, range(depth))
         self.convlist = map(
             lambda (ini, out): nn.Sequential(
                 nn.Conv3d(
@@ -717,33 +722,31 @@ class BratsSegmentationHybridNet(nn.Module):
                     padding=padding,
                     # groups=n_images
                 ),
-                # nn.InstanceNorm3d(out),
-                nn.BatchNorm3d(out),
-                nn.LeakyReLU(),
-                # nn.ReLU(),
+                nn.ReLU(),
+                nn.InstanceNorm3d(out),
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
                     # groups=n_images
                 ),
-                # nn.InstanceNorm3d(out),
-                nn.BatchNorm3d(out),
-                nn.LeakyReLU(),
-                # nn.ReLU(),
+                nn.ReLU(),
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
                     # groups=n_images
                 ),
-                # nn.InstanceNorm3d(out),
-                nn.BatchNorm3d(out),
-                nn.LeakyReLU(),
-                # nn.ReLU(),
+                nn.ReLU(),
+                nn.InstanceNorm3d(out),
             ),
-            zip([n_images] + filters_list[:-1], filters_list)
+            zip([n_images] + filter_list[:-1], filter_list)
         )
-        for c in self.convlist:
+        self.pooling = map(
+            lambda f: nn.Conv3d(f, f, pool_size, stride=pool_size, groups=f),
+            filter_list
+        )
+        for c, p in zip(self.convlist, self.pooling):
             c.to(self.device)
+            p.to(self.device)
 
         self.midconv = nn.Sequential(
             nn.Conv3d(
@@ -752,30 +755,24 @@ class BratsSegmentationHybridNet(nn.Module):
                 padding=padding,
                 # groups=n_images
             ),
-            # nn.InstanceNorm3d(filters * (2 ** depth)),
-            nn.BatchNorm3d(filters * (2 ** depth)),
-            nn.LeakyReLU(),
-            # nn.ReLU(),
+            nn.ReLU(),
+            nn.InstanceNorm3d(filters * (2 ** depth)),
             nn.Conv3d(
                 filters * (2 ** depth),
                 filters * (2 ** depth), kernel_size,
                 padding=padding,
                 # groups=n_images
             ),
-            # nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
-            nn.BatchNorm3d(filters * (2 ** depth)),
-            #nn.LeakyReLU(),
-            # nn.ReLU(),
+            nn.ReLU(),
+            nn.InstanceNorm3d(filters * (2 ** depth)),
             nn.Conv3d(
                 filters * (2 ** depth),
                 filters * (2 ** (depth - 1)), kernel_size,
                 padding=padding,
                 # groups=n_images
             ),
-            # nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
-            nn.BatchNorm3d(filters * (2 ** (depth - 1))),
-            nn.LeakyReLU(),
-            # nn.ReLU(),
+            nn.ReLU(),
+            nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
         )
         self.midconv.to(self.device)
 
@@ -785,21 +782,17 @@ class BratsSegmentationHybridNet(nn.Module):
                     2 * ini, ini, kernel_size,
                     padding=padding,
                 ),
-                # nn.InstanceNorm3d(ini),
-                nn.BatchNorm3d(ini),
-                nn.LeakyReLU(),
-                # nn.ReLU(),
+                nn.ReLU(),
+                nn.InstanceNorm3d(ini),
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
                 ),
-                # nn.InstanceNorm3d(out),
-                nn.BatchNorm3d(out),
-                nn.LeakyReLU(),
-                # nn.ReLU(),
+                nn.ReLU(),
+                nn.InstanceNorm3d(out),
             ),
             zip(
-                filters_list[::-1], filters_list[-2::-1] + [filters]
+                filter_list[::-1], filter_list[-2::-1] + [filters]
             )
         )
         for d in self.deconvlist_roi:
@@ -811,21 +804,17 @@ class BratsSegmentationHybridNet(nn.Module):
                     2 * ini, ini, kernel_size,
                     padding=padding,
                 ),
-                # nn.InstanceNorm3d(ini),
-                nn.BatchNorm3d(ini),
-                nn.LeakyReLU(),
-                # nn.ReLU(),
+                nn.ReLU(),
+                nn.InstanceNorm3d(ini),
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
                 ),
-                # nn.InstanceNorm3d(out),
-                nn.BatchNorm3d(out),
-                nn.LeakyReLU(),
-                # nn.ReLU(),
+                nn.ReLU(),
+                nn.InstanceNorm3d(out),
             ),
             zip(
-                filters_list[::-1], filters_list[-2::-1] + [filters]
+                filter_list[::-1], filter_list[-2::-1] + [filters]
             )
         )
         for d in self.deconvlist_tumor:
@@ -833,12 +822,16 @@ class BratsSegmentationHybridNet(nn.Module):
 
         # Segmentation
         self.out_tumor = nn.Sequential(
+            nn.Conv3d(filters, filters, 1),
+            nn.ReLU(),
             nn.Conv3d(filters, 4, 1),
             nn.Softmax(dim=1)
         )
         self.out_tumor.to(self.device)
 
         self.out_roi = nn.Sequential(
+            nn.Conv3d(filters, filters, 1),
+            nn.ReLU(),
             nn.Conv3d(filters, 3, 1),
             nn.Softmax(dim=1)
         )
@@ -846,12 +839,13 @@ class BratsSegmentationHybridNet(nn.Module):
 
     def forward(self, x, dropout=0):
         down_list = []
-        for c in self.convlist:
+        for c, p in zip(self.convlist, self.pooling):
             down = c(x)
             if dropout > 0:
                 down = nn.functional.dropout3d(down, dropout)
             down_list.append(down)
-            x = F.max_pool3d(down, self.pooling)
+            # x = F.max_pool3d(down, self.pooling)
+            x = p(down)
 
         xr = xt = self.midconv(x)
 
@@ -912,7 +906,6 @@ class BratsSegmentationHybridNet(nn.Module):
             b_mean_t = torch.mean(b_losst)
             b_mean_mix = torch.mean(b_loss_mix)
             b_loss = b_mean_r + b_mean_t + b_mean_mix
-
 
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
@@ -1063,7 +1056,7 @@ class BratsSegmentationHybridNet(nn.Module):
             ' BCKt ', '  NET ', '  ED  ', '  ET  ',
             ' BCKo ', ' TMRo '
         ]
-        best_losses = [np.inf] * (len(l_names))
+        best_losses = [-np.inf] * (len(l_names))
         best_e = 0
 
         for self.epoch in range(epochs):
