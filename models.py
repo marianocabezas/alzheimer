@@ -718,7 +718,7 @@ class BratsSegmentationHybridNet(nn.Module):
                     # groups=n_images
                 ),
                 nn.ReLU(),
-                nn.BatchNorm3d(out),
+                nn.InstanceNorm3d(out),
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
@@ -731,7 +731,7 @@ class BratsSegmentationHybridNet(nn.Module):
                     # groups=n_images
                 ),
                 nn.ReLU(),
-                nn.BatchNorm3d(out),
+                nn.InstanceNorm3d(out),
             ),
             zip([n_images] + filter_list[:-1], filter_list)
         )
@@ -751,7 +751,7 @@ class BratsSegmentationHybridNet(nn.Module):
                 # groups=n_images
             ),
             nn.ReLU(),
-            nn.BatchNorm3d(filters * (2 ** depth)),
+            nn.InstanceNorm3d(filters * (2 ** depth)),
             nn.Conv3d(
                 filters * (2 ** depth),
                 filters * (2 ** depth), kernel_size,
@@ -759,7 +759,7 @@ class BratsSegmentationHybridNet(nn.Module):
                 # groups=n_images
             ),
             nn.ReLU(),
-            nn.BatchNorm3d(filters * (2 ** depth)),
+            nn.InstanceNorm3d(filters * (2 ** depth)),
             nn.Conv3d(
                 filters * (2 ** depth),
                 filters * (2 ** (depth - 1)), kernel_size,
@@ -767,7 +767,7 @@ class BratsSegmentationHybridNet(nn.Module):
                 # groups=n_images
             ),
             nn.ReLU(),
-            nn.BatchNorm3d(filters * (2 ** (depth - 1))),
+            nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
         )
         self.midconv.to(self.device)
 
@@ -778,13 +778,13 @@ class BratsSegmentationHybridNet(nn.Module):
                     padding=padding,
                 ),
                 nn.ReLU(),
-                nn.BatchNorm3d(ini),
+                nn.InstanceNorm3d(ini),
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
                 ),
                 nn.ReLU(),
-                nn.BatchNorm3d(out),
+                nn.InstanceNorm3d(out),
             ),
             zip(
                 filter_list[::-1], filter_list[-2::-1] + [filters]
@@ -800,13 +800,13 @@ class BratsSegmentationHybridNet(nn.Module):
                     padding=padding,
                 ),
                 nn.ReLU(),
-                nn.BatchNorm3d(ini),
+                nn.InstanceNorm3d(ini),
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
                 ),
                 nn.ReLU(),
-                nn.BatchNorm3d(out),
+                nn.InstanceNorm3d(out),
             ),
             zip(
                 filter_list[::-1], filter_list[-2::-1] + [filters]
@@ -901,7 +901,6 @@ class BratsSegmentationHybridNet(nn.Module):
             b_mean_t = torch.mean(b_losst)
             b_mean_mix = torch.mean(b_loss_mix)
             b_loss = b_mean_r + b_mean_t + b_mean_mix
-
 
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
