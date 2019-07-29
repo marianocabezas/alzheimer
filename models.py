@@ -720,20 +720,20 @@ class BratsSegmentationHybridNet(nn.Module):
                 nn.Conv3d(
                     ini, out, kernel_size,
                     padding=padding,
-                    # groups=n_images
+                    groups=n_images
                 ),
                 nn.ReLU(),
                 nn.InstanceNorm3d(out),
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
-                    # groups=n_images
+                    groups=n_images
                 ),
                 nn.ReLU(),
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
-                    # groups=n_images
+                    groups=n_images
                 ),
                 nn.ReLU(),
                 nn.InstanceNorm3d(out),
@@ -753,7 +753,7 @@ class BratsSegmentationHybridNet(nn.Module):
                 filters * (2 ** (depth - 1)),
                 filters * (2 ** depth), kernel_size,
                 padding=padding,
-                # groups=n_images
+                groups=n_images
             ),
             nn.ReLU(),
             nn.InstanceNorm3d(filters * (2 ** depth)),
@@ -761,7 +761,7 @@ class BratsSegmentationHybridNet(nn.Module):
                 filters * (2 ** depth),
                 filters * (2 ** depth), kernel_size,
                 padding=padding,
-                # groups=n_images
+                groups=n_images
             ),
             nn.ReLU(),
             nn.InstanceNorm3d(filters * (2 ** depth)),
@@ -769,7 +769,7 @@ class BratsSegmentationHybridNet(nn.Module):
                 filters * (2 ** depth),
                 filters * (2 ** (depth - 1)), kernel_size,
                 padding=padding,
-                # groups=n_images
+                groups=n_images
             ),
             nn.ReLU(),
             nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
