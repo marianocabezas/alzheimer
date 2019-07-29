@@ -303,7 +303,7 @@ def get_mask(mask_name, dilate=0, dtype=np.uint8):
 
 
 def get_normalised_image(image_name, mask, dtype=np.float32, masked=False):
-    mask_bin = mask.astyoe(np.bool)
+    mask_bin = mask.astype(np.bool)
     image = load_nii(image_name).get_data()
     image_mu = np.mean(image[mask_bin])
     image_sigma = np.std(image[mask_bin])
