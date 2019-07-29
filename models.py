@@ -58,8 +58,7 @@ class BratsSegmentationNet(nn.Module):
         padding = kernel_size // 2
 
         # Down path
-        self.pooling = pool_size
-        filters_list = map(lambda i: filters * 2 ** i, range(depth))
+        filter_list = map(lambda i: filters * 2 ** i, range(depth))
         groups_list = map(
             lambda i: n_images * 2 ** i, range(depth)
         )
@@ -82,10 +81,15 @@ class BratsSegmentationNet(nn.Module):
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
             ),
-            zip([n_images] + filters_list[:-1], filters_list, groups_list)
+            zip([n_images] + filter_list[:-1], filter_list, groups_list)
         )
-        for c in self.convlist:
+        self.pooling = map(
+            lambda f: nn.Conv3d(f, f, pool_size, stride=pool_size, groups=f),
+            filter_list
+        )
+        for c, p in zip(self.convlist, self.pooling):
             c.to(self.device)
+            p.to(self.device)
 
         self.midconv = nn.Sequential(
             nn.Conv3d(
@@ -130,7 +134,7 @@ class BratsSegmentationNet(nn.Module):
                 nn.BatchNorm3d(out),
             ),
             zip(
-                filters_list[::-1], filters_list[-2::-1] + [filters],
+                filter_list[::-1], filter_list[-2::-1] + [filters],
                 groups_list[::-1]
             )
         )
@@ -146,12 +150,13 @@ class BratsSegmentationNet(nn.Module):
 
     def forward(self, x, dropout=0):
         down_list = []
-        for c in self.convlist:
+        for c, p in zip(self.convlist, self.pooling):
             down = c(x)
             if dropout > 0:
                 down = nn.functional.dropout3d(down, dropout)
             down_list.append(down)
-            x = F.max_pool3d(down, self.pooling)
+            # x = F.max_pool3d(down, self.pooling)
+            x = p(down)
 
         x = self.midconv(x)
 
