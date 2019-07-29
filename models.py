@@ -736,8 +736,9 @@ class BratsSegmentationHybridNet(nn.Module):
         self.pooling = map(
             lambda f: nn.Conv3d(f, f, 2, stride=2, groups=f), filter_list
         )
-        for c in self.convlist:
+        for c, p in zip(self.convlist, self.pooling):
             c.to(self.device)
+            p.to(self.device)
 
         self.midconv = nn.Sequential(
             nn.Conv3d(
