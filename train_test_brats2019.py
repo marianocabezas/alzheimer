@@ -192,7 +192,7 @@ def main():
         # Training itself
         model_name = '%s_f%d.mdl' % (net_name, i)
         if hybrid:
-            net = BratsSegmentationHybridNet(filters=filters, depth=5)
+            net = BratsSegmentationHybridNet(filters=filters, depth=3)
         else:
             net = BratsSegmentationNet()
         try:
