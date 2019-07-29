@@ -829,7 +829,7 @@ class BratsSegmentationHybridNet(nn.Module):
                 down = nn.functional.dropout3d(down, dropout)
             down_list.append(down)
             # x = F.max_pool3d(down, self.pooling)
-            x = p(down, self.pooling)
+            x = p(down)
 
         xr = xt = self.midconv(x)
 
