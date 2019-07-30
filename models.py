@@ -1151,6 +1151,62 @@ class BratsSegmentationHybridNet(nn.Module):
                     self.epoch + 1, t_end_s, best_loss_tr, best_e)
             )
 
+    def segment(
+            self,
+            data,
+            device=torch.device(
+                "cuda:0" if torch.cuda.is_available() else "cpu"
+            ),
+            verbose=True
+    ):
+        # Init
+        self.to(device)
+        self.eval()
+        whites = ' '.join([''] * 12)
+        results_roi = []
+        results_tumor = []
+
+        with torch.no_grad():
+            cases = len(data)
+            t_in = time.time()
+            for i, data_i in enumerate(data):
+
+                # We test the model with the current batch
+                input_i = torch.unsqueeze(
+                    to_torch_var(data_i, self.device), 0
+                )
+                torch.cuda.synchronize()
+                pred_roi, pred_tumor = self(input_i).squeeze().tolist()
+                torch.cuda.synchronize()
+                torch.cuda.empty_cache()
+
+                results_roi.append(pred_roi)
+                results_tumor.append(pred_tumor)
+
+                t_out = time.time() - t_in
+                t_s = time_to_string(t_out)
+                # Print stuff
+                if verbose:
+                    percent = 20 * (i + 1) / cases
+                    progress_s = ''.join(['-'] * percent)
+                    remainder_s = ''.join([' '] * (20 - percent))
+                    t_eta = (t_out / (i + 1)) * (cases - (i + 1))
+                    eta_s = time_to_string(t_eta)
+                    print(
+                        '\033[K%sTested case (%02d/%02d) [%s>%s]'
+                        ' %s / ETA: %s' % (
+                            whites, i, cases, progress_s, remainder_s,
+                            t_s, eta_s
+                        ),
+                        end='\r'
+                    )
+                    sys.stdout.flush()
+
+        if verbose:
+            print('\033[K%sTesting finished succesfully' % whites)
+
+        return results_roi, results_tumor
+
     def save_model(self, net_name):
         torch.save(self.state_dict(), net_name)
 

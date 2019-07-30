@@ -233,26 +233,53 @@ def main():
             net.save_model(os.path.join(d_path, model_name))
 
         # Testing data
-        pred_y = net.segment(test_x)
+        if hybrid:
+            pred_r, pred_t = net.segment(test_x)
 
-        for (path_i, p_i, pred_i) in zip(patient_paths, test_patients, pred_y):
-            seg_i = np.argmax(pred_i, axis=0)
-            seg_i[seg_i == 3] = 4
+            for (path_i, p_i, pred_ri, pred_ti) in zip(
+                    patient_paths, test_patients, pred_r, pred_t
+            ):
+                seg_i = np.argmax(pred_ri, axis=0)
+                seg_i[seg_i == 3] = 4
 
-            niiname = os.path.join(path_i, p_i + '_seg.nii.gz')
-            nii = load_nii(niiname)
-            seg = nii.get_data()
+                niiname = os.path.join(path_i, p_i + '_seg.nii.gz')
+                nii = load_nii(niiname)
+                seg = nii.get_data()
 
-            dsc = map(
-                lambda label: dsc_seg(seg == label, seg_i == label), [1, 2, 4]
-            )
+                dsc = map(
+                    lambda label: dsc_seg(seg == label, seg_i == label), [1, 2, 4]
+                )
 
-            nii.get_data()[:] = seg_i
-            save_nii(nii, os.path.join(path_i, p_i + '.nii.gz'))
+                nii.get_data()[:] = seg_i
+                save_nii(nii, os.path.join(path_i, p_i + '-tumor.nii.gz'))
 
-            print(
-                'Patient %s: %s' % (p_i, ' / '.join(map(str, dsc)))
-            )
+                nii.get_data()[:] = np.argmax(pred_ti, axis=0)
+                save_nii(nii, os.path.join(path_i, p_i + '-roi.nii.gz'))
+
+                print(
+                    'Patient %s: %s' % (p_i, ' / '.join(map(str, dsc)))
+                )
+        else:
+            pred_y = net.segment(test_x)
+
+            for (path_i, p_i, pred_i) in zip(patient_paths, test_patients, pred_y):
+                seg_i = np.argmax(pred_i, axis=0)
+                seg_i[seg_i == 3] = 4
+
+                niiname = os.path.join(path_i, p_i + '_seg.nii.gz')
+                nii = load_nii(niiname)
+                seg = nii.get_data()
+
+                dsc = map(
+                    lambda label: dsc_seg(seg == label, seg_i == label), [1, 2, 4]
+                )
+
+                nii.get_data()[:] = seg_i
+                save_nii(nii, os.path.join(path_i, p_i + '.nii.gz'))
+
+                print(
+                    'Patient %s: %s' % (p_i, ' / '.join(map(str, dsc)))
+                )
 
         # uncert_y, pred_y = net.uncertainty(test_x, steps=20)
         # for (path_i, p_i, pred_i, uncert_i) in zip(
