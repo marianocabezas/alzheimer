@@ -1101,7 +1101,7 @@ class BratsSegmentationHybridNet(nn.Module):
                 zip(losses_color, mid_losses)
             )
             best_losses = map(
-                lambda (pl, l): l if l < pl else pl,
+                lambda (pl, l): l if l > pl else pl,
                 zip(best_losses, mid_losses)
             )
 
