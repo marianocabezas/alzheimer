@@ -107,7 +107,7 @@ def get_slices_boundary(
 
     if rois is not None:
         boundaries = map(
-            lambda (b, r): b.append(r, r.astype(np.bool)),
+            lambda (b, r): b.append(r.astype(np.bool)),
             zip(boundaries, rois)
         )
 
