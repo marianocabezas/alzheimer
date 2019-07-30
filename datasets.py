@@ -123,19 +123,16 @@ def get_slices_boundary(
             print(
                 np.random.permutation(
                     zip(*np.where(b_i))
-                )[:int(np.sum(b_i) * rate)].shape
+                )[:max(int(np.sum(b_i) * rate), 1)].shape
             )
 
     centers = map(
         lambda b: np.concatenate(
             map(
-                lambda b_i: np.reshape(
-                    np.random.permutation(
-                        zip(*np.where(b_i))
-                    )[:int(np.sum(b_i) * rate)],
-                    -1
-                ),
-                    b
+                lambda b_i: np.random.permutation(
+                    zip(*np.where(b_i))
+                )[:max(int(np.sum(b_i) * rate), 1)],
+                b
             ),
             axis=0
         ),
