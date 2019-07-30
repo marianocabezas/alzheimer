@@ -120,14 +120,14 @@ def get_slices_boundary(
 
     centers = map(
         lambda b: np.concatenate(
-            map(
-                lambda b_i: filter(
-                    lambda arr: arr.size > 0,
-                    np.random.permutation(
+            filter(
+                lambda arr: arr.size > 0,
+                map(
+                    lambda b_i: np.random.permutation(
                         zip(*np.where(b_i))
-                    )[:int(np.sum(b_i) * rate)]
-                ),
-                b
+                    )[:int(np.sum(b_i) * rate)],
+                    b
+                )
             ),
             axis=0
         ),
