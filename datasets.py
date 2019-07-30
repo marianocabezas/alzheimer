@@ -107,14 +107,13 @@ def get_slices_boundary(
 
     if rois is not None:
         boundaries = map(
-            lambda (b, r): b.append(r.astype(np.bool)),
+            lambda (b, r): b + [r.astype(np.bool)],
             zip(boundaries, rois)
         )
 
     boundaries = map(
         lambda b: map(
-            lambda b_i: np.logical_and(b_i, legal_mask),
-            b
+            lambda b_i: np.logical_and(b_i, legal_mask), b
         ),
         boundaries
     )
