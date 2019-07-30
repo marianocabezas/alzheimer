@@ -84,11 +84,11 @@ class BratsSegmentationNet(nn.Module):
             ),
             zip([n_images] + filter_list[:-1], filter_list, groups_list)
         )
-        # self.pooling = map(
-        #     lambda f: nn.Conv3d(f, f, pool_size, stride=pool_size, groups=f),
-        #     filter_list
-        # )
-        self.pooling = [nn.AvgPool3d(pool_size)] * len(filter_list)
+        self.pooling = map(
+            lambda f: nn.Conv3d(f, f, pool_size, stride=pool_size, groups=f),
+            filter_list
+        )
+        # self.pooling = [nn.AvgPool3d(pool_size)] * len(filter_list)
         for c, p in zip(self.convlist, self.pooling):
             c.to(self.device)
             p.to(self.device)
