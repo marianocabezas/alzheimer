@@ -111,17 +111,17 @@ def get_slices_boundary(
             zip(boundaries, rois)
         )
 
-    for b in boundaries:
-        print(len(b), len(boundaries))
-        for b_i in b:
-            print(len(b), len(boundaries), b_i.shape)
-
     boundaries = map(
         lambda b: map(
             lambda b_i: np.logical_and(b_i, legal_mask), b
         ),
         boundaries
     )
+
+    for b in boundaries:
+        print(len(b), len(boundaries))
+        for b_i in b:
+            print(len(b), len(boundaries), b_i.shape)
 
     centers = map(
         lambda b: np.concatenate(
