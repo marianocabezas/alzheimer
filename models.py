@@ -723,11 +723,12 @@ class BratsSegmentationHybridNet(nn.Module):
                     # groups=n_images
                 ),
                 nn.ReLU(),
+                nn.Dropout3d(),
                 nn.InstanceNorm3d(out),
                 nn.Conv3d(
-                    out, out, kernel_size,
+                    out, out, 1,
                     padding=padding,
-                    # groups=n_images
+                    groups=out
                 ),
                 nn.ReLU(),
                 nn.Conv3d(
@@ -736,6 +737,7 @@ class BratsSegmentationHybridNet(nn.Module):
                     # groups=n_images
                 ),
                 nn.ReLU(),
+                nn.Dropout3d(),
                 nn.InstanceNorm3d(out),
             ),
             zip([n_images] + filter_list[:-1], filter_list)
@@ -756,12 +758,13 @@ class BratsSegmentationHybridNet(nn.Module):
                 # groups=n_images
             ),
             nn.ReLU(),
+            nn.Dropout3d(),
             nn.InstanceNorm3d(filters * (2 ** depth)),
             nn.Conv3d(
                 filters * (2 ** depth),
-                filters * (2 ** depth), kernel_size,
+                filters * (2 ** depth), 1,
                 padding=padding,
-                # groups=n_images
+                groups=filters * (2 ** depth)
             ),
             nn.ReLU(),
             nn.InstanceNorm3d(filters * (2 ** depth)),
@@ -772,6 +775,7 @@ class BratsSegmentationHybridNet(nn.Module):
                 # groups=n_images
             ),
             nn.ReLU(),
+            nn.Dropout3d(),
             nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
         )
         self.midconv.to(self.device)
@@ -783,12 +787,21 @@ class BratsSegmentationHybridNet(nn.Module):
                     padding=padding,
                 ),
                 nn.ReLU(),
+                nn.Dropout3d(),
+                nn.InstanceNorm3d(ini),
+                nn.ConvTranspose3d(
+                    ini, ini, 1,
+                    padding=padding,
+                    groups=ini
+                ),
+                nn.ReLU(),
                 nn.InstanceNorm3d(ini),
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
                 ),
                 nn.ReLU(),
+                nn.Dropout3d(),
                 nn.InstanceNorm3d(out),
             ),
             zip(
@@ -805,12 +818,21 @@ class BratsSegmentationHybridNet(nn.Module):
                     padding=padding,
                 ),
                 nn.ReLU(),
+                nn.Dropout3d(),
+                nn.InstanceNorm3d(ini),
+                nn.ConvTranspose3d(
+                    ini, ini, 1,
+                    padding=padding,
+                    groups=ini
+                ),
+                nn.ReLU(),
                 nn.InstanceNorm3d(ini),
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
                 ),
                 nn.ReLU(),
+                nn.Dropout3d(),
                 nn.InstanceNorm3d(out),
             ),
             zip(
@@ -822,16 +844,12 @@ class BratsSegmentationHybridNet(nn.Module):
 
         # Segmentation
         self.out_tumor = nn.Sequential(
-            nn.Conv3d(filters, filters, 1),
-            nn.ReLU(),
             nn.Conv3d(filters, 4, 1),
             nn.Softmax(dim=1)
         )
         self.out_tumor.to(self.device)
 
         self.out_roi = nn.Sequential(
-            nn.Conv3d(filters, filters, 1),
-            nn.ReLU(),
             nn.Conv3d(filters, 3, 1),
             nn.Softmax(dim=1)
         )
