@@ -122,10 +122,11 @@ def get_slices_boundary(
         lambda b: np.concatenate(
             map(
                 lambda b_i: np.random.permutation(
-                    zip(*np.where(b_i))[:int(np.sum(b_i) * rate)]
-                ),
+                    zip(*np.where(b_i))
+                )[:int(np.sum(b_i) * rate)],
                 b
-            )
+            ),
+            axis=0
         ),
         boundaries
     )
