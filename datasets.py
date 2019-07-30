@@ -81,21 +81,20 @@ def get_slices_bb(
 
 
 def get_slices_boundary(
-        masks, patch_size, rois=None
+        masks, patch_size, rois=None, rate=0.25
 ):
     patch_half = map(lambda p_length: p_length // 2, patch_size)
     boundaries = map(
-        lambda m: reduce(
-            log_or, map(
-                lambda l: log_and(m == l, log_not(imerode(m == l))),
-                range(1, m.max() + 1))
-            ),
+        lambda m: map(
+            lambda l: log_and(m == l, log_not(imerode(m == l))),
+            range(1, m.max() + 1)
+        ),
         masks
     )
 
     max_shape = masks[0].shape
     mesh = get_mesh(max_shape)
-    legal_mask =reduce(
+    legal_mask = reduce(
             np.logical_and,
             map(
                 lambda (m_j,  p_ij, max_j): np.logical_and(
@@ -107,13 +106,30 @@ def get_slices_boundary(
     )
 
     if rois is not None:
-        rois = map(lambda r: r.astype(np.bool), rois)
         boundaries = map(
-            lambda (b, r): log_or(b, log_and(r, log_not(imerode(r)))),
+            lambda (b, r): b.append(r, r.astype(np.bool)),
             zip(boundaries, rois)
         )
 
-    boundaries = map(lambda b: np.logical_and(b, legal_mask), boundaries)
+    boundaries = map(
+        lambda b: map(
+            lambda b_i: np.logical_and(b_i, legal_mask),
+            b
+        ),
+        boundaries
+    )
+
+    centers = map(
+        lambda b: np.concatenate(
+            map(
+                lambda b_i: np.random.permutation(
+                    zip(*np.where(b_i))[:int(np.sum(b_i) * rate)]
+                ),
+                b
+            )
+        ),
+        boundaries
+    )
 
     patch_slices = map(
         lambda bound: centers_to_slice(
