@@ -317,6 +317,35 @@ class GenericSegmentationCroppingDataset(Dataset):
                 )
         self.max_slice = np.cumsum(map(len, self.patch_slices))
 
+    def __getitem__(self, index):
+        # We select the case
+        case_idx = np.min(np.where(self.max_slice > index))
+        case = self.cases[case_idx]
+
+        slices = [0] + self.max_slice.tolist()
+        patch_idx = index - slices[case_idx]
+        case_slices = self.patch_slices[case_idx]
+
+        # We get the slice indexes
+        none_slice = (slice(None, None),)
+        slice_i = case_slices[patch_idx]
+
+        inputs = case[none_slice + slice_i].astype(np.float32)
+
+        if self.labels is not None:
+            labels = self.labels[case_idx].astype(np.uint8)
+            target = np.expand_dims(labels[slice_i], 0)
+
+            if self.sampler:
+                return inputs, target, index
+            else:
+                return inputs, target
+        else:
+            return inputs, case_idx, slice_i
+
+    def __len__(self):
+        return self.max_slice[-1]
+
 
 class BoundarySegmentationCroppingDataset(Dataset):
     def __init__(self, cases, labels=None, masks=None, patch_size=32):
@@ -370,10 +399,7 @@ class BoundarySegmentationCroppingDataset(Dataset):
             labels = self.labels[case_idx].astype(np.uint8)
             target = np.expand_dims(labels[slice_i], 0)
 
-            if self.sampler:
-                return inputs, target, index
-            else:
-                return inputs, target
+            return inputs, target
         else:
             return inputs, case_idx, slice_i
 
