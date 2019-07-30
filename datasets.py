@@ -131,12 +131,7 @@ def get_slices_boundary(
         boundaries
     )
 
-    patch_slices = map(
-        lambda bound: centers_to_slice(
-            zip(*np.where(bound)), patch_half
-        ),
-        boundaries
-    )
+    patch_slices = map(lambda c: centers_to_slice(c, patch_half), centers)
 
     return patch_slices
 
