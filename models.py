@@ -69,6 +69,7 @@ class BratsSegmentationNet(nn.Module):
                     # groups=g
                 ),
                 nn.LeakyReLU(),
+                # nn.ReLU(),
                 # nn.InstanceNorm3d(out),
                 # nn.BatchNorm3d(out),
                 nn.Conv3d(
@@ -77,6 +78,7 @@ class BratsSegmentationNet(nn.Module):
                     # groups=2 * g
                 ),
                 nn.LeakyReLU(),
+                # nn.ReLU(),
                 # nn.InstanceNorm3d(out),
                 # nn.BatchNorm3d(out),
             ),
@@ -97,6 +99,7 @@ class BratsSegmentationNet(nn.Module):
                 padding=padding
             ),
             nn.LeakyReLU(),
+            # nn.ReLU(),
             # nn.InstanceNorm3d(filters * (2 ** depth)),
             # nn.BatchNorm3d(filters * (2 ** depth)),
             nn.Conv3d(
@@ -105,6 +108,7 @@ class BratsSegmentationNet(nn.Module):
                 padding=padding
             ),
             nn.LeakyReLU(),
+            # nn.ReLU(),
             # nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
             # nn.BatchNorm3d(filters * (2 ** (depth - 1))),
         )
@@ -112,15 +116,13 @@ class BratsSegmentationNet(nn.Module):
 
         self.deconvlist = map(
             lambda (ini, out, g): nn.Sequential(
-                # nn.ConvTranspose3d(
-                #   2 * ini, 2 * ini, 1,
-                # ),
                 nn.ConvTranspose3d(
                     2 * ini, ini, kernel_size,
                     padding=padding,
                     # groups=g
                 ),
                 nn.LeakyReLU(),
+                # nn.ReLU(),
                 # nn.InstanceNorm3d(ini),
                 # nn.BatchNorm3d(ini),
                 nn.ConvTranspose3d(
@@ -129,6 +131,7 @@ class BratsSegmentationNet(nn.Module):
                     # groups=g
                 ),
                 nn.LeakyReLU(),
+                # nn.ReLU(),
                 # nn.InstanceNorm3d(out),
                 # nn.BatchNorm3d(out),
             ),
@@ -217,23 +220,31 @@ class BratsSegmentationNet(nn.Module):
         losses = list()
         mid_losses = list()
         n_batches = len(training)
-        for batch_i, batch_data in enumerate(training):
+        for batch_i, (x, y) in enumerate(training):
             # We train the model and check the loss
-            batch_loss = self.step(batch_data, train=train)
-
+            torch.cuda.synchronize()
+            pred_labels = self(x.to(self.device))
+            batch_loss = multidsc_loss(
+                pred_labels, y.to(self.device), averaged=train
+            )
             if train:
+                self.optimizer_alg.zero_grad()
+                batch_loss.backward()
+                self.optimizer_alg.step()
                 loss_value = batch_loss.tolist()
             else:
                 loss_value = torch.mean(batch_loss).tolist()
-                mid_losses.append(batch_loss.tolist())
+                dsc = 1 - batch_loss
+                mid_losses.append(dsc.tolist())
+
+            torch.cuda.synchronize()
+            torch.cuda.empty_cache()
+
             losses.append(loss_value)
 
             self.print_progress(
                 batch_i, n_batches, loss_value, np.mean(losses), train
             )
-
-        if self.sampler is not None and train:
-            self.sampler.update()
 
         if train:
             return np.mean(losses)
@@ -352,26 +363,11 @@ class BratsSegmentationNet(nn.Module):
             train_dataset = BoundarySegmentationCroppingDataset(
                 d_train, t_train, masks=r_train, patch_size=patch_size,
             )
-            # Balanced one
-            # train_dataset = GenericSegmentationCroppingDataset(
-            #     d_train, t_train, masks=r_train, patch_size=patch_size,
-            #     neg_ratio=neg_ratio, sampler=use_sampler,
-            # )
-        if use_sampler:
-            print('Sampler creation <with validation>')
-            self.sampler = WeightedSubsetRandomSampler(
-                len(train_dataset), sample_rate
-            )
-            print('Dataloader creation with sampler <with validation>')
-            train_loader = DataLoader(
-                train_dataset, batch_size, num_workers=num_workers,
-                sampler=self.sampler
-            )
-        else:
-            print('Dataloader creation <with validation>')
-            train_loader = DataLoader(
-                train_dataset, batch_size, True, num_workers=num_workers,
-            )
+
+        print('Dataloader creation <with validation>')
+        train_loader = DataLoader(
+            train_dataset, batch_size, True, num_workers=num_workers,
+        )
 
         # Validation
         val_dataset = BBImageDataset(
@@ -382,7 +378,7 @@ class BratsSegmentationNet(nn.Module):
         )
 
         l_names = ['train', ' val ', '  BCK ', '  NET ', '  ED  ', '  ET  ']
-        best_losses = [np.inf] * (len(l_names))
+        best_losses = [-np.inf] * (len(l_names))
         best_e = 0
 
         for self.epoch in range(epochs):
@@ -400,7 +396,7 @@ class BratsSegmentationNet(nn.Module):
                 loss_val, mid_losses = self.mini_batch_loop(val_loader, False)
 
             losses_color = map(
-                lambda (pl, l): '\033[36m%s\033[0m' if l < pl else '%s',
+                lambda (pl, l): '\033[36m%s\033[0m' if l > pl else '%s',
                 zip(best_losses, mid_losses)
             )
             losses_s = map(
@@ -408,7 +404,7 @@ class BratsSegmentationNet(nn.Module):
                 zip(losses_color, mid_losses)
             )
             best_losses = map(
-                lambda (pl, l): l if l < pl else pl,
+                lambda (pl, l): l if l > pl else pl,
                 zip(best_losses, mid_losses)
             )
 
@@ -458,66 +454,6 @@ class BratsSegmentationNet(nn.Module):
                 'with minimum loss = %f (epoch %d)' % (
                     self.epoch + 1, t_end_s, best_loss_tr, best_e)
             )
-
-    def predict(
-            self,
-            data,
-            masks,
-            patch_size=32,
-            batch_size=32,
-            num_workers=32,
-            device=torch.device(
-                "cuda:0" if torch.cuda.is_available() else "cpu"
-            ),
-            verbose=True
-    ):
-        # Init
-        self.to(device)
-        self.eval()
-        whites = ' '.join([''] * 12)
-        y_pred = map(lambda d: np.zeros_like(d[0, ...]), data)
-
-        test_set = GenericSegmentationCroppingDataset(
-            data, masks=masks, patch_size=patch_size
-        )
-        test_loader = DataLoader(
-            test_set, batch_size, num_workers=num_workers
-        )
-
-        n_batches = len(test_loader)
-
-        with torch.no_grad():
-            for batch_i, (batch_x, cases, slices) in enumerate(test_loader):
-                # Print stuff
-                if verbose:
-                    percent = 20 * (batch_i + 1) / n_batches
-                    progress_s = ''.join(['-'] * percent)
-                    remainder_s = ''.join([' '] * (20 - percent))
-                    print(
-                        '\033[K%sTesting batch (%02d/%02d) [%s>%s]' % (
-                            whites, batch_i, n_batches, progress_s, remainder_s
-                        ),
-                        end='\r'
-                    )
-
-                # We test the model with the current batch
-                torch.cuda.synchronize()
-                pred = self(batch_x).tolist()
-                torch.cuda.synchronize()
-                torch.cuda.empty_cache()
-
-                for c, slice_i, pred_i in zip(cases, slices, pred):
-                    slice_i = tuple(
-                        map(
-                            lambda (p_ini, p_end): slice(p_ini, p_end), slice_i
-                        )
-                    )
-                    y_pred[c][slice_i] += pred_i.tolist()
-
-        if verbose:
-            print('\033[K%sTesting finished succesfully' % whites)
-
-        return y_pred
 
     def segment(
             self,
