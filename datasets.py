@@ -88,7 +88,7 @@ def get_slices_boundary(
         lambda m: reduce(
             log_or, map(
                 lambda l: log_and(m == l, log_not(imerode(m == l))),
-                range(1, masks.max() + 1))
+                range(1, m.max() + 1))
             ),
         masks
     )
