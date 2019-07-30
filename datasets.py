@@ -81,7 +81,7 @@ def get_slices_bb(
 
 
 def get_slices_boundary(
-        masks, patch_size, rois=None, rate=0.25
+        masks, patch_size, rois=None, rate=0.1
 ):
     patch_half = map(lambda p_length: p_length // 2, patch_size)
     boundaries = map(
@@ -104,12 +104,6 @@ def get_slices_boundary(
                 zip(mesh, patch_half, max_shape)
             )
     )
-
-    if rois is not None:
-        boundaries = map(
-            lambda (b, r): b + [r.astype(np.bool)],
-            zip(boundaries, rois)
-        )
 
     boundaries = map(
         lambda b: map(
