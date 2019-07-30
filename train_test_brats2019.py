@@ -235,13 +235,13 @@ def main():
                 net.fit(
                     train_x, train_y, rois=brains,
                     val_split=0.1, epochs=epochs, patience=patience,
-                    num_workers=16, batch_size=batch_size
+                    num_workers=16, batch_size=1
                 )
             else:
                 net.fit(
                     train_x, train_y, rois=brains,
                     val_split=0.1, epochs=epochs, patience=patience,
-                    batch_size=1, num_workers=16,
+                    num_workers=16, batch_size=batch_size,
                     sample_rate=sampling_rate, patch_size=patch_size
                 )
 
