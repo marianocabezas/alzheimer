@@ -119,9 +119,9 @@ def get_slices_boundary(
     )
 
     for b in boundaries:
-        print(len(b), len(boundaries))
         for b_i in b:
             print(len(b), len(boundaries), b_i.shape)
+            print(int(np.sum(b_i) * rate), len(zip(*np.where(b_i))))
 
     centers = map(
         lambda b: np.concatenate(
