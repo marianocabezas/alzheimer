@@ -6,13 +6,12 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from torchvision import models
 import numpy as np
-from layers import ScalingLayer
 from criterions import multidsc_loss
 from datasets import WeightedSubsetRandomSampler
 from datasets import GenericSegmentationCroppingDataset
-from datasets import BBImageDataset, BBImageTupleDataset
+from datasets import BoundarySegmentationCroppingDataset
+from datasets import BBImageDataset, BBImageTupleDataset, BBImageValueDataset
 from optimizers import AdaBound
 from utils import time_to_string
 
@@ -278,7 +277,6 @@ class BratsSegmentationNet(nn.Module):
             epochs=100,
             patience=10,
             batch_size=1,
-            neg_ratio=1,
             num_workers=32,
             sample_rate=1,
             device=torch.device(
@@ -295,7 +293,8 @@ class BratsSegmentationNet(nn.Module):
         no_improv_e = 0
         best_state = deepcopy(self.state_dict())
 
-        validation = val_split > 0
+        if val_split <= 0:
+            val_split = 0.1
         optimizer_dict = {
             'adam': torch.optim.Adam,
             'adadelta': torch.optim.Adadelta,
@@ -315,104 +314,72 @@ class BratsSegmentationNet(nn.Module):
         # We also compute the number of batches for both training and
         # validation according to the batch size.
         use_sampler = sample_rate > 1
-        if validation:
-            n_samples = len(data)
+        n_samples = len(data)
 
-            n_t_samples = int(n_samples * (1 - val_split))
-            n_v_samples = n_samples - n_t_samples
+        n_t_samples = int(n_samples * (1 - val_split))
+        n_v_samples = n_samples - n_t_samples
 
-            if verbose:
-                print(
-                    'Training / validation samples = %d / %d' % (
-                        n_t_samples, n_v_samples
-                    )
+        if verbose:
+            print(
+                'Training / validation samples = %d / %d' % (
+                    n_t_samples, n_v_samples
                 )
-
-            d_train = data[:n_t_samples]
-            d_val = data[n_t_samples:]
-
-            t_train = target[:n_t_samples]
-            t_val = target[n_t_samples:]
-
-            if rois is not None:
-                r_train = rois[:n_t_samples]
-                r_val = rois[n_t_samples:]
-            else:
-                r_train = None
-                r_val = None
-
-            # Training
-            if patch_size is None:
-                # Full image one
-                print('Dataset creation images <with validation>')
-                train_dataset = BBImageDataset(
-                    d_train, t_train, r_train, sampler=use_sampler
-                )
-            else:
-                # Unbalanced one
-                print('Dataset creation unbalanced patches <with validation>')
-                train_dataset = GenericSegmentationCroppingDataset(
-                    d_train, t_train, masks=r_train, patch_size=patch_size,
-                    balanced=False, overlap=patch_size // 4,
-                    sampler=use_sampler,
-                )
-                # Balanced one
-                # train_dataset = GenericSegmentationCroppingDataset(
-                #     d_train, t_train, masks=r_train, patch_size=patch_size,
-                #     neg_ratio=neg_ratio, sampler=use_sampler,
-                # )
-            if use_sampler:
-                print('Sampler creation <with validation>')
-                self.sampler = WeightedSubsetRandomSampler(
-                    len(train_dataset), sample_rate
-                )
-                print('Dataloader creation with sampler <with validation>')
-                train_loader = DataLoader(
-                    train_dataset, batch_size, num_workers=num_workers,
-                    sampler=self.sampler
-                )
-            else:
-                print('Dataloader creation <with validation>')
-                train_loader = DataLoader(
-                    train_dataset, batch_size, True, num_workers=num_workers,
-                )
-
-            # Validation
-            val_dataset = BBImageDataset(
-                d_val, t_val, r_val
             )
-            val_loader = DataLoader(
-                val_dataset, 1, num_workers=num_workers
+
+        d_train = data[:n_t_samples]
+        d_val = data[n_t_samples:]
+
+        t_train = target[:n_t_samples]
+        t_val = target[n_t_samples:]
+
+        if rois is not None:
+            r_train = rois[:n_t_samples]
+            r_val = rois[n_t_samples:]
+        else:
+            r_train = None
+            r_val = None
+
+        # Training
+        if patch_size is None:
+            # Full image one
+            print('Dataset creation images <with validation>')
+            train_dataset = BBImageDataset(
+                d_train, t_train, r_train, sampler=use_sampler
             )
         else:
-            print('Dataset creation')
-            train_dataset = GenericSegmentationCroppingDataset(
-                data, target, masks=rois, patch_size=patch_size,
-                neg_ratio=neg_ratio
+            # Unbalanced one
+            print('Dataset creation unbalanced patches <with validation>')
+            train_dataset = BoundarySegmentationCroppingDataset(
+                d_train, t_train, masks=r_train, patch_size=patch_size,
             )
-            if use_sampler:
-                print('Sampler creation')
-                self.sampler = WeightedSubsetRandomSampler(
-                    len(train_dataset), sample_rate
-                )
-                print('Dataloader creation with sampler')
-                train_loader = DataLoader(
-                    train_dataset, batch_size, True, num_workers=num_workers,
-                    sampler=self.sampler
-                )
-            else:
-                print('Dataloader creation')
-                train_loader = DataLoader(
-                    train_dataset, batch_size, True, num_workers=num_workers,
-                )
+            # Balanced one
+            # train_dataset = GenericSegmentationCroppingDataset(
+            #     d_train, t_train, masks=r_train, patch_size=patch_size,
+            #     neg_ratio=neg_ratio, sampler=use_sampler,
+            # )
+        if use_sampler:
+            print('Sampler creation <with validation>')
+            self.sampler = WeightedSubsetRandomSampler(
+                len(train_dataset), sample_rate
+            )
+            print('Dataloader creation with sampler <with validation>')
+            train_loader = DataLoader(
+                train_dataset, batch_size, num_workers=num_workers,
+                sampler=self.sampler
+            )
+        else:
+            print('Dataloader creation <with validation>')
+            train_loader = DataLoader(
+                train_dataset, batch_size, True, num_workers=num_workers,
+            )
 
-            # Validation
-            val_dataset = BBImageDataset(
-                data, target, rois
-            )
-            val_loader = DataLoader(
-                val_dataset, 1, num_workers=num_workers
-            )
+        # Validation
+        val_dataset = BBImageDataset(
+            d_val, t_val, r_val
+        )
+        val_loader = DataLoader(
+            val_dataset, 1, num_workers=num_workers
+        )
 
         l_names = ['train', ' val ', '  BCK ', '  NET ', '  ED  ', '  ET  ']
         best_losses = [np.inf] * (len(l_names))
@@ -1217,76 +1184,292 @@ class BratsSegmentationHybridNet(nn.Module):
 class BratsSurvivalNet(nn.Module):
     def __init__(
             self,
-            n_slices,
+            filters=32,
+            kernel_size=3,
+            pool_seg=2,
+            depth_seg=4,
+            pool_pred=2,
+            depth_pred=4,
+            n_images=4,
             n_features=4,
             dense_size=256,
-            dropout=0.1,
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     ):
 
         # Init
         super(BratsSurvivalNet, self).__init__()
+        self.device = device
+        self.optimizer_alg = None
+        self.t_train = 0
+        self.t_val = 0
+        self.epoch = 0
 
-        # VGG init
-        base_model = nn.Sequential(*list(models.vgg16(pretrained=True).children())[:-1])
-        base_model.to(device)
-        for param in base_model.parameters():
-            param.requires_grad = False
-
-        self.base_model = base_model
-        self.batchnorm = nn.BatchNorm2d(512)
-
-        self.vgg_fcc1 = ScalingLayer((512, 7, 7))
-        self.dropout1 = nn.Dropout2d(dropout)
-        self.vgg_pool1 = nn.AvgPool2d(2)
-
-        self.vgg_fcc2 = ScalingLayer((512, 3, 3))
-        self.dropout2 = nn.Dropout2d(dropout)
-        self.vgg_pool2 = nn.AvgPool2d(2)
-
-        self.vgg_fcc3 = ScalingLayer((512, 1, 1))
-        self.dropout3 = nn.Dropout2d(dropout)
-
-        # Linear activation?
-        self.vgg_dense = nn.Linear(512, dense_size)
-
-        self.dense = nn.Linear((dense_size * n_slices) + n_features, 1)
-
-    def forward(self, x):
-
-        x_sliced = map(
-            lambda xi: torch.squeeze(xi, dim=-1),
-            torch.split(x[0], 1, dim=-1)
+        self.base_model = BratsSegmentationNet(
+            filters=filters, kernel_size=kernel_size, pool_size=pool_seg,
+            depth=depth_seg, n_images=n_images
         )
-        vgg_in = map(self.base_model, x_sliced)
-        vgg_norm = map(self.batchnorm, vgg_in)
 
-        vgg_fccout1 = map(self.vgg_fcc1, vgg_norm)
-        vgg_relu1 = map(F.relu, vgg_fccout1)
-        # vgg_dropout1 = map(self.dropout1, vgg_relu1)
-        # vgg_poolout1 = map(self.vgg_pool1, vgg_dropout1)
-        vgg_poolout1 = map(self.vgg_pool1, vgg_relu1)
+        init_features = filters * (2 ** (depth_pred - 1))
+        end_features = filters * (2 ** (depth_pred))
 
-        # vgg_fccout2 = map(self.dropout2, map(F.relu, map(self.vgg_fcc2, vgg_poolout1)))
-        vgg_fccout2 = map(F.relu, map(self.vgg_fcc2, vgg_poolout1))
-        vgg_poolout2 = map(self.vgg_pool2, vgg_fccout2)
-
-        # vgg_fccout3 = map(self.dropout3, map(F.relu, map(self.vgg_fcc3, vgg_poolout2)))
-        vgg_fccout3 = map(F.relu, map(self.vgg_fcc3, vgg_poolout2))
-
-        vgg_out = torch.cat(
-            map(
-                self.vgg_dense,
-                map(
-                    lambda yi: yi.view(-1, yi.size()[1]),
-                    vgg_fccout3
+        self.pooling = map(
+            lambda d: nn.Sequential(
+                nn.Conv3d(
+                    init_features * (2 ** d),
+                    init_features * (2 ** (d + 1)),
+                    kernel_size,
+                ),
+                nn.ReLU(),
+                nn.InstanceNorm3d(init_features * (2 ** (d + 1))),
+                nn.Conv3d(
+                    init_features * (2 ** d),
+                    init_features * (2 ** (d + 1)),
+                    pool_pred, stride=pool_pred
                 )
             ),
-            dim=-1
+            range(depth_pred)
         )
+        for p in self.pooling:
+            p.to(self.device)
 
-        # Here we add the final layers to compute the survival value
+        self.global_pooling = nn.AdaptiveAvgPool3d((1, 1, 1))
+        self.global_pooling.to(self.device)
 
-        final_tensor = torch.cat([x[1], vgg_out], dim=-1)
-        output = self.dense(final_tensor)
+        self.linear = nn.Sequential(
+            nn.Linear(end_features + n_features, dense_size),
+            nn.ReLU(),
+            nn.InstanceNorm1d(dense_size)
+        )
+        self.linear.to(self.device)
+
+        self.out = nn.Linear(dense_size, 1)
+        self.out.to(self.device)
+
+    def forward(self, im, features):
+        for c, p in zip(self.base_model.convlist, self.base_model.pooling):
+            down = c(im)
+            im = p(down)
+
+        im = self.midconv(im)
+
+        for p in self.pooling:
+            im = p(im)
+
+        im = self.global_pooling(im).view(im.shape[:2])
+
+        x = torch.cat((im, features), dim=1)
+
+        x = self.linear(x)
+        output = self.out(x)
+
         return output
+
+    def mini_batch_loop(
+            self, training, train=True
+    ):
+        losses = list()
+        n_batches = len(training)
+        for batch_i, (x, y) in enumerate(training):
+            torch.cuda.synchronize()
+            # We train the model and check the loss
+            pred_y = self(x.to(self.device))
+            batch_loss = nn.MSELoss()(pred_y, y.to(self.device))
+
+            if train:
+                self.optimizer_alg.zero_grad()
+                batch_loss.backward()
+                self.optimizer_alg.step()
+
+            torch.cuda.synchronize()
+            torch.cuda.empty_cache()
+
+            loss_value = batch_loss.tolist()
+
+            losses.append(loss_value)
+
+            self.print_progress(
+                batch_i, n_batches, loss_value, np.mean(losses), train
+            )
+
+        if self.sampler is not None and train:
+            self.sampler.update()
+
+        return np.mean(losses)
+
+    def fit(
+            self,
+            data_seg,
+            target_seg,
+            rois_seg,
+            data_pred,
+            target_pred,
+            rois_pred,
+            val_split=0.1,
+            optimizer='adadelta',
+            epochs=50,
+            patience=5,
+            num_workers=16,
+            device=torch.device(
+                "cuda:0" if torch.cuda.is_available() else "cpu"
+            ),
+            verbose=True
+    ):
+        # Init
+        self.to(device)
+        self.train()
+
+        # We first fit the segmentation as best as we can with the cases that
+        # are not used for prediction (no GTR, no age, etc.).
+        self.base_model.fit(
+            data_seg, target_seg, rois_seg, val_split=val_split,
+            optimizer=optimizer, epochs=epochs, patience=patience,
+            num_workers=num_workers, device=device, verbose=verbose
+        )
+        self.base_model.eval()
+
+        # Now we actually train the prediction network.
+        best_loss_tr = np.inf
+        best_loss_val = np.inf
+        no_improv_e = 0
+        best_state = deepcopy(self.state_dict())
+
+        validation = val_split > 0
+        optimizer_dict = {
+            'adam': torch.optim.Adam,
+            'adadelta': torch.optim.Adadelta,
+            'adabound': AdaBound,
+        }
+
+        model_params = filter(lambda p: p.requires_grad, self.parameters())
+
+        is_string = isinstance(optimizer, basestring)
+
+        self.optimizer_alg = optimizer_dict[optimizer](model_params) if is_string\
+            else optimizer
+
+        t_start = time.time()
+
+        # Data split (using numpy) for train and validation.
+        # We also compute the number of batches for both training and
+        # validation according to the batch size.
+        if validation:
+            n_samples = len(data_pred)
+
+            n_t_samples = int(n_samples * (1 - val_split))
+            n_v_samples = n_samples - n_t_samples
+
+            if verbose:
+                print(
+                    'Training / validation samples = %d / %d' % (
+                        n_t_samples, n_v_samples
+                    )
+                )
+
+            d_train = data_pred[:n_t_samples]
+            d_val = data_pred[n_t_samples:]
+
+            t_train = target_pred[:n_t_samples]
+            t_val = target_pred[n_t_samples:]
+
+            if rois_pred is not None:
+                r_train = rois_pred[:n_t_samples]
+                r_val = rois_pred[n_t_samples:]
+            else:
+                r_train = None
+                r_val = None
+
+            # Training
+            # Full image one
+            print('Dataset creation images <with validation>')
+            train_dataset = BBImageValueDataset(
+                d_train, t_train, r_train
+            )
+            train_loader = DataLoader(
+                train_dataset, 1, shuffle=True, num_workers=num_workers
+            )
+            
+            # Validation
+            val_dataset = BBImageValueDataset(
+                d_val, t_val, r_val
+            )
+            val_loader = DataLoader(
+                val_dataset, 1, num_workers=num_workers
+            )
+        else:
+            # Training
+            # Full image one
+            print('Dataset creation images <with validation>')
+            dataset = BBImageValueDataset(
+                data_pred, target_pred, rois_pred
+            )
+            train_loader = DataLoader(
+                dataset, 1, shuffle=True, num_workers=num_workers
+            )
+
+            # Validation
+            val_loader = DataLoader(
+                dataset, 1, num_workers=num_workers
+            )
+
+        l_names = ['train', ' val ']
+        best_e = 0
+
+        for self.epoch in range(epochs):
+            # Main epoch loop
+            self.t_train = time.time()
+            loss_tr = self.mini_batch_loop(train_loader)
+            if loss_tr < best_loss_tr:
+                best_loss_tr = loss_tr
+                tr_loss_s = '\033[32m%0.5f\033[0m' % loss_tr
+            else:
+                tr_loss_s = '%0.5f' % loss_tr
+
+            with torch.no_grad():
+                self.t_val = time.time()
+                loss_val = self.mini_batch_loop(val_loader, False)
+
+            # Patience check
+            improvement = loss_val < best_loss_val
+            loss_s = '{:7.3f}'.format(loss_val)
+            if improvement:
+                best_loss_val = loss_val
+                epoch_s = '\033[32mEpoch %03d\033[0m' % self.epoch
+                loss_s = '\033[32m%s\033[0m' % loss_s
+                best_e = self.epoch
+                best_state = deepcopy(self.state_dict())
+                no_improv_e = 0
+            else:
+                epoch_s = 'Epoch %03d' % self.epoch
+                no_improv_e += 1
+
+            t_out = time.time() - self.t_train
+            t_s = time_to_string(t_out)
+
+            if verbose:
+                print('\033[K', end='')
+                whites = ' '.join([''] * 12)
+                if self.epoch == 0:
+                    l_bars = '--|--'.join(
+                        ['-' * 5] * 2 + ['-' * 6] * len(l_names[2:])
+                    )
+                    l_hdr = '  |  '.join(l_names)
+                    print('%sEpoch num |  %s  |' % (whites, l_hdr))
+                    print('%s----------|--%s--|' % (whites, l_bars))
+                final_s = whites + ' | '.join(
+                    [epoch_s, tr_loss_s, loss_s] + [t_s]
+                )
+                print(final_s)
+
+            if no_improv_e == patience:
+                break
+
+        self.epoch = best_e
+        self.load_state_dict(best_state)
+        t_end = time.time() - t_start
+        t_end_s = time_to_string(t_end)
+        if verbose:
+            print(
+                'Training finished in %d epochs (%s) '
+                'with minimum loss = %f (epoch %d)' % (
+                    self.epoch + 1, t_end_s, best_loss_tr, best_e)
+            )

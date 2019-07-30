@@ -81,6 +81,18 @@ def parse_inputs():
         type=int, default=3,
         help='Number of blocks (or depth)'
     )
+    parser.add_argument(
+        '-B', '--batch-size',
+        dest='batch_size',
+        type=int, default=1,
+        help='Number of blocks (or depth)'
+    )
+    parser.add_argument(
+        '-t', '--patch-size',
+        dest='patch_size',
+        type=int, default=None,
+        help='Patch size'
+    )
 
     options = vars(parser.parse_args())
 
@@ -92,6 +104,8 @@ def main():
     c = color_codes()
     options = parse_inputs()
     epochs = options['epochs']
+    patch_size = options['patch_size']
+    batch_size = options['batch_size']
     patience = options['patience']
     sampling_rate = options['sampling_rate']
     filters = options['filters']
@@ -120,11 +134,12 @@ def main():
         )
     )
 
+    patch_s = '-ps%d' % patch_size if patch_size is not None else ''
     depth_s = '-f%d' % depth
     filters_s = '-f%d' % filters
     sampling_rate_s = '-sr%d' % sampling_rate if sampling_rate > 1 else ''
-    net_name = 'brats2019-nnunet-%s%s%s%s' % (
-        mode_s, sampling_rate_s, filters_s, depth_s
+    net_name = 'brats2019-nnunet-%s%s%s%s%s' % (
+        mode_s, sampling_rate_s, filters_s, depth_s, patch_s
     )
 
     for i in range(n_folds):
@@ -220,14 +235,14 @@ def main():
                 net.fit(
                     train_x, train_y, rois=brains,
                     val_split=0.1, epochs=epochs, patience=patience,
-                    num_workers=16,
+                    num_workers=16, batch_size=batch_size
                 )
             else:
                 net.fit(
                     train_x, train_y, rois=brains,
                     val_split=0.1, epochs=epochs, patience=patience,
                     batch_size=1, num_workers=16,
-                    sample_rate=sampling_rate
+                    sample_rate=sampling_rate, patch_size=patch_size
                 )
 
             net.save_model(os.path.join(d_path, model_name))

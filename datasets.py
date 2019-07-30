@@ -4,10 +4,16 @@ import numpy as np
 import torch
 from torch.utils.data.dataset import Dataset
 from torch.utils.data.sampler import Sampler
+from scipy.ndimage.morphology import binary_erosion as imerode
 from data_manipulation.generate_features import get_mask_voxels
+from numpy import logical_not as log_not
+from numpy import logical_and as log_and
+from numpy import logical_or as log_or
 
 
-def get_slices_bb(masks, patch_size, overlap, filtered=False, min_size=0):
+def get_slices_bb(
+        masks, patch_size, overlap, filtered=False, min_size=0
+):
     patch_half = map(lambda p_length: p_length // 2, patch_size)
     steps = map(lambda p_length: max(p_length - overlap, 1), patch_size)
 
@@ -70,6 +76,51 @@ def get_slices_bb(masks, patch_size, overlap, filtered=False, min_size=0):
 
         if filtered:
             patch_slices = filter_size(patch_slices, masks, min_size)
+
+    return patch_slices
+
+
+def get_slices_boundary(
+        masks, patch_size, rois=None
+):
+    patch_half = map(lambda p_length: p_length // 2, patch_size)
+    boundaries = map(
+        lambda m: reduce(
+            log_or, map(
+                lambda l: log_and(m == l, log_not(imerode(m == l))),
+                range(1, masks.max() + 1))
+            ),
+        masks
+    )
+
+    max_shape = masks[0].shape
+    mesh = get_mesh(max_shape)
+    legal_mask =reduce(
+            np.logical_and,
+            map(
+                lambda (m_j,  p_ij, max_j): np.logical_and(
+                    m_j >= p_ij,
+                    m_j <= max_j - p_ij
+                ),
+                zip(mesh, patch_half, max_shape)
+            )
+    )
+
+    if rois is not None:
+        rois = map(lambda r: r.astype(np.bool), rois)
+        boundaries = map(
+            lambda (b, r): log_or(b, log_and(r, log_not(imerode(r)))),
+            zip(boundaries, rois)
+        )
+
+    boundaries = map(lambda b: np.logical_and(b, legal_mask), boundaries)
+
+    patch_slices = map(
+        lambda bound: centers_to_slice(
+            zip(*np.where(bound)), patch_half
+        ),
+        boundaries
+    )
 
     return patch_slices
 
@@ -266,6 +317,40 @@ class GenericSegmentationCroppingDataset(Dataset):
                 )
         self.max_slice = np.cumsum(map(len, self.patch_slices))
 
+
+class BoundarySegmentationCroppingDataset(Dataset):
+    def __init__(self, cases, labels=None, masks=None, patch_size=32):
+        # Init
+        # Image and mask should be numpy arrays
+        self.cases = cases
+        self.labels = labels
+
+        self.masks = masks
+
+        data_shape = self.cases[0].shape
+
+        if type(patch_size) is not tuple:
+            patch_size = (patch_size,) * len(data_shape)
+        self.patch_size = patch_size
+
+        if self.masks is not None:
+            self.patch_slices = get_slices_boundary(
+                self.labels, self.patch_size, self.masks,
+            )
+        elif self.labels is not None:
+            self.patch_slices = get_slices_boundary(
+                self.labels, self.patch_size, self.labels,
+            )
+        else:
+            data_single = map(
+                lambda d: np.ones_like(
+                    d[0] if len(d) > 1 else d
+                ),
+                self.cases
+            )
+            self.patch_slices = get_slices_boundary(data_single, self.patch_size)
+        self.max_slice = np.cumsum(map(len, self.patch_slices))
+
     def __getitem__(self, index):
         # We select the case
         case_idx = np.min(np.where(self.max_slice > index))
@@ -368,6 +453,90 @@ class BBImageDataset(Dataset):
 
         if self.labels is not None:
             targets = np.expand_dims(self.labels[index][tuple(bb)], axis=0)
+
+            if self.sampler:
+                return inputs, targets, index
+            else:
+                return inputs, targets
+        else:
+            return inputs
+
+    def __len__(self):
+        return len(self.cases)
+
+
+class BBImageValueDataset(Dataset):
+    def __init__(
+            self,
+            cases, values, masks, sampler=False, mode='max',
+    ):
+        # Init
+        # Image and mask should be numpy arrays
+        self.sampler = sampler
+        self.cases = cases
+        self.values = values
+
+        self.masks = masks
+
+        indices = map(lambda mask: np.where(mask > 0), self.masks)
+
+        if mode is None:
+            self.bb = map(
+                lambda idx: map(
+                    lambda (min_i, max_i): slice(min_i, max_i),
+                    zip(np.min(idx, axis=-1), np.max(idx, axis=-1))
+                ),
+                indices
+            )
+        elif mode is 'min':
+            min_bb = np.max(
+                map(
+                    lambda idx: np.min(idx, axis=-1),
+                    indices
+                ),
+                axis=0
+            )
+            max_bb = np.min(
+                map(
+                    lambda idx: np.min(idx, axis=-1),
+                    indices
+                ),
+                axis=0
+            )
+            self.bb = map(
+                lambda (min_i, max_i): slice(min_i, max_i),
+                zip(min_bb, max_bb)
+            ),
+        elif mode is 'max':
+            min_bb = np.min(
+                map(
+                    lambda idx: np.min(idx, axis=-1),
+                    indices
+                ),
+                axis=0
+            )
+            max_bb = np.max(
+                map(
+                    lambda idx: np.min(idx, axis=-1),
+                    indices
+                ),
+                axis=0
+            )
+            self.bb = map(
+                lambda (min_i, max_i): slice(min_i, max_i),
+                zip(min_bb, max_bb)
+            ),
+
+    def __getitem__(self, index):
+        if len(self.bb) == len(self.cases):
+            bb = self.bb[index]
+        else:
+            bb = self.bb
+
+        inputs = self.cases[index][tuple([slice(None)] + bb)]
+
+        if self.values is not None:
+            targets = np.expand_dims(self.values[index], axis=0)
 
             if self.sampler:
                 return inputs, targets, index
