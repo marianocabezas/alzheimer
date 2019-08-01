@@ -175,46 +175,6 @@ class BratsSegmentationNet(nn.Module):
         output = self.out(x)
         return output
 
-    def step(
-            self,
-            data,
-            train=True
-    ):
-        # We train the model and check the loss
-        torch.cuda.synchronize()
-        if self.sampler is not None and train:
-            x, y, idx = data
-            pred_labels = self(x.to(self.device))
-            b_losses = torch.stack(
-                map(
-                    lambda (ypred_i, y_i): multidsc_loss(
-                        torch.unsqueeze(ypred_i, 0),
-                        torch.unsqueeze(y_i, 0),
-                        averaged=train
-                    ),
-                    zip(pred_labels, y.to(self.device))
-                )
-            )
-            b_loss = torch.mean(b_losses)
-            self.sampler.update_weights(b_losses.clone().detach().cpu(), idx)
-        else:
-            x, y = data
-            pred_labels = self(x.to(self.device))
-            b_loss = multidsc_loss(
-                pred_labels, y.to(self.device), averaged=train
-            )
-
-        if train:
-            self.optimizer_alg.zero_grad()
-            b_loss.backward()
-            self.optimizer_alg.step()
-
-        torch.cuda.synchronize()
-        torch.cuda.empty_cache()
-
-        # return b_loss
-        return b_loss
-
     def mini_batch_loop(
             self, training, train=True
     ):
@@ -225,18 +185,29 @@ class BratsSegmentationNet(nn.Module):
             # We train the model and check the loss
             torch.cuda.synchronize()
             pred_labels = self(x.to(self.device))
-            batch_loss = multidsc_loss(
+            y_r = (y > 0).type_like(y)
+            pred_tmr = torch.sum(pred_labels[:, 1:, ...], dim=1)
+            pred_bck = pred_labels[:, 0, ...]
+            pred_r = torch.stack((pred_bck, pred_tmr), dim=1)
+            batch_loss_t = multidsc_loss(
                 pred_labels, y.to(self.device), averaged=train
             )
+            batch_loss_r = multidsc_loss(
+                pred_r, y_r.to(self.device), averaged=train
+            )
             if train:
+                batch_loss = batch_loss_r + batch_loss_t
                 self.optimizer_alg.zero_grad()
                 batch_loss.backward()
                 self.optimizer_alg.step()
                 loss_value = batch_loss.tolist()
             else:
-                loss_value = torch.mean(batch_loss).tolist()
-                dsc = 1 - batch_loss
-                mid_losses.append(dsc.tolist())
+                roi_value = torch.mean(batch_loss_r).tolist()
+                tumor_value = torch.mean(batch_loss_t).tolist()
+                loss_value = roi_value + tumor_value
+                dsc_r = 1 - batch_loss_r
+                dsc_t = 1 - batch_loss_t
+                mid_losses.append(torch.cat((dsc_t, dsc_r), dim=1).tolist())
 
             torch.cuda.synchronize()
             torch.cuda.empty_cache()
@@ -378,7 +349,10 @@ class BratsSegmentationNet(nn.Module):
             val_dataset, 1, num_workers=num_workers
         )
 
-        l_names = ['train', ' val ', '  BCK ', '  NET ', '  ED  ', '  ET  ']
+        l_names = [
+            'train', ' val ', '  BCK ', '  NET ', '  ED  ', '  ET  ',
+            ' BCK  ', ' TMR  '
+        ]
         best_losses = [-np.inf] * (len(l_names))
         best_e = 0
 
