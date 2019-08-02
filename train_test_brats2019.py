@@ -1,14 +1,18 @@
 from __future__ import print_function
 import argparse
 import os
+import csv
 from time import strftime
 import numpy as np
-from models import BratsSegmentationNet, BratsSegmentationHybridNet
-from utils import color_codes, get_dirs, find_file, run_command, print_message
+from models import BratsSegmentationNet
+from datasets import BoundarySegmentationCroppingDataset
+from datasets import BBImageDataset
+from utils import color_codes, get_dirs
 from utils import get_mask, get_normalised_image
 from nibabel import save as save_nii
 from nibabel import load as load_nii
 from data_manipulation.metrics import dsc_seg
+from torch.utils.data import DataLoader
 
 
 def color_codes():
@@ -99,7 +103,40 @@ def parse_inputs():
     return options
 
 
-def main():
+def isint(s):
+    try:
+        int(s)
+        return True
+    except ValueError:
+        return False
+
+
+def get_survival_data(options):
+    # Init
+    path = options['loo_dir']
+
+    with open(os.path.join(path, 'survival_data.csv')) as csvfile:
+        csvreader = csv.reader(csvfile, delimiter=',')
+        names = csvreader.next()
+        survivaldict = {
+            p[0]: {
+                field: value
+                for field, value in zip(names[1:], p[1:])
+            }
+            for p in csvreader
+        }
+
+    final_dict = dict(
+        filter(
+            lambda (k, v): v['ResectionStatus'] == 'GTR' and isint(v['Survival']),
+            survivaldict.items()
+        )
+    )
+
+    return final_dict
+
+
+def train_test_seg(net_name, n_folds):
     # Init
     c = color_codes()
     options = parse_inputs()
@@ -107,40 +144,13 @@ def main():
     patch_size = options['patch_size']
     batch_size = options['batch_size']
     patience = options['patience']
-    sampling_rate = options['sampling_rate']
-    filters = options['filters']
-    hybrid = options['hybrid']
     depth = options['blocks']
-    mode_s = '-hybrid' if hybrid else ''
     images = ['_flair.nii.gz', '_t1.nii.gz', '_t1ce.nii.gz', '_t2.nii.gz']
 
-    # Prepare the sufix that will be added to the results for the net and images
-
-    print(
-        '%s[%s] %s<BRATS 2019 pipeline%s testing>%s' % (
-            c['c'], strftime("%H:%M:%S"), c['y'], mode_s, c['nc']
-        )
-    )
     d_path = options['loo_dir']
     patients = get_dirs(d_path)
     np.random.seed(42)
     patients = np.random.permutation(patients).tolist()
-
-    ''' <Segmentation task> '''
-    n_folds = 5
-    print(
-        '%s[%s] %sStarting cross-validation (segmentation) - %d folds%s' % (
-            c['c'], strftime("%H:%M:%S"), c['g'], n_folds, c['nc']
-        )
-    )
-
-    patch_s = '-ps%d' % patch_size if patch_size is not None else ''
-    depth_s = '-f%d' % depth
-    filters_s = '-f%d' % filters
-    sampling_rate_s = '-sr%d' % sampling_rate if sampling_rate > 1 else ''
-    net_name = 'brats2019-nnunet-%s%s%s%s%s' % (
-        mode_s, sampling_rate_s, filters_s, depth_s, patch_s
-    )
 
     for i in range(n_folds):
         print(
@@ -227,13 +237,65 @@ def main():
                 (c['c'], c['nc'], n_params)
             )
 
-            # Image wise training
-            net.fit(
-                train_x, train_y, rois=brains,
-                val_split=0.1, epochs=epochs, patience=patience,
-                num_workers=16, batch_size=batch_size,
-                sample_rate=sampling_rate, patch_size=patch_size
+            # Data split (using numpy) for train and validation.
+            # We also compute the number of batches for both training and
+            # validation according to the batch size.
+            n_samples = len(train_x)
+
+            val_split = 0.1
+
+            n_t_samples = int(n_samples * (1 - val_split))
+            n_v_samples = n_samples - n_t_samples
+
+            print(
+                'Training / validation samples = %d / %d' % (
+                    n_t_samples, n_v_samples
+                )
             )
+
+            d_train = train_x[:n_t_samples]
+            d_val = train_x[n_t_samples:]
+
+            t_train = train_y[:n_t_samples]
+            t_val = train_y[n_t_samples:]
+
+            if brains is not None:
+                r_train = brains[:n_t_samples]
+                r_val = brains[n_t_samples:]
+            else:
+                r_train = None
+                r_val = None
+
+            num_workers = 16
+
+            # Training
+            if patch_size is None:
+                # Full image one
+                print('Dataset creation images <with validation>')
+                train_dataset = BBImageDataset(
+                    d_train, t_train, r_train
+                )
+            else:
+                # Unbalanced one
+                print('Dataset creation unbalanced patches <with validation>')
+                train_dataset = BoundarySegmentationCroppingDataset(
+                    d_train, t_train, masks=r_train, patch_size=patch_size,
+                )
+
+            print('Dataloader creation <with validation>')
+            train_loader = DataLoader(
+                train_dataset, batch_size, True, num_workers=num_workers,
+            )
+
+            # Validation
+            val_dataset = BBImageDataset(
+                d_val, t_val, r_val
+            )
+            val_loader = DataLoader(
+                val_dataset, 1, num_workers=num_workers
+            )
+
+            net.fit(train_loader, val_loader, epochs=epochs, patience=patience)
 
             net.save_model(os.path.join(d_path, model_name))
 
@@ -292,6 +354,45 @@ def main():
                 c['g'], c['b'], c['nc'] + c['g'], c['nc']
             )
         )
+
+
+def main():
+    # Init
+    c = color_codes()
+    options = parse_inputs()
+    patch_size = options['patch_size']
+    filters = options['filters']
+    hybrid = options['hybrid']
+    depth = options['blocks']
+    mode_s = '-hybrid' if hybrid else ''
+
+    # Prepare the sufix that will be added to the results for the net and images
+    print(
+        '%s[%s] %s<BRATS 2019 pipeline%s testing>%s' % (
+            c['c'], strftime("%H:%M:%S"), c['y'], mode_s, c['nc']
+        )
+    )
+
+    ''' <Segmentation task> '''
+    n_folds = 5
+    print(
+        '%s[%s] %sStarting cross-validation (segmentation) - %d folds%s' % (
+            c['c'], strftime("%H:%M:%S"), c['g'], n_folds, c['nc']
+        )
+    )
+
+    patch_s = '-ps%d' % patch_size if patch_size is not None else ''
+    depth_s = '-f%d' % depth
+    filters_s = '-f%d' % filters
+    net_name = 'brats2019-nnunet-%s%s%s%s' % (
+        mode_s, filters_s, depth_s, patch_s
+    )
+
+    train_test_seg(net_name, n_folds)
+
+    net_name = 'brats2019-survival-%s%s%s%s' % (
+        mode_s, filters_s, depth_s, patch_s
+    )
 
 
 if __name__ == '__main__':
