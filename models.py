@@ -207,7 +207,7 @@ class BratsSegmentationNet(nn.Module):
                 loss_value = roi_value + tumor_value
                 dsc_r = 1 - batch_loss_r
                 dsc_t = 1 - batch_loss_t
-                mid_losses.append(torch.cat((dsc_t, dsc_r), dim=1).tolist())
+                mid_losses.append(torch.cat((dsc_t, dsc_r)).tolist())
 
             torch.cuda.synchronize()
             torch.cuda.empty_cache()
