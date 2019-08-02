@@ -185,7 +185,7 @@ class BratsSegmentationNet(nn.Module):
             # We train the model and check the loss
             torch.cuda.synchronize()
             pred_labels = self(x.to(self.device))
-            y_r = (y > 0).type_like(y)
+            y_r = (y > 0).type_as(y)
             pred_tmr = torch.sum(pred_labels[:, 1:, ...], dim=1)
             pred_bck = pred_labels[:, 0, ...]
             pred_r = torch.stack((pred_bck, pred_tmr), dim=1)
