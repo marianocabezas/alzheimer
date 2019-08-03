@@ -381,14 +381,6 @@ def train_test_survival(net_name, n_folds):
     np.random.seed(42)
     seg_patients = np.random.permutation(patients).tolist()
 
-    for i in range(n_folds):
-        print(
-            '%s[%s] %sFold %s(%s%d%s%s/%d)%s' % (
-                c['c'], strftime("%H:%M:%S"), c['g'],
-                c['c'], c['b'], i + 1, c['nc'], c['c'], n_folds, c['nc']
-            )
-        )
-
     ''' Segmentation training'''
     # The goal here is to pretrain a unique segmentation network for all
     # the survival folds. We only do it once. Then we split the survival
@@ -396,6 +388,7 @@ def train_test_survival(net_name, n_folds):
     net = BratsSurvivalNet()
 
     # Training data
+    print('Loading ROI masks')
     brain_names = map(
         lambda p: os.path.join(
             d_path, p, p + '_t1.nii.gz'
@@ -403,6 +396,7 @@ def train_test_survival(net_name, n_folds):
         seg_patients
     )
     brains = map(get_mask, brain_names)
+    print('Loading labels...')
     lesion_names = map(
         lambda p: os.path.join(d_path, p, p + '_seg.nii.gz'),
         seg_patients
@@ -410,6 +404,7 @@ def train_test_survival(net_name, n_folds):
     train_y = map(get_mask, lesion_names)
     for yi in train_y:
         yi[yi == 4] = 3
+    print('Loading data')
     train_x = map(
         lambda (p, mask_i): np.stack(
             map(
@@ -501,9 +496,24 @@ def train_test_survival(net_name, n_folds):
             val_dataset, 1, num_workers=num_workers
         )
 
+        print(
+            '%s[%s] %sInitial %s%spretraining%s' % (
+                c['c'], strftime("%H:%M:%S"), c['g'],
+                c['c'], c['b'], c['nc']
+            )
+        )
+
         net.fit_seg(train_loader, val_loader, epochs=epochs, patience=patience)
 
         net.save_model(os.path.join(d_path, model_name))
+
+        for i in range(n_folds):
+            print(
+                '%s[%s] %sFold %s(%s%d%s%s/%d)%s' % (
+                    c['c'], strftime("%H:%M:%S"), c['g'],
+                    c['c'], c['b'], i + 1, c['nc'], c['c'], n_folds, c['nc']
+                )
+            )
 
 
 def main():
