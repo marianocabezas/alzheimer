@@ -538,11 +538,19 @@ def main():
         mode_s, filters_s, depth_s, patch_s
     )
 
-    train_test_seg(net_name, n_folds)
+    # train_test_seg(net_name, n_folds)
 
+    ''' <Survival task> '''
     net_name = 'brats2019-survival-%s%s%s%s' % (
         mode_s, filters_s, depth_s, patch_s
     )
+
+    print(
+        '%s[%s] %sStarting cross-validation (survival) - %d folds%s' % (
+            c['c'], strftime("%H:%M:%S"), c['g'], n_folds, c['nc']
+        )
+    )
+    train_test_survival(net_name, n_folds)
 
 
 if __name__ == '__main__':
