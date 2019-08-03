@@ -42,6 +42,7 @@ class BratsSegmentationNet(nn.Module):
             pool_size=2,
             depth=4,
             n_images=4,
+            dropout=0.25,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -70,6 +71,7 @@ class BratsSegmentationNet(nn.Module):
                 ),
                 nn.LeakyReLU(),
                 # nn.ReLU(),
+                nn.Droput(dropout),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
                 nn.Conv3d(
@@ -79,6 +81,7 @@ class BratsSegmentationNet(nn.Module):
                 ),
                 nn.LeakyReLU(),
                 # nn.ReLU(),
+                nn.Droput(dropout),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
             ),
@@ -98,6 +101,7 @@ class BratsSegmentationNet(nn.Module):
             ),
             nn.LeakyReLU(),
             # nn.ReLU(),
+            nn.Droput(dropout),
             # nn.InstanceNorm3d(filters * (2 ** depth)),
             nn.BatchNorm3d(filters * (2 ** depth)),
             nn.Conv3d(
@@ -107,6 +111,7 @@ class BratsSegmentationNet(nn.Module):
             ),
             nn.LeakyReLU(),
             # nn.ReLU(),
+            nn.Droput(dropout),
             # nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
             nn.BatchNorm3d(filters * (2 ** (depth - 1))),
         )
@@ -121,6 +126,7 @@ class BratsSegmentationNet(nn.Module):
                 ),
                 nn.LeakyReLU(),
                 # nn.ReLU(),
+                nn.Droput(dropout),
                 # nn.InstanceNorm3d(ini),
                 nn.BatchNorm3d(ini),
                 nn.ConvTranspose3d(
@@ -130,6 +136,7 @@ class BratsSegmentationNet(nn.Module):
                 ),
                 nn.LeakyReLU(),
                 # nn.ReLU(),
+                nn.Droput(dropout),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
             ),
@@ -174,6 +181,7 @@ class BratsSegmentationNet(nn.Module):
         for batch_i, (x, y) in enumerate(training):
             # We train the model and check the loss
             torch.cuda.synchronize()
+            self.optimizer_alg.zero_grad()
             pred_labels = self(x.to(self.device))
             y_r = (y > 0).type_as(y)
             pred_tmr = torch.sum(pred_labels[:, 1:, ...], dim=1)
@@ -187,7 +195,6 @@ class BratsSegmentationNet(nn.Module):
             )
             if train:
                 batch_loss = batch_loss_r + batch_loss_t
-                self.optimizer_alg.zero_grad()
                 batch_loss.backward()
                 self.optimizer_alg.step()
                 loss_value = batch_loss.tolist()
