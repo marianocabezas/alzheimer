@@ -42,7 +42,7 @@ class BratsSegmentationNet(nn.Module):
             pool_size=2,
             depth=4,
             n_images=4,
-            dropout=0.25,
+            dropout=0.1,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -253,7 +253,7 @@ class BratsSegmentationNet(nn.Module):
             optimizer='adadelta',
             epochs=100,
             patience=10,
-            weight_decay=0,
+            weight_decay=1,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -269,8 +269,12 @@ class BratsSegmentationNet(nn.Module):
         best_state = deepcopy(self.state_dict())
 
         optimizer_dict = {
-            'adam': lambda: torch.optim.Adam(weight_decay=weight_decay),
-            'adadelta': lambda: torch.optim.Adadelta(weight_decay=weight_decay),
+            'adam': lambda params: torch.optim.Adam(
+                params, weight_decay=weight_decay
+            ),
+            'adadelta': lambda params: torch.optim.Adadelta(
+                params, weight_decay=weight_decay
+            ),
             'adabound': AdaBound,
         }
 
