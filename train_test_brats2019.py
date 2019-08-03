@@ -379,7 +379,7 @@ def train_test_survival(net_name, n_folds):
     seg_patients = filter(lambda p: p not in survival_dict.keys(), patients)
     survival_patients = survival_dict.keys()
     np.random.seed(42)
-    seg_patients = np.random.permutation(patients).tolist()
+    seg_patients = np.random.permutation(seg_patients).tolist()
 
     ''' Segmentation training'''
     # The goal here is to pretrain a unique segmentation network for all
