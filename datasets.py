@@ -486,14 +486,21 @@ class BBImageDataset(Dataset):
 
         if self.flip:
             inputs = self.cases[index // 2][tuple([slice(None)] + bb)]
-            index = index // 2
             if (index % 2) == 1:
                 inputs = inputs[:, ::-1, :, :]
         else:
             inputs = self.cases[index][tuple([slice(None)] + bb)]
 
         if self.labels is not None:
-            targets = np.expand_dims(self.labels[index][tuple(bb)], axis=0)
+            if self.flip:
+                targets = self.labels[index // 2][tuple(bb)]
+                if (index % 2) == 1:
+                    targets = targets[:, ::-1, :, :]
+
+            else:
+                targets = self.labels[index][tuple(bb)]
+
+            np.expand_dims(targets, axis=0)
 
             if self.sampler:
                 return inputs, targets, index
