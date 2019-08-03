@@ -181,7 +181,8 @@ class BratsSegmentationNet(nn.Module):
         for batch_i, (x, y) in enumerate(training):
             # We train the model and check the loss
             torch.cuda.synchronize()
-            self.optimizer_alg.zero_grad()
+            if train:
+                self.optimizer_alg.zero_grad()
             pred_labels = self(x.to(self.device))
             y_r = (y > 0).type_as(y)
             pred_tmr = torch.sum(pred_labels[:, 1:, ...], dim=1)
@@ -588,12 +589,13 @@ class BratsSurvivalNet(nn.Module):
         n_batches = len(training)
         for batch_i, (x, y) in enumerate(training):
             torch.cuda.synchronize()
+            if train:
+                self.optimizer_alg.zero_grad()
             # We train the model and check the loss
             pred_y = self(x.to(self.device))
             batch_loss = nn.MSELoss()(pred_y, y.to(self.device))
 
             if train:
-                self.optimizer_alg.zero_grad()
                 batch_loss.backward()
                 self.optimizer_alg.step()
 
