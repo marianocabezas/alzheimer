@@ -29,6 +29,8 @@ def multidsc_loss(pred, target, smooth=1, averaged=True):
         )
         target = target.type_as(pred)
 
+    print(pred.shape, target.shape)
+
     reduce_dims = tuple(range(1, len(dims)))
     num = (2 * torch.sum(pred * target, dim=reduce_dims[1:])) + smooth
     den = torch.sum(pred + target, dim=reduce_dims[1:]) + smooth
