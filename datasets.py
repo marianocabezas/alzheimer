@@ -487,9 +487,7 @@ class BBImageDataset(Dataset):
         if self.flip:
             inputs = self.cases[index // 2][tuple([slice(None)] + bb)]
             if (index % 2) == 1:
-                print(inputs.shape)
-                inputs = inputs[:, ::-1, :, :]
-                print(inputs.shape)
+                inputs = np.fliplr(inputs).copy()
         else:
             inputs = self.cases[index][tuple([slice(None)] + bb)]
 
@@ -497,9 +495,7 @@ class BBImageDataset(Dataset):
             if self.flip:
                 targets = self.labels[index // 2][tuple(bb)]
                 if (index % 2) == 1:
-                    print(targets.shape)
-                    targets = targets[::-1, :, :]
-                    print(targets.shape)
+                    targets = np.flipud(targets).copy()
 
             else:
                 targets = self.labels[index][tuple(bb)]
