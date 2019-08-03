@@ -495,7 +495,7 @@ class BBImageDataset(Dataset):
             if self.flip:
                 targets = self.labels[index // 2][tuple(bb)]
                 if (index % 2) == 1:
-                    targets = targets[:, ::-1, :, :]
+                    targets = targets[::-1, :, :]
 
             else:
                 targets = self.labels[index][tuple(bb)]
