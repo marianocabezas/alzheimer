@@ -89,9 +89,6 @@ class BratsSegmentationNet(nn.Module):
         #     filter_list
         # )
         self.pooling = [nn.AvgPool3d(pool_size)] * len(filter_list)
-        for c, p in zip(self.convlist, self.pooling):
-            c.to(self.device)
-            p.to(self.device)
 
         self.midconv = nn.Sequential(
             nn.Conv3d(
@@ -141,36 +138,29 @@ class BratsSegmentationNet(nn.Module):
                 groups_list[::-1]
             )
         )
-        for d in self.deconvlist:
-            d.to(self.device)
 
         # Segmentation
         self.out = nn.Sequential(
             nn.Conv3d(filters, 4, 1),
             nn.Softmax(dim=1)
         )
-        self.out.to(self.device)
 
-    def forward(self, x, dropout=0):
+    def forward(self, x):
         down_list = []
         for c, p in zip(self.convlist, self.pooling):
+            c.to(self.device)
             down = c(x)
-            if dropout > 0:
-                down = nn.functional.dropout3d(down, dropout)
             down_list.append(down)
             # x = F.max_pool3d(down, self.pooling)
+            p.to(self.device)
             x = p(down)
 
         x = self.midconv(x)
 
-        if dropout > 0:
-            x = nn.functional.dropout3d(x, dropout)
-
         for d, prev in zip(self.deconvlist, down_list[::-1]):
             interp = F.interpolate(x, size=prev.shape[2:])
+            d.to(self.device)
             x = d(torch.cat((prev, interp), dim=1))
-            if dropout > 0:
-                x = nn.functional.dropout3d(x, dropout)
 
         output = self.out(x)
         return output
@@ -547,37 +537,39 @@ class BratsSurvivalNet(nn.Module):
             ),
             range(depth_pred)
         )
-        for p in self.pooling:
-            p.to(self.device)
 
         self.global_pooling = nn.AdaptiveAvgPool3d((1, 1, 1))
-        self.global_pooling.to(self.device)
 
         self.linear = nn.Sequential(
             nn.Linear(end_features + n_features, dense_size),
             nn.ReLU(),
             nn.InstanceNorm1d(dense_size)
         )
-        self.linear.to(self.device)
 
         self.out = nn.Linear(dense_size, 1)
-        self.out.to(self.device)
 
     def forward(self, im, features):
         for c, p in zip(self.base_model.convlist, self.base_model.pooling):
-            down = c(im)
-            im = p(down)
+            c.to(self.device)
+            p.to(self.device)
+            im = p(c(im))
 
-        im = self.midconv(im)
+        self.base_model.midconv.to(self.device)
+        im = self.base_model.midconv(im)
 
         for p in self.pooling:
+            p.to(self.device)
             im = p(im)
 
+        self.global_pooling.to(self.device)
         im = self.global_pooling(im).view(im.shape[:2])
 
         x = torch.cat((im, features), dim=1)
 
+        self.linear.to(self.device)
         x = self.linear(x)
+
+        self.out.to(self.device)
         output = self.out(x)
 
         return output
