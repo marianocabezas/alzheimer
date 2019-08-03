@@ -386,7 +386,7 @@ def train_test_survival(net_name, n_folds):
     # The goal here is to pretrain a unique segmentation network for all
     # the survival folds. We only do it once. Then we split the survival
     # patients accordingly.
-    net = BratsSurvivalNet(depth=depth, filters=filters)
+    net = BratsSurvivalNet(depth_seg=depth, depth_pred=depth, filters=filters)
 
     # Training data
     print('Loading ROI masks...')
