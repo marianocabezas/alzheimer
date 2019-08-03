@@ -431,7 +431,7 @@ def train_test_survival(net_name, n_folds):
         net.load_model(os.path.join(d_path, model_name))
     except IOError:
         n_params = sum(
-            p.numel() for p in net.parameters() if p.requires_grad
+            p.numel() for p in net.base_model.parameters() if p.requires_grad
         )
         print(
             '%sStarting segmentation training with a unet%s (%d parameters)' %
@@ -548,7 +548,7 @@ def main():
         mode_s, filters_s, depth_s, patch_s
     )
 
-    train_test_seg(net_name, n_folds)
+    # train_test_seg(net_name, n_folds)
 
     ''' <Survival task> '''
     net_name = 'brats2019-survival-%s%s%s%s' % (
