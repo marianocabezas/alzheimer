@@ -388,7 +388,7 @@ def train_test_survival(net_name, n_folds):
     net = BratsSurvivalNet()
 
     # Training data
-    print('Loading ROI masks')
+    print('Loading ROI masks...')
     brain_names = map(
         lambda p: os.path.join(
             d_path, p, p + '_t1.nii.gz'
@@ -404,7 +404,7 @@ def train_test_survival(net_name, n_folds):
     train_y = map(get_mask, lesion_names)
     for yi in train_y:
         yi[yi == 4] = 3
-    print('Loading data')
+    print('Loading data...')
     train_x = map(
         lambda (p, mask_i): np.stack(
             map(

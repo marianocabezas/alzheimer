@@ -800,3 +800,9 @@ class BratsSurvivalNet(nn.Module):
                 'with minimum loss = %f (epoch %d)' % (
                     self.epoch + 1, t_end_s, best_loss_tr, best_e)
             )
+
+    def save_model(self, net_name):
+        torch.save(self.state_dict(), net_name)
+
+    def load_model(self, net_name):
+        self.load_state_dict(torch.load(net_name))
