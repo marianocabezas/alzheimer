@@ -371,6 +371,7 @@ def train_test_survival(net_name, n_folds):
     batch_size = options['batch_size']
     patience = options['patience']
     depth = options['blocks']
+    filters = options['filters']
     images = ['_flair.nii.gz', '_t1.nii.gz', '_t1ce.nii.gz', '_t2.nii.gz']
 
     d_path = options['loo_dir']
@@ -385,7 +386,7 @@ def train_test_survival(net_name, n_folds):
     # The goal here is to pretrain a unique segmentation network for all
     # the survival folds. We only do it once. Then we split the survival
     # patients accordingly.
-    net = BratsSurvivalNet()
+    net = BratsSurvivalNet(depth=depth, filters=filters)
 
     # Training data
     print('Loading ROI masks...')
