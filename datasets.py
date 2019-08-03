@@ -479,26 +479,25 @@ class BBImageDataset(Dataset):
             ),
 
     def __getitem__(self, index):
+        if self.flip:
+            flipped = (index % 2) == 1
+            index = index // 2
+        else:
+            flipped = False
+
         if len(self.bb) == len(self.cases):
             bb = self.bb[index]
         else:
             bb = self.bb
 
-        if self.flip:
-            inputs = self.cases[index // 2][tuple([slice(None)] + bb)]
-            if (index % 2) == 1:
-                inputs = np.fliplr(inputs).copy()
-        else:
-            inputs = self.cases[index][tuple([slice(None)] + bb)]
+        inputs = self.cases[index][tuple([slice(None)] + bb)]
+        if flipped:
+            inputs = np.fliplr(inputs).copy()
 
         if self.labels is not None:
-            if self.flip:
-                targets = self.labels[index // 2][tuple(bb)]
-                if (index % 2) == 1:
-                    targets = np.flipud(targets).copy()
-
-            else:
-                targets = self.labels[index][tuple(bb)]
+            targets = self.labels[index][tuple(bb)]
+            if flipped:
+                targets = np.flipud(targets).copy()
 
             np.expand_dims(targets, axis=0)
 
