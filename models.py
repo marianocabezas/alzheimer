@@ -614,11 +614,27 @@ class BratsSurvivalNet(nn.Module):
 
         return np.mean(losses)
 
+    def fit_seg(
+            self,
+            train_loader,
+            val_loader,
+            optimizer='adadelta',
+            epochs=100,
+            patience=10,
+            device=torch.device(
+                "cuda:0" if torch.cuda.is_available() else "cpu"
+            ),
+            verbose=True
+    ):
+        # We first fit the segmentation as best as we can with the cases that
+        # are not used for prediction (no GTR, no age, etc.).
+        self.base_model.fit(
+            train_loader, val_loader, optimizer=optimizer, epochs=epochs,
+            patience=patience, device=device, verbose=verbose
+        )
+
     def fit(
             self,
-            data_seg,
-            target_seg,
-            rois_seg,
             data_pred,
             target_pred,
             rois_pred,
@@ -636,13 +652,6 @@ class BratsSurvivalNet(nn.Module):
         self.to(device)
         self.train()
 
-        # We first fit the segmentation as best as we can with the cases that
-        # are not used for prediction (no GTR, no age, etc.).
-        self.base_model.fit(
-            data_seg, target_seg, rois_seg, val_split=val_split,
-            optimizer=optimizer, epochs=epochs, patience=patience,
-            num_workers=num_workers, device=device, verbose=verbose
-        )
         self.base_model.eval()
 
         # Now we actually train the prediction network.

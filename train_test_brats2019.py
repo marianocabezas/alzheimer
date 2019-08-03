@@ -4,7 +4,7 @@ import os
 import csv
 from time import strftime
 import numpy as np
-from models import BratsSegmentationNet
+from models import BratsSegmentationNet, BratsSurvivalNet
 from datasets import BoundarySegmentationCroppingDataset
 from datasets import BBImageDataset
 from utils import color_codes, get_dirs
@@ -110,9 +110,15 @@ def isint(s):
     except ValueError:
         return False
 
+    # s = str(s)
+    # if s[0] in ('-', '+'):
+    #     return s[1:].isdigit()
+    # return s.isdigit()
 
-def get_survival_data(options):
+
+def get_survival_data():
     # Init
+    options = parse_inputs()
     path = options['loo_dir']
 
     with open(os.path.join(path, 'survival_data.csv')) as csvfile:
@@ -354,6 +360,150 @@ def train_test_seg(net_name, n_folds):
                 c['g'], c['b'], c['nc'] + c['g'], c['nc']
             )
         )
+
+
+def train_test_survival(net_name, n_folds):
+    # Init
+    c = color_codes()
+    options = parse_inputs()
+    epochs = options['epochs']
+    patch_size = options['patch_size']
+    batch_size = options['batch_size']
+    patience = options['patience']
+    depth = options['blocks']
+    images = ['_flair.nii.gz', '_t1.nii.gz', '_t1ce.nii.gz', '_t2.nii.gz']
+
+    d_path = options['loo_dir']
+    patients = get_dirs(d_path)
+    survival_dict = get_survival_data()
+    seg_patients = filter(lambda p: p not in survival_dict.keys(), patients)
+    survival_patients = survival_dict.keys()
+    np.random.seed(42)
+    seg_patients = np.random.permutation(patients).tolist()
+
+    for i in range(n_folds):
+        print(
+            '%s[%s] %sFold %s(%s%d%s%s/%d)%s' % (
+                c['c'], strftime("%H:%M:%S"), c['g'],
+                c['c'], c['b'], i + 1, c['nc'], c['c'], n_folds, c['nc']
+            )
+        )
+
+    ''' Segmentation training'''
+    # The goal here is to pretrain a unique segmentation network for all
+    # the survival folds. We only do it once. Then we split the survival
+    # patients accordingly.
+    net = BratsSurvivalNet()
+
+    # Training data
+    brain_names = map(
+        lambda p: os.path.join(
+            d_path, p, p + '_t1.nii.gz'
+        ),
+        seg_patients
+    )
+    brains = map(get_mask, brain_names)
+    lesion_names = map(
+        lambda p: os.path.join(d_path, p, p + '_seg.nii.gz'),
+        seg_patients
+    )
+    train_y = map(get_mask, lesion_names)
+    for yi in train_y:
+        yi[yi == 4] = 3
+    train_x = map(
+        lambda (p, mask_i): np.stack(
+            map(
+                lambda im: get_normalised_image(
+                    os.path.join(d_path, p, p + im),
+                    mask_i, masked=True
+                ),
+                images
+            ),
+            axis=0
+        ),
+        zip(seg_patients, brains)
+    )
+
+    print(
+        'Training segmentation samples = %d' % (
+            len(seg_patients)
+        )
+    )
+
+    # Training itself
+    model_name = '%s-init.mdl' % net_name
+    try:
+        net.load_model(os.path.join(d_path, model_name))
+    except IOError:
+        n_params = sum(
+            p.numel() for p in net.parameters() if p.requires_grad
+        )
+        print(
+            '%sStarting segmentation training with a unet%s (%d parameters)' %
+            (c['c'], c['nc'], n_params)
+        )
+
+        # Data split (using numpy) for train and validation.
+        # We also compute the number of batches for both training and
+        # validation according to the batch size.
+        n_samples = len(train_x)
+
+        val_split = 0.1
+
+        n_t_samples = int(n_samples * (1 - val_split))
+        n_v_samples = n_samples - n_t_samples
+
+        print(
+            'Training / validation samples = %d / %d' % (
+                n_t_samples, n_v_samples
+            )
+        )
+
+        d_train = train_x[:n_t_samples]
+        d_val = train_x[n_t_samples:]
+
+        t_train = train_y[:n_t_samples]
+        t_val = train_y[n_t_samples:]
+
+        if brains is not None:
+            r_train = brains[:n_t_samples]
+            r_val = brains[n_t_samples:]
+        else:
+            r_train = None
+            r_val = None
+
+        num_workers = 16
+
+        # Training
+        if patch_size is None:
+            # Full image one
+            print('Dataset creation images <with validation>')
+            train_dataset = BBImageDataset(
+                d_train, t_train, r_train
+            )
+        else:
+            # Unbalanced one
+            print('Dataset creation unbalanced patches <with validation>')
+            train_dataset = BoundarySegmentationCroppingDataset(
+                d_train, t_train, masks=r_train, patch_size=patch_size,
+            )
+
+        print('Dataloader creation <with validation>')
+        train_loader = DataLoader(
+            train_dataset, batch_size, True, num_workers=num_workers,
+        )
+
+        # Validation
+        val_dataset = BBImageDataset(
+            d_val, t_val, r_val
+        )
+        val_loader = DataLoader(
+            val_dataset, 1, num_workers=num_workers
+        )
+
+        net.fit_seg(train_loader, val_loader, epochs=epochs, patience=patience)
+
+        net.save_model(os.path.join(d_path, model_name))
 
 
 def main():
