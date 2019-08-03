@@ -89,7 +89,7 @@ def parse_inputs():
         '-B', '--batch-size',
         dest='batch_size',
         type=int, default=1,
-        help='Number of blocks (or depth)'
+        help='Number of samples per batch'
     )
     parser.add_argument(
         '-t', '--patch-size',
@@ -460,12 +460,8 @@ def train_test_survival(net_name, n_folds):
         t_train = train_y[:n_t_samples]
         t_val = train_y[n_t_samples:]
 
-        if brains is not None:
-            r_train = brains[:n_t_samples]
-            r_val = brains[n_t_samples:]
-        else:
-            r_train = None
-            r_val = None
+        r_train = brains[:n_t_samples]
+        r_val = brains[n_t_samples:]
 
         num_workers = 16
 
@@ -503,7 +499,7 @@ def train_test_survival(net_name, n_folds):
             )
         )
 
-        net.fit_seg(train_loader, val_loader, epochs=epochs, patience=patience)
+        net.base_model.fit(train_loader, val_loader, epochs=epochs, patience=patience)
 
         net.save_model(os.path.join(d_path, model_name))
 
