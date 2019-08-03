@@ -158,7 +158,6 @@ class BratsSegmentationNet(nn.Module):
             c.to(self.device)
             down = c(x)
             down_list.append(down)
-            # x = F.max_pool3d(down, self.pooling)
             p.to(self.device)
             x = p(down)
 
