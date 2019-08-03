@@ -471,7 +471,7 @@ def train_test_survival(net_name, n_folds):
             # Full image one
             print('Dataset creation images <with validation>')
             train_dataset = BBImageDataset(
-                d_train, t_train, r_train
+                d_train, t_train, r_train, flip=True
             )
         else:
             # Unbalanced one

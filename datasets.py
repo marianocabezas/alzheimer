@@ -418,13 +418,14 @@ class BoundarySegmentationCroppingDataset(Dataset):
 class BBImageDataset(Dataset):
     def __init__(
             self,
-            cases, labels, masks, sampler=False, mode=None,
+            cases, labels, masks, sampler=False, mode=None, flip=False,
     ):
         # Init
         # Image and mask should be numpy arrays
         self.sampler = sampler
         self.cases = cases
         self.labels = labels
+        self.flip = flip
 
         self.masks = masks
 
@@ -483,7 +484,13 @@ class BBImageDataset(Dataset):
         else:
             bb = self.bb
 
-        inputs = self.cases[index][tuple([slice(None)] + bb)]
+        if self.flip:
+            inputs = self.cases[index // 2][tuple([slice(None)] + bb)]
+            index = index // 2
+            if (index % 2) == 1:
+                inputs = inputs[:, ::-1, :, :]
+        else:
+            inputs = self.cases[index][tuple([slice(None)] + bb)]
 
         if self.labels is not None:
             targets = np.expand_dims(self.labels[index][tuple(bb)], axis=0)
@@ -496,7 +503,7 @@ class BBImageDataset(Dataset):
             return inputs
 
     def __len__(self):
-        return len(self.cases)
+        return len(self.cases) * 2 if self.flip else len(self.cases)
 
 
 class BBImageValueDataset(Dataset):
