@@ -71,7 +71,7 @@ class BratsSegmentationNet(nn.Module):
                 ),
                 nn.LeakyReLU(),
                 # nn.ReLU(),
-                nn.Dropout(dropout),
+                # nn.Dropout(dropout),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
                 nn.Conv3d(
@@ -81,7 +81,7 @@ class BratsSegmentationNet(nn.Module):
                 ),
                 nn.LeakyReLU(),
                 # nn.ReLU(),
-                nn.Dropout(dropout),
+                # nn.Dropout(dropout),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
             ),
@@ -101,7 +101,7 @@ class BratsSegmentationNet(nn.Module):
             ),
             nn.LeakyReLU(),
             # nn.ReLU(),
-            nn.Dropout(dropout),
+            # nn.Dropout(dropout),
             # nn.InstanceNorm3d(filters * (2 ** depth)),
             nn.BatchNorm3d(filters * (2 ** depth)),
             nn.Conv3d(
@@ -111,7 +111,7 @@ class BratsSegmentationNet(nn.Module):
             ),
             nn.LeakyReLU(),
             # nn.ReLU(),
-            nn.Dropout(dropout),
+            # nn.Dropout(dropout),
             # nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
             nn.BatchNorm3d(filters * (2 ** (depth - 1))),
         )
@@ -126,7 +126,7 @@ class BratsSegmentationNet(nn.Module):
                 ),
                 nn.LeakyReLU(),
                 # nn.ReLU(),
-                nn.Dropout(dropout),
+                # nn.Dropout(dropout),
                 # nn.InstanceNorm3d(ini),
                 nn.BatchNorm3d(ini),
                 nn.ConvTranspose3d(
@@ -136,7 +136,7 @@ class BratsSegmentationNet(nn.Module):
                 ),
                 nn.LeakyReLU(),
                 # nn.ReLU(),
-                nn.Dropout(dropout),
+                # nn.Dropout(dropout),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
             ),
