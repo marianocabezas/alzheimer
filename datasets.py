@@ -501,6 +501,8 @@ class BBImageDataset(Dataset):
 
             np.expand_dims(targets, axis=0)
 
+            print(inputs.shape, targets.shape)
+
             if self.sampler:
                 return inputs, targets, index
             else:
