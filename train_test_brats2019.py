@@ -168,7 +168,7 @@ def get_dataset(names, patch_size=None, flip=False):
         lambda (p, mask_i): np.stack(
             map(
                 lambda im: get_normalised_image(
-                    os.path.join(names, p, p + im),
+                    os.path.join(d_path, p, p + im),
                     mask_i, masked=True
                 ),
                 images
@@ -281,7 +281,6 @@ def train_test_seg(net_name, n_folds):
             train_tmc = fold_tmc[:n_tmc]
             train_b2013 = fold_b2013[:n_b2013]
             train_patients = train_cbica + train_tcia + train_tmc + train_b2013
-            print(train_patients)
 
             train_dataset = get_dataset(
                 train_patients, patch_size, True
