@@ -282,6 +282,7 @@ def train_test_seg(net_name, n_folds):
             train_b2013 = fold_b2013[:n_b2013]
             train_patients = train_cbica + train_tcia + train_tmc + train_b2013
 
+            print('< Training dataset >')
             train_dataset = get_dataset(
                 train_patients, patch_size, True
             )
@@ -299,7 +300,9 @@ def train_test_seg(net_name, n_folds):
 
             val_patients = val_cbica + val_tcia + val_tmc + val_b2013
 
+            print('< Validation dataset >')
             val_dataset = get_dataset(val_patients)
+
             print('Dataloader creation <val>')
             val_loader = DataLoader(
                 val_dataset, 1, num_workers=num_workers
