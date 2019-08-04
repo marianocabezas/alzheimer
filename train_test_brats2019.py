@@ -203,6 +203,7 @@ def train_test_seg(net_name, n_folds):
     batch_size = options['batch_size']
     patience = options['patience']
     depth = options['blocks']
+    filters = options['filters']
     images = ['_flair.nii.gz', '_t1.nii.gz', '_t1ce.nii.gz', '_t2.nii.gz']
 
     d_path = options['loo_dir']
@@ -261,7 +262,7 @@ def train_test_seg(net_name, n_folds):
         )
 
         model_name = '%s_f%d.mdl' % (net_name, i)
-        net = BratsSegmentationNet(depth=depth)
+        net = BratsSegmentationNet(depth=depth, filters=filters)
         try:
             net.load_model(os.path.join(d_path, model_name))
         except IOError:
