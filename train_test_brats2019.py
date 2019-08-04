@@ -1,4 +1,4 @@
-from __future__ import print_function, division
+from __future__ import print_function
 import argparse
 import os
 import csv
@@ -251,7 +251,7 @@ def train_test_seg(net_name, n_folds):
         n_fold_b2013 = len(fold_b2013)
         n_b2013 = int(n_fold_b2013 * (1 - val_split))
 
-        training_n = n_fold_cbica - n_fold_tcia + n_fold_tmc + n_fold_b2013
+        training_n = n_fold_cbica + n_fold_tcia + n_fold_tmc + n_fold_b2013
         testing_n = len(patients) - training_n
 
         print(
