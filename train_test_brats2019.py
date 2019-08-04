@@ -281,6 +281,7 @@ def train_test_seg(net_name, n_folds):
             train_tmc = fold_tmc[:n_tmc]
             train_b2013 = fold_b2013[:n_b2013]
             train_patients = train_cbica + train_tcia + train_tmc + train_b2013
+            print(train_patients)
 
             train_dataset = get_dataset(
                 train_patients, patch_size, True
