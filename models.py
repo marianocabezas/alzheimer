@@ -621,14 +621,11 @@ class BratsSurvivalNet(nn.Module):
 
     def fit(
             self,
-            data_pred,
-            target_pred,
-            rois_pred,
-            val_split=0.1,
+            train_loader,
+            val_loader,
             optimizer='adadelta',
             epochs=50,
             patience=5,
-            num_workers=16,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -646,7 +643,6 @@ class BratsSurvivalNet(nn.Module):
         no_improv_e = 0
         best_state = deepcopy(self.state_dict())
 
-        validation = val_split > 0
         optimizer_dict = {
             'adam': torch.optim.Adam,
             'adadelta': torch.optim.Adadelta,
@@ -661,68 +657,6 @@ class BratsSurvivalNet(nn.Module):
             else optimizer
 
         t_start = time.time()
-
-        # Data split (using numpy) for train and validation.
-        # We also compute the number of batches for both training and
-        # validation according to the batch size.
-        if validation:
-            n_samples = len(data_pred)
-
-            n_t_samples = int(n_samples * (1 - val_split))
-            n_v_samples = n_samples - n_t_samples
-
-            if verbose:
-                print(
-                    'Training / validation samples = %d / %d' % (
-                        n_t_samples, n_v_samples
-                    )
-                )
-
-            d_train = data_pred[:n_t_samples]
-            d_val = data_pred[n_t_samples:]
-
-            t_train = target_pred[:n_t_samples]
-            t_val = target_pred[n_t_samples:]
-
-            if rois_pred is not None:
-                r_train = rois_pred[:n_t_samples]
-                r_val = rois_pred[n_t_samples:]
-            else:
-                r_train = None
-                r_val = None
-
-            # Training
-            # Full image one
-            print('Dataset creation images <with validation>')
-            train_dataset = BBImageValueDataset(
-                d_train, t_train, r_train
-            )
-            train_loader = DataLoader(
-                train_dataset, 1, shuffle=True, num_workers=num_workers
-            )
-            
-            # Validation
-            val_dataset = BBImageValueDataset(
-                d_val, t_val, r_val
-            )
-            val_loader = DataLoader(
-                val_dataset, 1, num_workers=num_workers
-            )
-        else:
-            # Training
-            # Full image one
-            print('Dataset creation images <with validation>')
-            dataset = BBImageValueDataset(
-                data_pred, target_pred, rois_pred
-            )
-            train_loader = DataLoader(
-                dataset, 1, shuffle=True, num_workers=num_workers
-            )
-
-            # Validation
-            val_loader = DataLoader(
-                dataset, 1, num_workers=num_workers
-            )
 
         l_names = ['train', ' val ']
         best_e = 0
