@@ -142,10 +142,9 @@ def get_survival_data():
     return final_dict
 
 
-def get_dataset(names, patch_size=None, flip=False):
+def get_images(names):
     options = parse_inputs()
     images = ['_flair.nii.gz', '_t1.nii.gz', '_t1ce.nii.gz', '_t2.nii.gz']
-
     d_path = options['loo_dir']
     print('Loading rois...')
     brain_names = map(
@@ -155,14 +154,6 @@ def get_dataset(names, patch_size=None, flip=False):
         names
     )
     rois = map(get_mask, brain_names)
-    print('Loading labels...')
-    lesion_names = map(
-        lambda p: os.path.join(d_path, p, p + '_seg.nii.gz'),
-        names
-    )
-    targets = map(get_mask, lesion_names)
-    for yi in targets:
-        yi[yi == 4] = 3
     print('Loading and normalising images...')
     data = map(
         lambda (p, mask_i): np.stack(
@@ -177,6 +168,24 @@ def get_dataset(names, patch_size=None, flip=False):
         ),
         zip(names, rois)
     )
+
+    return rois, data
+
+
+def get_dataset(names, patch_size=None, flip=False):
+    options = parse_inputs()
+    images = ['_flair.nii.gz', '_t1.nii.gz', '_t1ce.nii.gz', '_t2.nii.gz']
+    d_path = options['loo_dir']
+
+    print('Loading labels...')
+    lesion_names = map(
+        lambda p: os.path.join(d_path, p, p + '_seg.nii.gz'),
+        names
+    )
+    targets = map(get_mask, lesion_names)
+    for yi in targets:
+        yi[yi == 4] = 3
+    rois, data = get_images(names)
 
     if patch_size is None:
         # Full image one
@@ -417,6 +426,8 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
     survival_dict = get_survival_data()
     seg_patients = filter(lambda p: p not in survival_dict.keys(), patients)
     survival_patients = survival_dict.keys()
+    survival_ages = map(lambda v: v['Age'], survival_dict.values())
+    survivals = map(lambda v: v['Survival'], survival_dict.values())
     print(survival_dict.values())
 
     ''' Segmentation training'''
@@ -476,6 +487,7 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
             ini_i = len(survival_patients) * i / n_folds
             end_i = len(survival_patients) * (i + 1) / n_folds
             fold_i = survival_patients[:ini_i] + survival_patients[end_i:]
+            survival_i = survivals[:ini_i] + survivals[end_i:]
             n_fold = len(fold_i)
             n_train = int(n_fold * (1 - val_split))
 
@@ -484,10 +496,12 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
             # validation according to the batch size.
             # Training
             train_i = fold_i[:n_train]
+            train_survival = survival_i[:n_train]
 
             print('< Training dataset >')
+            train_data, train_rois = get_images(train_i)
             train_dataset = BBImageValueDataset(
-
+                train_data, train_survival, train_rois
             )
 
             print('Dataloader creation <train>')
@@ -496,15 +510,14 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
             )
 
             # Validation
-            val_cbica = fold_cbica[n_cbica:]
-            val_tcia = fold_tcia[n_tcia:]
-            val_tmc = fold_tmc[n_tmc:]
-            val_b2013 = fold_b2013[n_b2013:]
-
-            val_patients = val_cbica + val_tcia + val_tmc + val_b2013
+            val_i = fold_i[n_train:]
+            val_survival = survival_i[n_train:]
 
             print('< Validation dataset >')
-            val_dataset = get_dataset(val_patients)
+            val_data, val_rois = get_images(val_i)
+            val_dataset = BBImageValueDataset(
+                val_data, val_survival, val_rois
+            )
 
             print('Dataloader creation <val>')
             val_loader = DataLoader(
@@ -515,24 +528,6 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
                 'Training / validation samples = %d / %d' % (
                     len(train_dataset), len(val_dataset)
                 )
-            )
-
-            # Training
-            # Full image one
-            print('Dataset creation images <with validation>')
-            train_dataset = BBImageValueDataset(
-                d_train, t_train, r_train
-            )
-            train_loader = DataLoader(
-                train_dataset, 1, shuffle=True, num_workers=num_workers
-            )
-
-            # Validation
-            val_dataset = BBImageValueDataset(
-                d_val, t_val, r_val
-            )
-            val_loader = DataLoader(
-                val_dataset, 1, num_workers=num_workers
             )
 
             net.fit(train_loader, val_loader, epochs=epochs, patience=patience)
