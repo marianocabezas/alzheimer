@@ -428,7 +428,6 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
     survival_patients = survival_dict.keys()
     survival_ages = map(lambda v: v['Age'], survival_dict.values())
     survivals = map(lambda v: v['Survival'], survival_dict.values())
-    print(survival_dict.values())
 
     ''' Segmentation training'''
     # The goal here is to pretrain a unique segmentation network for all
@@ -445,7 +444,7 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
     # Training itself
     model_name = '%s-init.mdl' % net_name
     try:
-        net.load_model(os.path.join(d_path, model_name))
+        net.base_model.load_model(os.path.join(d_path, model_name))
     except IOError:
         num_workers = 16
 
@@ -479,7 +478,7 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
 
         net.base_model.fit(train_loader, val_loader, epochs=epochs, patience=patience)
 
-        net.save_model(os.path.join(d_path, model_name))
+        net.base_model.save_model(os.path.join(d_path, model_name))
 
         ''' Survival training'''
         # After that, we can finally train the model to predict the survival.
