@@ -515,12 +515,13 @@ class BBImageDataset(Dataset):
 class BBImageValueDataset(Dataset):
     def __init__(
             self,
-            cases, values, masks, sampler=False, mode='max',
+            cases, features, values, masks, sampler=False, mode='max',
     ):
         # Init
         # Image and mask should be numpy arrays
         self.sampler = sampler
         self.cases = cases
+        self.features = features
         self.values = values
 
         self.masks = masks
@@ -580,17 +581,15 @@ class BBImageValueDataset(Dataset):
         else:
             bb = self.bb
 
-        inputs = self.cases[index][tuple([slice(None)] + bb)]
+        images = self.cases[index][tuple([slice(None)] + bb)]
+        features = np.expand_dims(self.features[index], axis=0)
 
         if self.values is not None:
             targets = np.expand_dims(self.values[index], axis=0)
 
-            if self.sampler:
-                return inputs, targets, index
-            else:
-                return inputs, targets
+            return images, features, targets
         else:
-            return inputs
+            return images, features
 
     def __len__(self):
         return len(self.cases)

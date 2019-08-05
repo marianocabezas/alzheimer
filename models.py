@@ -511,7 +511,7 @@ class BratsSurvivalNet(nn.Module):
             pool_pred=2,
             depth_pred=4,
             n_images=4,
-            n_features=4,
+            n_features=1,
             dense_size=256,
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     ):
@@ -591,12 +591,12 @@ class BratsSurvivalNet(nn.Module):
     ):
         losses = list()
         n_batches = len(training)
-        for batch_i, (x, y) in enumerate(training):
+        for batch_i, (im, feat, y) in enumerate(training):
             torch.cuda.synchronize()
             if train:
                 self.optimizer_alg.zero_grad()
             # We train the model and check the loss
-            pred_y = self(x.to(self.device))
+            pred_y = self(im.to(self.device), feat.to(self.device))
             batch_loss = nn.MSELoss()(pred_y, y.to(self.device))
 
             if train:

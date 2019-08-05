@@ -496,12 +496,13 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
             # validation according to the batch size.
             # Training
             train_i = fold_i[:n_train]
+            train_ages = survival_ages[:n_train]
             train_survival = survival_i[:n_train]
 
             print('< Training dataset >')
             train_data, train_rois = get_images(train_i)
             train_dataset = BBImageValueDataset(
-                train_data, train_survival, train_rois
+                train_data, train_ages, train_survival, train_rois
             )
 
             print('Dataloader creation <train>')
@@ -511,12 +512,13 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
 
             # Validation
             val_i = fold_i[n_train:]
+            val_ages = survival_ages[n_train:]
             val_survival = survival_i[n_train:]
 
             print('< Validation dataset >')
             val_data, val_rois = get_images(val_i)
             val_dataset = BBImageValueDataset(
-                val_data, val_survival, val_rois
+                val_data, val_ages, val_survival, val_rois
             )
 
             print('Dataloader creation <val>')
