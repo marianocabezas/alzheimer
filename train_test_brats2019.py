@@ -566,8 +566,8 @@ def main():
     )
 
     patch_s = '-ps%d' % patch_size if patch_size is not None else ''
-    depth_s = '-f%d' % depth
-    filters_s = '-f%d' % filters
+    depth_s = '-filt%d' % depth
+    filters_s = '-fold%d' % filters
     net_name = 'brats2019-nnunet%s%s%s' % (
         filters_s, depth_s, patch_s
     )
