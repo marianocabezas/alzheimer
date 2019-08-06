@@ -44,7 +44,7 @@ def get_slices_bb(
         )
 
         for d in dim_ranges:
-            print(itertools.product(*d))
+            print(list(itertools.product(*d)))
 
         patch_slices = map(
             lambda dim_range: centers_to_slice(
