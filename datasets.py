@@ -43,6 +43,9 @@ def get_slices_bb(
             zip(min_bb, max_bb)
         )
 
+        for d in dim_ranges:
+            print(*dim_range)
+
         patch_slices = map(
             lambda dim_range: centers_to_slice(
                 itertools.product(*dim_range), patch_half
@@ -418,7 +421,7 @@ class BoundarySegmentationCroppingDataset(Dataset):
 class BratsSegmentationCroppingDataset(Dataset):
     def __init__(
             self,
-            cases, labels, masks, overlap=0, patch_size=32
+            cases, labels, masks, patch_size=32, overlap=0
     ):
         # Init
         # Image and mask should be numpy arrays
