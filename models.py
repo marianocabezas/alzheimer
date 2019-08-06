@@ -248,7 +248,7 @@ class BratsSegmentationNet(nn.Module):
             optimizer='adadelta',
             epochs=100,
             patience=10,
-            weight_decay=0,
+            weight_decay=1e-2,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -640,9 +640,7 @@ class BratsSurvivalNet(nn.Module):
 
         optimizer_dict = {
             'adam': torch.optim.Adam,
-            'adadelta': lambda params: torch.optim.Adadelta(
-                params, weight_decay=1e-2
-            ),
+            'adadelta': torch.optim.Adadelta,
             'adabound': AdaBound,
         }
 
