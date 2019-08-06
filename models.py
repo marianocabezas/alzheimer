@@ -645,7 +645,9 @@ class BratsSurvivalNet(nn.Module):
 
         optimizer_dict = {
             'adam': torch.optim.Adam,
-            'adadelta': torch.optim.Adadelta,
+            'adadelta': lambda params: torch.optim.Adadelta(
+                params, weight_decay=1e-2
+            ),
             'adabound': AdaBound,
         }
 

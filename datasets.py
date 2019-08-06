@@ -415,6 +415,63 @@ class BoundarySegmentationCroppingDataset(Dataset):
         return self.max_slice[-1]
 
 
+class BratsSegmentationCroppingDataset(Dataset):
+    def __init__(
+            self,
+            cases, labels, masks, overlap=0, patch_size=32
+    ):
+        # Init
+        # Image and mask should be numpy arrays
+        self.cases = cases
+        self.labels = labels
+
+        self.masks = masks
+
+        data_shape = self.cases[0].shape
+
+        if type(patch_size) is not tuple:
+            patch_size = (patch_size,) * len(data_shape)
+        self.patch_size = patch_size
+
+        self.patch_slices = get_slices_bb(
+            self.masks, self.patch_size, overlap=overlap,
+        )
+
+        self.max_slice = np.cumsum(map(len, self.patch_slices))
+
+    def __getitem__(self, index):
+        # We select the case
+        case_idx = np.min(np.where(self.max_slice > index))
+        case = self.cases[case_idx]
+
+        slices = [0] + self.max_slice.tolist()
+        patch_idx = index - slices[case_idx]
+        case_slices = self.patch_slices[case_idx]
+
+        # We get the slice indexes
+        none_slice = (slice(None, None),)
+        slice_i = case_slices[patch_idx]
+
+        inputs = case[none_slice + slice_i].astype(np.float32)
+
+        if self.labels is not None:
+            labels = self.labels[case_idx].astype(np.uint8)
+            target = np.expand_dims(labels[slice_i], 0)
+
+            if self.sampler:
+                return inputs, target, index
+            else:
+                return inputs, target
+        else:
+            return inputs, case_idx, slice_i
+
+    def __len__(self):
+        return self.max_slice[-1]
+
+    def get_slice_idx(self):
+        return self.max_slice.tolist()
+
+
 class BBImageDataset(Dataset):
     def __init__(
             self,
@@ -595,91 +652,6 @@ class BBImageValueDataset(Dataset):
         return len(self.cases)
 
 
-class BBImageTupleDataset(Dataset):
-    def __init__(
-            self,
-            cases, labels, masks, mode=None,
-    ):
-        # Init
-        # Image and mask should be numpy arrays
-        self.cases = cases
-        self.labels = labels
-
-        self.masks = masks
-
-        indices = map(lambda mask: np.where(mask > 0), self.masks)
-
-        self.labels_mix = map(
-            lambda (l, r):  (l > 0).astype(int) + (r > 0).astype(int),
-            zip(self.labels, self.masks)
-        )
-
-        if mode is None:
-            self.bb = map(
-                lambda idx: map(
-                    lambda (min_i, max_i): slice(min_i, max_i),
-                    zip(np.min(idx, axis=-1), np.max(idx, axis=-1))
-                ),
-                indices
-            )
-        elif mode is 'min':
-            min_bb = np.max(
-                map(
-                    lambda idx: np.min(idx, axis=-1),
-                    indices
-                ),
-                axis=0
-            )
-            max_bb = np.min(
-                map(
-                    lambda idx: np.min(idx, axis=-1),
-                    indices
-                ),
-                axis=0
-            )
-            self.bb = map(
-                lambda (min_i, max_i): slice(min_i, max_i),
-                zip(min_bb, max_bb)
-            ),
-        elif mode is 'max':
-            min_bb = np.min(
-                map(
-                    lambda idx: np.min(idx, axis=-1),
-                    indices
-                ),
-                axis=0
-            )
-            max_bb = np.max(
-                map(
-                    lambda idx: np.min(idx, axis=-1),
-                    indices
-                ),
-                axis=0
-            )
-            self.bb = map(
-                lambda (min_i, max_i): slice(min_i, max_i),
-                zip(min_bb, max_bb)
-            ),
-
-    def __getitem__(self, index):
-        if len(self.bb) == len(self.cases):
-            bb = self.bb[index]
-        else:
-            bb = self.bb
-
-        inputs = self.cases[index][tuple([slice(None)] + bb)]
-
-        targets = (
-            np.expand_dims(self.labels[index][tuple(bb)], axis=0),
-            np.expand_dims(self.labels_mix[index][tuple(bb)], axis=0)
-        )
-
-        return inputs, targets
-
-    def __len__(self):
-        return len(self.cases)
-
-
 def sample(weights, want):
     have = 0
     samples = torch.empty(want, dtype=torch.long)
@@ -753,53 +725,3 @@ class WeightedSubsetRandomSampler(Sampler):
         # introduce a parameter for it.
         if self.step > self.step_inc and (self.step % self.step_inc) == 0:
             self.rate = min(self.rate + self.rate_increase, 1)
-
-
-class WeightedSplitRandomSampler(Sampler):
-
-    def __init__(
-            self,
-            num_samples, sample_div=2, splits=10, *args
-    ):
-        super(WeightedSplitRandomSampler, self).__init__(args)
-        self.step = 0
-        self.divs = sample_div
-        self.splits = splits
-        self.total_samples = num_samples
-        self.num_samples = num_samples // sample_div
-        self.weights = torch.tensor(
-            [np.iinfo(np.int16).max] * num_samples, dtype=torch.double
-        )
-        self.initial = torch.randperm(num_samples)
-        self.indices = self.initial[:self.num_samples]
-
-    def __iter__(self):
-        return (i for i in self.indices.tolist())
-
-    def __len__(self):
-        return self.num_samples
-
-    def update_weights(self, weights, idx):
-        self.weights[idx] = weights.type_as(self.weights)
-
-    def update(self):
-        # We want to ensure that during the first sampling stages we use the
-        # whole dataset. After that, we will begin sampling a percentage of
-        # the worst samples.
-        if self.step < self.divs:
-            idx_ini = (self.step + 1) * self.num_samples
-            idx_end = (self.step + 2) * self.num_samples
-            self.indices = self.initial[idx_ini:idx_end]
-        else:
-            ordered_idx = torch.argsort(self.weights)
-            # TODO: Fix this, please...
-            good_idx = ordered_idx[:len(ordered_idx) // 2]
-            good_idx = good_idx[torch.randperm(len(good_idx))]
-            good_idx = good_idx[self.num_samples // 2]
-            bad_idx = ordered_idx[len(ordered_idx) // 2:]
-            good_idx = good_idx[torch.randperm(len(bad_idx))]
-            good_idx = good_idx[self.num_samples - self.num_samples // 2]
-            self.indices = torch.cat(
-                (good_idx, bad_idx)
-            )[torch.randperm(self.samples)]
-        self.step += 1
