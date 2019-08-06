@@ -248,7 +248,8 @@ class BratsSegmentationNet(nn.Module):
             optimizer='adadelta',
             epochs=100,
             patience=10,
-            weight_decay=1e-2,
+            # weight_decay=1e-2,
+            weight_decay=0,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
