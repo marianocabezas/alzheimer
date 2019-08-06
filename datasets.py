@@ -43,9 +43,6 @@ def get_slices_bb(
             zip(min_bb, max_bb)
         )
 
-        for d in dim_ranges:
-            print(list(itertools.product(*d)))
-
         patch_slices = map(
             lambda dim_range: centers_to_slice(
                 itertools.product(*dim_range), patch_half
@@ -457,16 +454,10 @@ class BratsSegmentationCroppingDataset(Dataset):
 
         inputs = case[none_slice + slice_i].astype(np.float32)
 
-        if self.labels is not None:
-            labels = self.labels[case_idx].astype(np.uint8)
-            target = np.expand_dims(labels[slice_i], 0)
+        labels = self.labels[case_idx].astype(np.uint8)
+        target = np.expand_dims(labels[slice_i], 0)
 
-            if self.sampler:
-                return inputs, target, index
-            else:
-                return inputs, target
-        else:
-            return inputs, case_idx, slice_i
+        return inputs, target
 
     def __len__(self):
         return self.max_slice[-1]
