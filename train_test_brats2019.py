@@ -549,12 +549,11 @@ def main():
     filters = options['filters']
     hybrid = options['hybrid']
     depth = options['blocks']
-    mode_s = '-hybrid' if hybrid else ''
 
     # Prepare the sufix that will be added to the results for the net and images
     print(
-        '%s[%s] %s<BRATS 2019 pipeline%s testing>%s' % (
-            c['c'], strftime("%H:%M:%S"), c['y'], mode_s, c['nc']
+        '%s[%s] %s<BRATS 2019 pipeline testing>%s' % (
+            c['c'], strftime("%H:%M:%S"), c['y'], c['nc']
         )
     )
 
@@ -569,15 +568,15 @@ def main():
     patch_s = '-ps%d' % patch_size if patch_size is not None else ''
     depth_s = '-f%d' % depth
     filters_s = '-f%d' % filters
-    net_name = 'brats2019-nnunet-%s%s%s%s' % (
-        mode_s, filters_s, depth_s, patch_s
+    net_name = 'brats2019-nnunet%s%s%s' % (
+        filters_s, depth_s, patch_s
     )
 
     train_test_seg(net_name, n_folds)
 
     ''' <Survival task> '''
-    net_name = 'brats2019-survival-%s%s%s%s' % (
-        mode_s, filters_s, depth_s, patch_s
+    net_name = 'brats2019-survival%s%s%s%s' % (
+        filters_s, depth_s, patch_s
     )
 
     print(
