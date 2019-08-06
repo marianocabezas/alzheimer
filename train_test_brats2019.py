@@ -5,7 +5,7 @@ import csv
 from time import strftime
 import numpy as np
 from models import BratsSegmentationNet, BratsSurvivalNet
-from datasets import BoundarySegmentationCroppingDataset
+from datasets import BratsSegmentationCroppingDataset
 from datasets import BBImageDataset, BBImageValueDataset
 from utils import color_codes, get_dirs
 from utils import get_mask, get_normalised_image
@@ -196,8 +196,8 @@ def get_dataset(names, patch_size=None, flip=False):
     else:
         # Unbalanced one
         print('Dataset creation unbalanced patches')
-        dataset = BoundarySegmentationCroppingDataset(
-            data, targets, masks=rois, patch_size=patch_size,
+        dataset = BratsSegmentationCroppingDataset(
+            data, targets, rois, patch_size=patch_size,
         )
 
     return dataset
