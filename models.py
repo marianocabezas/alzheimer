@@ -852,7 +852,7 @@ class BratsNewSegmentationNet(nn.Module):
 
         for d, prev in zip(self.deconvlist, down_list[::-1]):
             interp = F.interpolate(x, size=prev.shape[2:])
-            interp = u(x)
+            # interp = u(x)
             d.to(self.device)
             x = d(torch.cat((prev, interp), dim=1))
 
