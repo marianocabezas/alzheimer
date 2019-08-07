@@ -473,7 +473,6 @@ class BlocksBBDataset(Dataset):
         else:
             flipped = False
 
-        print(index, flipped)
         # We select the case
         case_idx = np.min(np.where(self.max_slice > index))
         case = self.cases[case_idx]
