@@ -266,7 +266,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
                 (c['c'], c['nc'], n_params)
             )
 
-            num_workers = 8
+            num_workers = 4
 
             # Training
             train_cbica = fold_cbica[:n_cbica]
@@ -602,7 +602,7 @@ def main():
             c['c'], strftime("%H:%M:%S"), c['g'], n_folds, c['nc']
         )
     )
-    # train_test_survival(net_name, n_folds)
+    #train_test_survival(net_name, n_folds)
 
     ''' <Segmentation task> '''
     print(
