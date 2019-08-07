@@ -34,6 +34,8 @@ def get_blocks(
         zip(max_bb, max_shape)
     )
 
+    print(min_bb, max_bb)
+
     dim_ranges = map(
         lambda (min_bb_i, max_bb_i): map(
             lambda (min_ij, max_ij): np.linspace(
