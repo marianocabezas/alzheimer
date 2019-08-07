@@ -805,7 +805,7 @@ class BratsNewSegmentationNet(nn.Module):
             lambda f: nn.ConvTranspose3d(
                 f, f, pool_size, stride=pool_size, groups=f
             ),
-            filter_list
+            filter_list[::-1]
         )
 
         self.deconvlist = map(
