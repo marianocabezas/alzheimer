@@ -288,6 +288,12 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
                 im_dataset, 1, True, num_workers=num_workers // 2,
             )
 
+            print(
+                '%d images / %d batches' % (
+                    len(im_dataset), len(im_loader)
+                )
+            )
+
             print('< Training dataset (patches) >')
             patch_dataset = BlocksBBDataset(
                 data, targets, patch_size=32,
@@ -296,6 +302,12 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             print('Dataloader creation <train-patches>')
             patch_loader = DataLoader(
                 patch_dataset, 64, True, num_workers=num_workers // 2,
+            )
+
+            print(
+                '%d patches / %d batches' % (
+                    len(patch_dataset), len(patch_loader)
+                )
             )
 
             # Validation
