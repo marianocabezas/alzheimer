@@ -801,12 +801,12 @@ class BratsNewSegmentationNet(nn.Module):
         )
         self.midconv.to(self.device)
 
-        self.unpooling = map(
-            lambda f: nn.ConvTranspose3d(
-                f, f, pool_size, stride=pool_size, groups=f
-            ),
-            filter_list[::-1]
-        )
+        # self.unpooling = map(
+        #     lambda f: nn.ConvTranspose3d(
+        #         f, f, pool_size, stride=pool_size, groups=f
+        #     ),
+        #     filter_list[::-1]
+        # )
 
         self.deconvlist = map(
             lambda (ini, out, g): nn.Sequential(
@@ -850,11 +850,8 @@ class BratsNewSegmentationNet(nn.Module):
 
         x = self.midconv(x)
 
-        for d, u, prev in zip(
-                self.deconvlist, self.unpooling, down_list[::-1]
-        ):
-            # interp = F.interpolate(x, size=prev.shape[2:])
-            u.to(self.device)
+        for d, prev in zip(self.deconvlist, down_list[::-1]):
+            interp = F.interpolate(x, size=prev.shape[2:])
             interp = u(x)
             d.to(self.device)
             x = d(torch.cat((prev, interp), dim=1))
