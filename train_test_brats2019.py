@@ -173,11 +173,9 @@ def get_images(names):
     return rois, data
 
 
-def get_dataset(names, patch_size=None, flip=False):
+def get_labels(names):
     options = parse_inputs()
-    images = ['_flair.nii.gz', '_t1.nii.gz', '_t1ce.nii.gz', '_t2.nii.gz']
     d_path = options['loo_dir']
-
     print('Loading labels...')
     lesion_names = map(
         lambda p: os.path.join(d_path, p, p + '_seg.nii.gz'),
@@ -186,22 +184,8 @@ def get_dataset(names, patch_size=None, flip=False):
     targets = map(get_mask, lesion_names)
     for yi in targets:
         yi[yi == 4] = 3
-    rois, data = get_images(names)
 
-    if patch_size is None:
-        # Full image one
-        print('Dataset creation images')
-        dataset = BBImageDataset(
-            data, targets, rois, flip=flip
-        )
-    else:
-        # Unbalanced one
-        print('Dataset creation unbalanced patches')
-        dataset = BlocksBBDataset(
-            data, targets, patch_size=patch_size,
-        )
-
-    return dataset
+    return targets
 
 
 def train_test_seg(net_name, n_folds, val_split=0.1):
@@ -209,8 +193,6 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
     c = color_codes()
     options = parse_inputs()
     epochs = options['epochs']
-    patch_size = options['patch_size']
-    batch_size = options['batch_size']
     patience = options['patience']
     depth = options['blocks']
     filters = options['filters']
@@ -293,19 +275,12 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             train_b2013 = fold_b2013[:n_b2013]
             train_patients = train_cbica + train_tcia + train_tmc + train_b2013
 
-            # print('< Training dataset >')
-            # train_dataset = get_dataset(
-            #     train_patients, patch_size, True
-            # )
-            #
-            # print('Dataloader creation <train>')
-            # train_loader = DataLoader(
-            #     train_dataset, batch_size, True, num_workers=num_workers,
-            # )
+            targets = get_labels(train_patients)
+            rois, data = get_images(train_patients)
 
             print('< Training dataset (images) >')
-            im_dataset = get_dataset(
-                train_patients, 32, True
+            im_dataset = BBImageDataset(
+                data, targets, rois, flip=True
             )
 
             print('Dataloader creation <train-images>')
@@ -314,8 +289,8 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             )
 
             print('< Training dataset (patches) >')
-            patch_dataset = get_dataset(
-                train_patients, 32, True
+            patch_dataset = BlocksBBDataset(
+                data, targets, patch_size=32,
             )
 
             print('Dataloader creation <train-patches>')
@@ -332,7 +307,12 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             val_patients = val_cbica + val_tcia + val_tmc + val_b2013
 
             print('< Validation dataset >')
-            val_dataset = get_dataset(val_patients)
+            targets = get_labels(val_patients)
+            rois, data = get_images(val_patients)
+            print('< Training dataset (images) >')
+            val_dataset = BBImageDataset(
+                data, targets, rois, flip=True
+            )
 
             print('Dataloader creation <val>')
             val_loader = DataLoader(

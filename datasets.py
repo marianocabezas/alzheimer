@@ -35,7 +35,7 @@ def get_blocks(
 
     dim_ranges = map(
         lambda (min_bb_i, max_bb_i): map(
-            lambda min_ij, max_ij: np.linspace(
+            lambda (min_ij, max_ij): np.linspace(
                 min_ij, max_ij, divisions
             ).astype(np.int),
             zip(min_bb_i, max_bb_i)
