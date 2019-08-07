@@ -18,7 +18,6 @@ def get_blocks(
     divisions = 2 ** order
     patch_half = map(lambda p_length: p_length // 2, patch_size)
     min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), masks)
-    max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), masks)
     min_bb = map(
         lambda min_bb_i: map(
             lambda (min_bb_ij, p_len): max(min_bb_ij, p_len),
@@ -32,7 +31,7 @@ def get_blocks(
             lambda (max_bb_ij, max_ij, p_len): min(max_bb_ij, max_ij - p_len),
             zip(max_bb_i, max_i, patch_half)
         ),
-        max_bb
+        zip(max_bb, max_shape)
     )
 
     dim_ranges = map(
