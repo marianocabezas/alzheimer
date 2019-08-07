@@ -11,6 +11,48 @@ from numpy import logical_and as log_and
 from numpy import logical_or as log_or
 
 
+def get_blocks(
+        masks, patch_size, order
+):
+    divisions = 2 ** order
+    patch_half = map(lambda p_length: p_length // 2, patch_size)
+    min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), masks)
+    min_bb = map(
+        lambda min_bb_i: map(
+            lambda (min_i, p_len): min_i + p_len,
+            zip(min_bb_i, patch_half)
+        ),
+        min_bb
+    )
+    max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), masks)
+    max_bb = map(
+        lambda max_bb_i: map(
+            lambda (max_i, p_len): max_i - p_len,
+            zip(max_bb_i, patch_half)
+        ),
+        max_bb
+    )
+
+    dim_ranges = map(
+        lambda (min_bb_i, max_bb_i): map(
+            lambda min_ij, max_ij: np.linspace(
+                min_ij, max_ij, divisions
+            ).astype(np.int),
+            zip(min_bb_i, max_bb_i)
+        ),
+        zip(min_bb, max_bb)
+    )
+
+    patch_slices = map(
+        lambda dim_range: centers_to_slice(
+            itertools.product(*dim_range), patch_half
+        ),
+        dim_ranges
+    )
+
+    return patch_slices
+
+
 def get_slices_bb(
         masks, patch_size, overlap, filtered=False, min_size=0
 ):
@@ -413,6 +455,55 @@ class BoundarySegmentationCroppingDataset(Dataset):
 
     def __len__(self):
         return self.max_slice[-1]
+
+
+class BlocksBBDataset(Dataset):
+    def __init__(
+            self,
+            cases, labels, patch_size=32, order=2
+    ):
+        # Init
+        # Image and mask should be numpy arrays
+        self.cases = cases
+        self.labels = labels
+
+        data_shape = self.cases[0].shape
+
+        if type(patch_size) is not tuple:
+            patch_size = (patch_size,) * len(data_shape)
+        self.patch_size = patch_size
+
+        self.patch_slices = get_blocks(
+            self.masks, self.patch_size, order
+        )
+
+        self.max_slice = np.cumsum(map(len, self.patch_slices))
+
+    def __getitem__(self, index):
+        # We select the case
+        case_idx = np.min(np.where(self.max_slice > index))
+        case = self.cases[case_idx]
+
+        slices = [0] + self.max_slice.tolist()
+        patch_idx = index - slices[case_idx]
+        case_slices = self.patch_slices[case_idx]
+
+        # We get the slice indexes
+        none_slice = (slice(None, None),)
+        slice_i = case_slices[patch_idx]
+
+        inputs = case[none_slice + slice_i].astype(np.float32)
+
+        labels = self.labels[case_idx].astype(np.uint8)
+        target = np.expand_dims(labels[slice_i], 0)
+
+        return inputs, target
+
+    def __len__(self):
+        return self.max_slice[-1]
+
+    def get_slice_idx(self):
+        return self.max_slice.tolist()
 
 
 class BratsSegmentationCroppingDataset(Dataset):

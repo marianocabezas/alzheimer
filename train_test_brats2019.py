@@ -5,7 +5,8 @@ import csv
 from time import strftime
 import numpy as np
 from models import BratsSegmentationNet, BratsSurvivalNet
-from datasets import BratsSegmentationCroppingDataset
+from models import BratsNewSegmentationNet
+from datasets import BratsSegmentationCroppingDataset, BlocksBBDataset
 from datasets import BBImageDataset, BBImageValueDataset
 from utils import color_codes, get_dirs
 from utils import get_mask, get_normalised_image
@@ -196,8 +197,8 @@ def get_dataset(names, patch_size=None, flip=False):
     else:
         # Unbalanced one
         print('Dataset creation unbalanced patches')
-        dataset = BratsSegmentationCroppingDataset(
-            data, targets, rois, patch_size=patch_size,
+        dataset = BlocksBBDataset(
+            data, targets, patch_size=patch_size,
         )
 
     return dataset
@@ -269,8 +270,9 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             )
         )
 
-        model_name = '%s_f%d.mdl' % (net_name, i)
-        net = BratsSegmentationNet(depth=depth, filters=filters)
+        model_name = '%s-hybrid_f%d.mdl' % (net_name, i)
+        net = BratsNewSegmentationNet(depth=depth, filters=filters)
+        # net = BratsSegmentationNet(depth=depth, filters=filters)
         try:
             net.load_model(os.path.join(d_path, model_name))
         except IOError:
@@ -291,14 +293,34 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             train_b2013 = fold_b2013[:n_b2013]
             train_patients = train_cbica + train_tcia + train_tmc + train_b2013
 
-            print('< Training dataset >')
-            train_dataset = get_dataset(
-                train_patients, patch_size, True
+            # print('< Training dataset >')
+            # train_dataset = get_dataset(
+            #     train_patients, patch_size, True
+            # )
+            #
+            # print('Dataloader creation <train>')
+            # train_loader = DataLoader(
+            #     train_dataset, batch_size, True, num_workers=num_workers,
+            # )
+
+            print('< Training dataset (images) >')
+            im_dataset = get_dataset(
+                train_patients, 32, True
             )
 
-            print('Dataloader creation <train>')
-            train_loader = DataLoader(
-                train_dataset, batch_size, True, num_workers=num_workers,
+            print('Dataloader creation <train-images>')
+            im_loader = DataLoader(
+                im_dataset, 1, True, num_workers=num_workers,
+            )
+
+            print('< Training dataset (patches) >')
+            patch_dataset = get_dataset(
+                train_patients, 32, True
+            )
+
+            print('Dataloader creation <train-patches>')
+            patch_loader = DataLoader(
+                patch_dataset, 64, True, num_workers=num_workers,
             )
 
             # Validation
@@ -317,13 +339,20 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
                 val_dataset, 1, num_workers=num_workers
             )
 
+            # print(
+            #     'Training / validation samples = %d / %d' % (
+            #         len(train_dataset), len(val_dataset)
+            #     )
+            # )
+
             print(
                 'Training / validation samples = %d / %d' % (
-                    len(train_dataset), len(val_dataset)
+                    len(patch_dataset) + len(im_dataset), len(val_dataset)
                 )
             )
 
-            net.fit(train_loader, val_loader, epochs=epochs, patience=patience)
+            # net.fit(train_loader, val_loader, epochs=epochs, patience=patience)
+            net.fit(im_loader, patch_loader, val_loader, epochs=epochs, patience=patience)
 
             net.save_model(os.path.join(d_path, model_name))
 
@@ -568,14 +597,14 @@ def main():
     patch_s = '-ps%d' % patch_size if patch_size is not None else ''
     depth_s = '-filt%d' % depth
     filters_s = '-fold%d' % filters
-    net_name = 'brats2019-nnunet%s%s%s' % (
-        filters_s, depth_s, patch_s
+    net_name = 'brats2019-%s%s' % (
+        filters_s, depth_s
     )
 
     train_test_seg(net_name, n_folds)
 
     ''' <Survival task> '''
-    net_name = 'brats2019-survival%s%s%s%s' % (
+    net_name = 'brats2019-survival%s%s%s' % (
         filters_s, depth_s, patch_s
     )
 
