@@ -569,28 +569,16 @@ def main():
     depth = options['blocks']
 
     # Prepare the sufix that will be added to the results for the net and images
+    n_folds = 5
+    filters_s = '-fold%d' % filters
+    patch_s = '-ps%d' % patch_size if patch_size is not None else ''
+    depth_s = '-filt%d' % depth
+
     print(
         '%s[%s] %s<BRATS 2019 pipeline testing>%s' % (
             c['c'], strftime("%H:%M:%S"), c['y'], c['nc']
         )
     )
-
-    ''' <Segmentation task> '''
-    n_folds = 5
-    print(
-        '%s[%s] %sStarting cross-validation (segmentation) - %d folds%s' % (
-            c['c'], strftime("%H:%M:%S"), c['g'], n_folds, c['nc']
-        )
-    )
-
-    patch_s = '-ps%d' % patch_size if patch_size is not None else ''
-    depth_s = '-filt%d' % depth
-    filters_s = '-fold%d' % filters
-    net_name = 'brats2019-%s%s' % (
-        filters_s, depth_s
-    )
-
-    # train_test_seg(net_name, n_folds)
 
     ''' <Survival task> '''
     net_name = 'brats2019-survival%s%s%s' % (
@@ -603,6 +591,19 @@ def main():
         )
     )
     train_test_survival(net_name, n_folds)
+
+    ''' <Segmentation task> '''
+    print(
+        '%s[%s] %sStarting cross-validation (segmentation) - %d folds%s' % (
+            c['c'], strftime("%H:%M:%S"), c['g'], n_folds, c['nc']
+        )
+    )
+
+    net_name = 'brats2019-%s%s' % (
+        filters_s, depth_s
+    )
+
+    train_test_seg(net_name, n_folds)
 
 
 if __name__ == '__main__':
