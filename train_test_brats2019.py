@@ -296,7 +296,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
 
             print('< Training dataset (patches) >')
             patch_dataset = BlocksBBDataset(
-                data, targets, patch_size=32,
+                data, targets, patch_size=32, flip=True
             )
 
             print('Dataloader creation <train-patches>')
