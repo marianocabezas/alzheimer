@@ -285,7 +285,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
 
             print('Dataloader creation <train-images>')
             im_loader = DataLoader(
-                im_dataset, 1, True, num_workers=num_workers // 2,
+                im_dataset, 1, True,
             )
 
             print(
@@ -301,7 +301,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
 
             print('Dataloader creation <train-patches>')
             patch_loader = DataLoader(
-                patch_dataset, 64, True, num_workers=num_workers // 2,
+                patch_dataset, 64, True
             )
 
             print(
@@ -328,7 +328,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
 
             print('Dataloader creation <val>')
             val_loader = DataLoader(
-                val_dataset, 1, num_workers=num_workers
+                val_dataset, 1
             )
 
             # print(
