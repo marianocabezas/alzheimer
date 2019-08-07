@@ -892,8 +892,6 @@ class BratsNewSegmentationNet(nn.Module):
                 batch_loss.backward()
                 self.optimizer_alg.step()
                 loss_value = batch_loss.tolist()
-
-                return np.mean(losses)
             else:
                 x, y = batch_data
                 pred = self(x.to(self.device))
@@ -925,7 +923,10 @@ class BratsNewSegmentationNet(nn.Module):
                 batch_i, n_batches, loss_value, np.mean(losses), train
             )
 
-            return np.mean(losses), np.mean(zip(*mid_losses), axis=1)
+            if train:
+                return np.mean(losses)
+            else:
+                return np.mean(losses), np.mean(zip(*mid_losses), axis=1)
 
     def print_progress(self, batch_i, n_batches, b_loss, mean_loss, train=True):
         init_c = '\033[0m' if train else '\033[38;5;238m'
