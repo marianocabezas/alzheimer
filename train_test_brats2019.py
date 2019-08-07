@@ -590,7 +590,7 @@ def main():
         filters_s, depth_s
     )
 
-    train_test_seg(net_name, n_folds)
+    # train_test_seg(net_name, n_folds)
 
     ''' <Survival task> '''
     net_name = 'brats2019-survival%s%s%s' % (
