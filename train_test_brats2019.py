@@ -196,6 +196,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
     patience = options['patience']
     depth = options['blocks']
     filters = options['filters']
+    batch_size = options['batch_size']
     images = ['_flair.nii.gz', '_t1.nii.gz', '_t1ce.nii.gz', '_t2.nii.gz']
 
     d_path = options['loo_dir']
@@ -253,8 +254,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
         )
 
         model_name = '%s-hybrid_f%d.mdl' % (net_name, i)
-        net = BratsNewSegmentationNet(depth=depth, filters=filters)
-        # net = BratsSegmentationNet(depth=depth, filters=filters)
+        net = BratsSegmentationNet(depth=depth, filters=filters)
         try:
             net.load_model(os.path.join(d_path, model_name))
         except IOError:
@@ -266,7 +266,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
                 (c['c'], c['nc'], n_params)
             )
 
-            num_workers = 4
+            num_workers = 16
 
             # Training
             train_cbica = fold_cbica[:n_cbica]
@@ -278,36 +278,14 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             targets = get_labels(train_patients)
             rois, data = get_images(train_patients)
 
-            print('< Training dataset (images) >')
-            im_dataset = BBImageDataset(
+            print('< Training dataset >')
+            train_dataset = BBImageDataset(
                 data, targets, rois, flip=True
             )
 
-            print('Dataloader creation <train-images>')
-            im_loader = DataLoader(
-                im_dataset, 1, True,
-            )
-
-            print(
-                '%d images / %d batches' % (
-                    len(im_dataset), len(im_loader)
-                )
-            )
-
-            print('< Training dataset (patches) >')
-            patch_dataset = BlocksBBDataset(
-                data, targets, patch_size=32, flip=True
-            )
-
-            print('Dataloader creation <train-patches>')
-            patch_loader = DataLoader(
-                patch_dataset, 64, True
-            )
-
-            print(
-                '%d patches / %d batches' % (
-                    len(patch_dataset), len(patch_loader)
-                )
+            print('Dataloader creation <with validation>')
+            train_loader = DataLoader(
+                train_dataset, batch_size, True, num_workers=num_workers,
             )
 
             # Validation
@@ -331,20 +309,13 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
                 val_dataset, 1
             )
 
-            # print(
-            #     'Training / validation samples = %d / %d' % (
-            #         len(train_dataset), len(val_dataset)
-            #     )
-            # )
-
             print(
                 'Training / validation samples = %d / %d' % (
-                    len(patch_dataset) + len(im_dataset), len(val_dataset)
+                     len(train_dataset), len(val_dataset)
                 )
             )
 
-            # net.fit(train_loader, val_loader, epochs=epochs, patience=patience)
-            net.fit(im_loader, patch_loader, val_loader, epochs=epochs, patience=patience)
+            net.fit(train_loader, val_loader, epochs=epochs, patience=patience)
 
             net.save_model(os.path.join(d_path, model_name))
 
@@ -390,7 +361,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             )
 
             nii.get_data()[:] = seg_i
-            save_nii(nii, os.path.join(path_i, p_i + '.nii.gz'))
+            save_nii(nii, os.path.join(d_path, p_i + '.nii.gz'))
 
             print(
                 'Patient %s: %s' % (p_i, ' / '.join(map(str, dsc)))
@@ -436,7 +407,6 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
     c = color_codes()
     options = parse_inputs()
     epochs = options['epochs']
-    patch_size = options['patch_size']
     batch_size = options['batch_size']
     patience = options['patience']
     depth = options['blocks']
