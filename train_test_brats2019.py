@@ -266,7 +266,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
                 (c['c'], c['nc'], n_params)
             )
 
-            num_workers = 16
+            num_workers = 8
 
             # Training
             train_cbica = fold_cbica[:n_cbica]
