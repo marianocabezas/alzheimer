@@ -763,7 +763,6 @@ class BratsNewSegmentationNet(nn.Module):
                 ),
                 nn.ReLU(),
                 nn.Dropout(dropout),
-                nn.BatchNorm3d(out),
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
@@ -771,7 +770,6 @@ class BratsNewSegmentationNet(nn.Module):
                 ),
                 nn.ReLU(),
                 nn.Dropout(dropout),
-                nn.BatchNorm3d(out),
             ),
             zip([n_images] + filter_list[:-1], filter_list, groups_list)
         )
@@ -789,7 +787,6 @@ class BratsNewSegmentationNet(nn.Module):
             ),
             nn.ReLU(),
             nn.Dropout(dropout),
-            nn.BatchNorm3d(filters * (2 ** depth)),
             nn.Conv3d(
                 filters * (2 ** depth),
                 filters * (2 ** (depth - 1)), kernel_size,
@@ -797,7 +794,6 @@ class BratsNewSegmentationNet(nn.Module):
             ),
             nn.ReLU(),
             nn.Dropout(dropout),
-            nn.BatchNorm3d(filters * (2 ** (depth - 1))),
         )
         self.midconv.to(self.device)
 
@@ -817,7 +813,6 @@ class BratsNewSegmentationNet(nn.Module):
                 ),
                 nn.ReLU(),
                 nn.Dropout(dropout),
-                nn.BatchNorm3d(ini),
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
@@ -825,7 +820,6 @@ class BratsNewSegmentationNet(nn.Module):
                 ),
                 nn.ReLU(),
                 nn.Dropout(dropout),
-                nn.BatchNorm3d(out),
             ),
             zip(
                 filter_list[::-1], filter_list[-2::-1] + [filters],
@@ -869,17 +863,15 @@ class BratsNewSegmentationNet(nn.Module):
             torch.cuda.synchronize()
 
             self.optimizer_alg.zero_grad()
+
             predi = self(xi.to(self.device))
             predp = self(xp.to(self.device))
-            y_r = (yi > 0).type_as(yi)
-            pred_tmr = torch.sum(predi[:, 1:, ...], dim=1)
-            pred_bck = predi[:, 0, ...]
-            pred_r = torch.stack((pred_bck, pred_tmr), dim=1)
+
             batch_loss_t = multidsc_loss(
                 predp, yp.to(self.device), averaged=True
             )
             batch_loss_r = multidsc_loss(
-                pred_r, y_r.to(self.device), averaged=True
+                predi, yi.to(self.device), averaged=True
             )
 
             batch_loss = batch_loss_r + batch_loss_t
