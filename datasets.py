@@ -481,11 +481,13 @@ class BlocksBBDataset(Dataset):
         self.max_slice = np.cumsum(map(len, self.patch_slices))
 
     def __getitem__(self, index):
+        a = index
         if self.flip:
             flipped = (index % 2) == 1
             index = index // 2
         else:
             flipped = False
+
         # We select the case
         case_idx = np.min(np.where(self.max_slice > index))
         case = self.cases[case_idx]
@@ -497,6 +499,8 @@ class BlocksBBDataset(Dataset):
         # We get the slice indexes
         none_slice = (slice(None, None),)
         slice_i = case_slices[patch_idx]
+
+        print(a, index, flipped, slice_i)
 
         inputs = case[none_slice + slice_i].astype(np.float32)
 
