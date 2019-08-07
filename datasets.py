@@ -460,12 +460,13 @@ class BoundarySegmentationCroppingDataset(Dataset):
 class BlocksBBDataset(Dataset):
     def __init__(
             self,
-            cases, labels, patch_size=32, order=2
+            cases, labels, patch_size=32, order=2, flip=False
     ):
         # Init
         # Image and mask should be numpy arrays
         self.cases = cases
         self.labels = labels
+        self.flip = flip
 
         data_shape = self.cases[0].shape
 
@@ -480,6 +481,11 @@ class BlocksBBDataset(Dataset):
         self.max_slice = np.cumsum(map(len, self.patch_slices))
 
     def __getitem__(self, index):
+        if self.flip:
+            flipped = (index % 2) == 1
+            index = index // 2
+        else:
+            flipped = False
         # We select the case
         case_idx = np.min(np.where(self.max_slice > index))
         case = self.cases[case_idx]
@@ -497,10 +503,14 @@ class BlocksBBDataset(Dataset):
         labels = self.labels[case_idx].astype(np.uint8)
         target = np.expand_dims(labels[slice_i], 0)
 
+        if flipped:
+            inputs = np.fliplr(inputs).copy()
+            target = np.fliplr(target).copy()
+
         return inputs, target
 
     def __len__(self):
-        return self.max_slice[-1]
+        return self.max_slice[-1] * 2 if self.flip else self.max_slice[-1]
 
     def get_slice_idx(self):
         return self.max_slice.tolist()
