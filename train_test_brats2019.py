@@ -318,10 +318,10 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
 
             val_patients = val_cbica + val_tcia + val_tmc + val_b2013
 
-            print('< Validation dataset >')
             targets = get_labels(val_patients)
             rois, data = get_images(val_patients)
-            print('< Training dataset (images) >')
+
+            print('< Validation dataset >')
             val_dataset = BBImageDataset(
                 data, targets, rois
             )

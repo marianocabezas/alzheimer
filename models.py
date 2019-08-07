@@ -869,7 +869,6 @@ class BratsNewSegmentationNet(nn.Module):
             torch.cuda.synchronize()
 
             self.optimizer_alg.zero_grad()
-            print(xi.shape, xp.shape, batch_i, n_batches)
             predi = self(xi.to(self.device))
             predp = self(xp.to(self.device))
             y_r = (yi > 0).type_as(yi)
@@ -897,7 +896,7 @@ class BratsNewSegmentationNet(nn.Module):
                 batch_i, n_batches, loss_value, np.mean(losses), True
             )
 
-            return np.mean(losses)
+        return np.mean(losses)
 
     def mini_batch_loop_val(
             self, images
