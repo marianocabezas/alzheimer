@@ -474,7 +474,7 @@ class BlocksBBDataset(Dataset):
         self.patch_size = patch_size
 
         self.patch_slices = get_blocks(
-            self.masks, self.patch_size, order
+            self.labels, self.patch_size, order
         )
 
         self.max_slice = np.cumsum(map(len, self.patch_slices))
