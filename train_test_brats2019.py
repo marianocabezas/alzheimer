@@ -465,7 +465,13 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
             (c['c'], c['nc'], n_params)
         )
 
-        seg_dataset = get_dataset(seg_patients, patch_size, True)
+        targets = get_labels(seg_patients)
+        rois, data = get_images(seg_patients)
+
+        print('< Training dataset >')
+        seg_dataset = BBImageDataset(
+            data, targets, rois, flip=True
+        )
 
         print('Dataloader creation <with validation>')
         train_loader = DataLoader(
@@ -473,7 +479,10 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
         )
 
         # Validation
-        val_dataset = get_dataset(survival_patients)
+        print('< Validation dataset >')
+        val_dataset = BBImageDataset(
+            data, targets, rois
+        )
         val_loader = DataLoader(
             val_dataset, 1, num_workers=num_workers
         )
