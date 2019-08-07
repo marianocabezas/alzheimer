@@ -14,10 +14,26 @@ from numpy import logical_or as log_or
 def get_blocks(
         masks, patch_size, order
 ):
+    max_shape = map(lambda m: m.shape, masks)
     divisions = 2 ** order
     patch_half = map(lambda p_length: p_length // 2, patch_size)
     min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), masks)
     max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), masks)
+    min_bb = map(
+        lambda min_bb_i: map(
+            lambda (min_bb_ij, p_len): max(min_bb_ij, p_len),
+            zip(min_bb_i, patch_half)
+        ),
+        min_bb
+    )
+    max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), masks)
+    max_bb = map(
+        lambda (max_bb_i, max_i): map(
+            lambda (max_bb_ij, max_ij, p_len): min(max_bb_ij, max_ij - p_len),
+            zip(max_bb_i, max_i, patch_half)
+        ),
+        max_bb
+    )
 
     dim_ranges = map(
         lambda (min_bb_i, max_bb_i): map(
