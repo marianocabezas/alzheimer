@@ -864,7 +864,7 @@ class BratsNewSegmentationNet(nn.Module):
     ):
         losses = list()
         n_batches = len(images)
-        for batch_i, (xi, yi), (xp, yp) in enumerate(zip(images, patches)):
+        for batch_i, ((xi, yi), (xp, yp)) in enumerate(zip(images, patches)):
             # We train the model and check the loss
             torch.cuda.synchronize()
 
