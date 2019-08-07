@@ -323,7 +323,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             rois, data = get_images(val_patients)
             print('< Training dataset (images) >')
             val_dataset = BBImageDataset(
-                data, targets, rois, flip=True
+                data, targets, rois
             )
 
             print('Dataloader creation <val>')
