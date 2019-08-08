@@ -514,6 +514,8 @@ class BratsDataset(Dataset):
         self.max_slice = np.cumsum(map(len, self.patch_slices_pos))
 
     def __getitem__(self, index):
+        positive = (index % 2) == 0
+        true_index = index // 2
         if self.flip:
             flipped = (index % 2) == 1
             index = index // 2
@@ -526,8 +528,10 @@ class BratsDataset(Dataset):
 
         slices = [0] + self.max_slice.tolist()
         patch_idx = index - slices[case_idx]
-        case_slices = self.patch_slices[case_idx]
-
+        if positive:
+            case_slices = self.patch_slices_pos[case_idx]
+        else:
+            case_slices = self.patch_slices_neg[case_idx]
         # We get the slice indexes
         none_slice = (slice(None, None),)
         slice_i = case_slices[patch_idx]
@@ -544,7 +548,7 @@ class BratsDataset(Dataset):
         return inputs, target
 
     def __len__(self):
-        return self.max_slice[-1] * 2 if self.flip else self.max_slice[-1]
+        return self.max_slice[-1] * 4 if self.flip else self.max_slice[-1] * 2
 
     def get_slice_idx(self):
         return self.max_slice.tolist()

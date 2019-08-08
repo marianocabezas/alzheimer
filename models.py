@@ -864,23 +864,24 @@ class BratsNewSegmentationNet(nn.Module):
             torch.cuda.synchronize()
             if train:
                 self.optimizer_alg.zero_grad()
-            pred_labels = self(x.to(self.device))
-            y_r = (y > 0).type_as(y)
-            pred_tmr = torch.sum(pred_labels[:, 1:, ...], dim=1)
-            pred_bck = pred_labels[:, 0, ...]
-            pred_r = torch.stack((pred_bck, pred_tmr), dim=1)
-            batch_loss_t = multidsc_loss(
-                pred_labels, y.to(self.device), averaged=train
-            )
-            batch_loss_r = multidsc_loss(
-                pred_r, y_r.to(self.device), averaged=train
-            )
+            pred_y = self(x.to(self.device))
             if train:
-                batch_loss = batch_loss_r + batch_loss_t
+                batch_loss = F.cross_entropy(pred_y, y)
                 batch_loss.backward()
                 self.optimizer_alg.step()
                 loss_value = batch_loss.tolist()
             else:
+                y_r = (y > 0).type_as(y)
+                pred_tmr = torch.sum(pred_y[:, 1:, ...], dim=1)
+                pred_bck = pred_y[:, 0, ...]
+                pred_r = torch.stack((pred_bck, pred_tmr), dim=1)
+                batch_loss_t = multidsc_loss(
+                    pred_y, y.to(self.device), averaged=train
+                )
+                batch_loss_r = multidsc_loss(
+                    pred_r, y_r.to(self.device), averaged=train
+                )
+
                 roi_value = torch.mean(batch_loss_r).tolist()
                 tumor_value = torch.mean(batch_loss_t).tolist()
                 loss_value = roi_value + tumor_value
