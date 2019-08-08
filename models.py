@@ -734,19 +734,22 @@ class BratsNewSegmentationNet(nn.Module):
             pool_size=2,
             depth=4,
             n_images=4,
-            dropout=0.1,
+            dropout=0.5,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
     ):
         super(BratsNewSegmentationNet, self).__init__()
         # Init
+        self.drop = False
         self.sampler = None
         self.t_train = 0
         self.t_val = 0
         self.epoch = 0
         self.optimizer_alg = None
         self.device = device
+        self.final_dropout = dropout
+        self.dropout = 0
         padding = kernel_size // 2
 
         # Down path
@@ -762,14 +765,12 @@ class BratsNewSegmentationNet(nn.Module):
                     # groups=g
                 ),
                 nn.ReLU(),
-                nn.Dropout(dropout),
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
                     # groups=2 * g
                 ),
                 nn.ReLU(),
-                nn.Dropout(dropout),
             ),
             zip([n_images] + filter_list[:-1], filter_list, groups_list)
         )
@@ -786,14 +787,12 @@ class BratsNewSegmentationNet(nn.Module):
                 padding=padding
             ),
             nn.ReLU(),
-            nn.Dropout(dropout),
             nn.Conv3d(
                 filters * (2 ** depth),
                 filters * (2 ** (depth - 1)), kernel_size,
                 padding=padding
             ),
             nn.ReLU(),
-            nn.Dropout(dropout),
         )
         self.midconv.to(self.device)
 
@@ -812,14 +811,12 @@ class BratsNewSegmentationNet(nn.Module):
                     # groups=g
                 ),
                 nn.ReLU(),
-                nn.Dropout(dropout),
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
                     # groups=g
                 ),
                 nn.ReLU(),
-                nn.Dropout(dropout),
             ),
             zip(
                 filter_list[::-1], filter_list[-2::-1] + [filters],
@@ -840,7 +837,8 @@ class BratsNewSegmentationNet(nn.Module):
             down = c(x)
             down_list.append(down)
             p.to(self.device)
-            x = p(down)
+            drop = F.dropout(down, self.dropout)
+            x = p(drop)
 
         x = self.midconv(x)
 
@@ -849,6 +847,7 @@ class BratsNewSegmentationNet(nn.Module):
             # interp = u(x)
             d.to(self.device)
             x = d(torch.cat((prev, interp), dim=1))
+            x = F.dropout(x, self.dropout, self.drop)
 
         output = self.out(x)
         return output
@@ -945,6 +944,7 @@ class BratsNewSegmentationNet(nn.Module):
             verbose=True
     ):
         # Init
+        self.drop = True
         self.to(device)
         self.train()
 
@@ -1063,6 +1063,7 @@ class BratsNewSegmentationNet(nn.Module):
             verbose=True
     ):
         # Init
+        self.drop = False
         self.to(device)
         self.eval()
         whites = ' '.join([''] * 12)
@@ -1119,6 +1120,8 @@ class BratsNewSegmentationNet(nn.Module):
             verbose=True
     ):
         # Init
+        self.drop = True
+        self.dropout = dropout
         self.to(device)
         self.eval()
         whites = ' '.join([''] * 12)
