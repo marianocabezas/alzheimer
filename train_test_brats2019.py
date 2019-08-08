@@ -320,9 +320,9 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
                 )
             )
 
-            net.fit(train_loader, val_loader, epochs=epochs, patience=patience)
+            #net.fit(train_loader, val_loader, epochs=epochs, patience=patience)
 
-            net.save_model(os.path.join(d_path, model_name))
+            #net.save_model(os.path.join(d_path, model_name))
 
         # Testing data
         test_cbica = cbica[ini_cbica:end_cbica]
