@@ -491,9 +491,20 @@ class BratsDataset(Dataset):
             zip(labels, rois)
         )
 
-        self.patch_slices_neg = get_slices_mask_bb(
-            brains, patch_size, patch_size[0] // 2
+        patch_slices_neg = get_slices_mask_bb(
+            brains, patch_size, patch_size[0]
         )
+        self.patch_slices_neg = map(
+            lambda (pos, neg): map(
+                lambda idx: neg[idx],
+                np.random.permutation(
+                    len(neg)
+                )[:len(pos)]
+
+            ),
+            zip(self.patch_slices_pos, patch_slices_neg)
+        )
+
 
         print(
             np.sum(map(lambda p: len(p), self.patch_slices_pos)),
