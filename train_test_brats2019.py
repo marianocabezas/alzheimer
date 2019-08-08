@@ -255,7 +255,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
         )
 
         model_name = '%s-hybrid_f%d.mdl' % (net_name, i)
-        net = BratsNewSegmentationNet(depth=depth, filters=filters)
+        net = BratsSegmentationNet(depth=depth, filters=filters)
         try:
             net.load_model(os.path.join(d_path, model_name))
         except IOError:

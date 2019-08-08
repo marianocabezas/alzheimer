@@ -245,10 +245,10 @@ class BratsSegmentationNet(nn.Module):
             self,
             train_loader,
             val_loader,
-            optimizer='adadelta',
+            optimizer='adam',
             epochs=100,
             patience=10,
-            weight_decay=0,
+            weight_decay=1e-2,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -265,7 +265,7 @@ class BratsSegmentationNet(nn.Module):
 
         optimizer_dict = {
             'adam': lambda params: torch.optim.Adam(
-                params, weight_decay=weight_decay
+                params, lr=1e-2, weight_decay=weight_decay
             ),
             'adadelta': lambda params: torch.optim.Adadelta(
                 params, weight_decay=weight_decay
