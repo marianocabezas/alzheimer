@@ -465,6 +465,9 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
             seg_dataset, batch_size, True, num_workers=num_workers,
         )
 
+        targets = get_labels(survival_patients)
+        rois, data = get_images(survival_patients)
+
         # Validation
         print('< Validation dataset >')
         val_dataset = BBImageDataset(
