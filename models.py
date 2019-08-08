@@ -866,7 +866,9 @@ class BratsNewSegmentationNet(nn.Module):
                 self.optimizer_alg.zero_grad()
             pred_y = self(x.to(self.device))
             if train:
-                batch_loss = F.cross_entropy(pred_y, torch.squeeze(y))
+                batch_loss = F.cross_entropy(
+                    pred_y, torch.squeeze(y.to(self.device))
+                )
                 batch_loss.backward()
                 self.optimizer_alg.step()
                 loss_value = batch_loss.tolist()
