@@ -517,17 +517,17 @@ class BratsDataset(Dataset):
         positive = (index % 2) == 0
         true_index = index // 2
         if self.flip:
-            flipped = (index % 2) == 1
-            index = index // 2
+            flipped = (true_index % 2) == 1
+            true_index = true_index // 2
         else:
             flipped = False
 
         # We select the case
-        case_idx = np.min(np.where(self.max_slice > index))
+        case_idx = np.min(np.where(self.max_slice > true_index))
         case = self.cases[case_idx]
 
         slices = [0] + self.max_slice.tolist()
-        patch_idx = index - slices[case_idx]
+        patch_idx = true_index - slices[case_idx]
         if positive:
             case_slices = self.patch_slices_pos[case_idx]
         else:
