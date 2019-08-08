@@ -24,9 +24,14 @@ def multidsc_loss(pred, target, smooth=1, averaged=True):
     n_classes = dims[1]
     if target.shape != dims:
         assert torch.max(target) <= n_classes, 'Wrong number of classes for GT'
-        target = torch.cat(
-            map(lambda i: target == i, range(n_classes)), dim=1
-        )
+        if len(target.shape) == len(pred.shape):
+            target = torch.cat(
+                map(lambda i: target == i, range(n_classes)), dim=1
+            )
+        else:
+            target = torch.stack(
+                map(lambda i: target == i, range(n_classes)), dim=1
+            )
         target = target.type_as(pred)
 
     reduce_dims = tuple(range(1, len(dims)))
