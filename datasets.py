@@ -11,49 +11,6 @@ from numpy import logical_and as log_and
 from numpy import logical_or as log_or
 
 
-def get_blocks(
-        masks, patch_size, order
-):
-    max_shape = map(lambda m: m.shape, masks)
-    divisions = 2 ** order
-    patch_half = map(lambda p_length: p_length // 2, patch_size)
-    min_bb = map(lambda mask: np.min(np.where(mask > 0), axis=-1), masks)
-    min_bb = map(
-        lambda min_bb_i: map(
-            lambda (min_bb_ij, p_len): max(min_bb_ij, p_len),
-            zip(min_bb_i, patch_half)
-        ),
-        min_bb
-    )
-    max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), masks)
-    max_bb = map(
-        lambda (max_bb_i, max_i): map(
-            lambda (max_bb_ij, max_ij, p_len): min(max_bb_ij, max_ij - p_len),
-            zip(max_bb_i, max_i, patch_half)
-        ),
-        zip(max_bb, max_shape)
-    )
-
-    dim_ranges = map(
-        lambda (min_bb_i, max_bb_i): map(
-            lambda (min_ij, max_ij): np.linspace(
-                min_ij, max_ij, divisions
-            ).astype(np.int),
-            zip(min_bb_i, max_bb_i)
-        ),
-        zip(min_bb, max_bb)
-    )
-
-    patch_slices = map(
-        lambda dim_range: centers_to_slice(
-            itertools.product(*dim_range), patch_half
-        ),
-        dim_ranges
-    )
-
-    return patch_slices
-
-
 def get_slices_bb(
         masks, patch_size, overlap, filtered=False, min_size=0
 ):
@@ -119,6 +76,53 @@ def get_slices_bb(
 
         if filtered:
             patch_slices = filter_size(patch_slices, masks, min_size)
+
+    return patch_slices
+
+
+def get_slices_mask_bb(
+        masks, patch_size, overlap
+):
+    patch_half = map(lambda p_length: p_length // 2, patch_size)
+    steps = map(lambda p_length: max(p_length - overlap, 1), patch_size)
+    bool_masks = map(lambda mask: mask.astype(np.bool), masks)
+
+    max_shapes = map(lambda mask: mask.shape, bool_masks)
+
+    min_bb = map(lambda mask: np.min(np.where(mask), axis=-1), bool_masks)
+    min_bb = map(
+        lambda min_bb_i: map(
+            lambda (min_ij, p_len): max(min_ij, p_len),
+            zip(min_bb_i, patch_half)
+        ),
+        min_bb
+    )
+    max_bb = map(lambda mask: np.max(np.where(mask), axis=-1), bool_masks)
+    max_bb = map(
+        lambda (max_bb_i, max_si): map(
+            lambda (max_ij, max_sij, p_len): min(max_ij, max_sij - p_len),
+            zip(max_bb_i, max_si, patch_half)
+        ),
+        zip(max_bb, max_shapes)
+    )
+
+    dim_ranges = map(
+        lambda (min_bb_i, max_bb_i): map(
+            lambda t: np.concatenate([np.arange(*t), [t[1]]]),
+            zip(min_bb_i, max_bb_i, steps)
+        ),
+        zip(min_bb, max_bb)
+    )
+
+    centers = map(
+        lambda (dim_range, mask): filter(
+            lambda idx: mask[idx],
+            itertools.product(*dim_range)
+        ),
+        zip(dim_ranges, bool_masks)
+    )
+
+    patch_slices = map(lambda c: centers_to_slice(c, patch_half), centers)
 
     return patch_slices
 
@@ -458,10 +462,10 @@ class BoundarySegmentationCroppingDataset(Dataset):
         return self.max_slice[-1]
 
 
-class BlocksBBDataset(Dataset):
+class BratsDataset(Dataset):
     def __init__(
             self,
-            cases, labels, patch_size=32, order=2, flip=False
+            cases, labels, rois, patch_size=32, flip=False
     ):
         # Init
         # Image and mask should be numpy arrays
@@ -475,8 +479,25 @@ class BlocksBBDataset(Dataset):
             patch_size = (patch_size,) * len(data_shape)
         self.patch_size = patch_size
 
-        self.patch_slices = get_blocks(
-            self.labels, self.patch_size, order
+        self.patch_slices_pos = get_slices_mask_bb(
+            self.labels, patch_size, patch_size // 4
+        )
+
+        brains = map(
+            lambda (l, r): log_and(
+                log_not(l.astype(np.bool)),
+                r.astype(np.bool)
+            ),
+            zip(labels, rois)
+        )
+
+        self.patch_slices_neg = get_slices_mask_bb(
+            brains, patch_size, patch_size // 2
+        )
+
+        print(
+            np.sum(map(lambda p: len(p), self.patch_slices_pos)),
+            np.sum(map(lambda p: len(p), self.patch_slices_neg))
         )
 
         self.max_slice = np.cumsum(map(len, self.patch_slices))

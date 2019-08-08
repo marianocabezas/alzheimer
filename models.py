@@ -853,72 +853,40 @@ class BratsNewSegmentationNet(nn.Module):
         output = self.out(x)
         return output
 
-    def mini_batch_loop_train(
-            self, images, patches
-    ):
-        losses = list()
-        n_batches = len(images)
-        for batch_i, ((xi, yi), (xp, yp)) in enumerate(zip(images, patches)):
-            # We train the model and check the loss
-            torch.cuda.synchronize()
-
-            self.optimizer_alg.zero_grad()
-
-            predi = self(xi.to(self.device))
-            predp = self(xp.to(self.device))
-
-            batch_loss_t = multidsc_loss(
-                predp, yp.to(self.device), averaged=True
-            )
-            batch_loss_r = multidsc_loss(
-                predi, yi.to(self.device), averaged=True
-            )
-
-            batch_loss = batch_loss_r + batch_loss_t
-            batch_loss.backward()
-            self.optimizer_alg.step()
-            loss_value = batch_loss.tolist()
-
-            torch.cuda.synchronize()
-            torch.cuda.empty_cache()
-
-            losses.append(loss_value)
-
-            self.print_progress(
-                batch_i, n_batches, loss_value, np.mean(losses), True
-            )
-
-        return np.mean(losses)
-
-    def mini_batch_loop_val(
-            self, images
+    def mini_batch_loop(
+            self, training, train=True
     ):
         losses = list()
         mid_losses = list()
-        n_batches = len(images)
-        for batch_i, (x, y) in enumerate(images):
-            # We validate the model and check the loss
+        n_batches = len(training)
+        for batch_i, (x, y) in enumerate(training):
+            # We train the model and check the loss
             torch.cuda.synchronize()
-
-            pred = self(x.to(self.device))
+            if train:
+                self.optimizer_alg.zero_grad()
+            pred_labels = self(x.to(self.device))
             y_r = (y > 0).type_as(y)
-
-            pred_tmr = torch.sum(pred[:, 1:, ...], dim=1)
-            pred_bck = pred[:, 0, ...]
+            pred_tmr = torch.sum(pred_labels[:, 1:, ...], dim=1)
+            pred_bck = pred_labels[:, 0, ...]
             pred_r = torch.stack((pred_bck, pred_tmr), dim=1)
             batch_loss_t = multidsc_loss(
-                pred, y.to(self.device), averaged=False
+                pred_labels, y.to(self.device), averaged=train
             )
             batch_loss_r = multidsc_loss(
-                pred_r, y_r.to(self.device), averaged=False
+                pred_r, y_r.to(self.device), averaged=train
             )
-
-            roi_value = torch.mean(batch_loss_r).tolist()
-            tumor_value = torch.mean(batch_loss_t).tolist()
-            loss_value = roi_value + tumor_value
-            dsc_r = 1 - batch_loss_r
-            dsc_t = 1 - batch_loss_t
-            mid_losses.append(torch.cat((dsc_t, dsc_r)).tolist())
+            if train:
+                batch_loss = batch_loss_r + batch_loss_t
+                batch_loss.backward()
+                self.optimizer_alg.step()
+                loss_value = batch_loss.tolist()
+            else:
+                roi_value = torch.mean(batch_loss_r).tolist()
+                tumor_value = torch.mean(batch_loss_t).tolist()
+                loss_value = roi_value + tumor_value
+                dsc_r = 1 - batch_loss_r
+                dsc_t = 1 - batch_loss_t
+                mid_losses.append(torch.cat((dsc_t, dsc_r)).tolist())
 
             torch.cuda.synchronize()
             torch.cuda.empty_cache()
@@ -926,9 +894,12 @@ class BratsNewSegmentationNet(nn.Module):
             losses.append(loss_value)
 
             self.print_progress(
-                batch_i, n_batches, loss_value, np.mean(losses), False
+                batch_i, n_batches, loss_value, np.mean(losses), train
             )
 
+        if train:
+            return np.mean(losses)
+        else:
             return np.mean(losses), np.mean(zip(*mid_losses), axis=1)
 
     def print_progress(self, batch_i, n_batches, b_loss, mean_loss, train=True):
@@ -959,8 +930,7 @@ class BratsNewSegmentationNet(nn.Module):
 
     def fit(
             self,
-            im_loader,
-            patch_loader,
+            train_loader,
             val_loader,
             optimizer='adadelta',
             epochs=100,
@@ -1009,7 +979,7 @@ class BratsNewSegmentationNet(nn.Module):
         for self.epoch in range(epochs):
             # Main epoch loop
             self.t_train = time.time()
-            loss_tr = self.mini_batch_loop_train(im_loader, patch_loader)
+            loss_tr = self.mini_batch_loop(train_loader, train=True)
             if loss_tr < best_loss_tr:
                 best_loss_tr = loss_tr
                 tr_loss_s = '\033[32m%0.5f\033[0m' % loss_tr
@@ -1018,7 +988,9 @@ class BratsNewSegmentationNet(nn.Module):
 
             with torch.no_grad():
                 self.t_val = time.time()
-                loss_val, mid_losses = self.mini_batch_loop_val(val_loader)
+                loss_val, mid_losses = self.mini_batch_loop(
+                    val_loader, train=False
+                )
 
             losses_color = map(
                 lambda (pl, l): '\033[36m%s\033[0m' if l > pl else '%s',
@@ -1161,7 +1133,7 @@ class BratsNewSegmentationNet(nn.Module):
                         to_torch_var(data_i, self.device), 0
                     )
                     torch.cuda.synchronize()
-                    pred = self(input_i, dropout).squeeze().tolist()
+                    pred = self(input_i).squeeze().tolist()
                     torch.cuda.synchronize()
                     torch.cuda.empty_cache()
 

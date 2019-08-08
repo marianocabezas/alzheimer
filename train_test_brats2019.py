@@ -6,7 +6,7 @@ from time import strftime
 import numpy as np
 from models import BratsSegmentationNet, BratsSurvivalNet
 from models import BratsNewSegmentationNet
-from datasets import BratsSegmentationCroppingDataset, BlocksBBDataset
+from datasets import BratsSegmentationCroppingDataset, BratsDataset
 from datasets import BBImageDataset, BBImageValueDataset
 from utils import color_codes, get_dirs
 from utils import get_mask, get_normalised_image
@@ -197,6 +197,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
     depth = options['blocks']
     filters = options['filters']
     batch_size = options['batch_size']
+    patch_size = options['patch_size']
     images = ['_flair.nii.gz', '_t1.nii.gz', '_t1ce.nii.gz', '_t2.nii.gz']
 
     d_path = options['loo_dir']
@@ -254,7 +255,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
         )
 
         model_name = '%s-hybrid_f%d.mdl' % (net_name, i)
-        net = BratsSegmentationNet(depth=depth, filters=filters)
+        net = BratsNewSegmentationNet(depth=depth, filters=filters)
         try:
             net.load_model(os.path.join(d_path, model_name))
         except IOError:
@@ -274,14 +275,18 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             train_tmc = fold_tmc[:n_tmc]
             train_b2013 = fold_b2013[:n_b2013]
             train_patients = train_cbica + train_tcia + train_tmc + train_b2013
-
             targets = get_labels(train_patients)
             rois, data = get_images(train_patients)
 
             print('< Training dataset >')
-            train_dataset = BBImageDataset(
-                data, targets, rois, flip=True
-            )
+            if patch_size is None:
+                train_dataset = BBImageDataset(
+                    data, targets, rois, flip=True
+                )
+            else:
+                train_dataset = BratsDataset(
+                    data, targets, rois, patch_size, flip=True
+                )
 
             print('Dataloader creation <with validation>')
             train_loader = DataLoader(
