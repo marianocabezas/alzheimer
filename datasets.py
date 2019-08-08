@@ -480,7 +480,7 @@ class BratsDataset(Dataset):
         self.patch_size = patch_size
 
         self.patch_slices_pos = get_slices_mask_bb(
-            self.labels, patch_size, patch_size[0] - 2
+            self.labels, patch_size, patch_size[0] - 4
         )
 
         brains = map(
@@ -492,7 +492,7 @@ class BratsDataset(Dataset):
         )
 
         patch_slices_neg = get_slices_mask_bb(
-            brains, patch_size, patch_size[0] - 2
+            brains, patch_size, patch_size[0] - 4
         )
         self.patch_slices_neg = map(
             lambda (pos, neg): map(
@@ -503,12 +503,6 @@ class BratsDataset(Dataset):
 
             ),
             zip(self.patch_slices_pos, patch_slices_neg)
-        )
-
-
-        print(
-            np.sum(map(lambda p: len(p), self.patch_slices_pos)),
-            np.sum(map(lambda p: len(p), self.patch_slices_neg))
         )
 
         self.max_slice = np.cumsum(map(len, self.patch_slices_pos))
