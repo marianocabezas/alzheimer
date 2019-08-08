@@ -866,7 +866,7 @@ class BratsNewSegmentationNet(nn.Module):
             pred_y = self(x.to(self.device))
             if train:
                 batch_loss = F.cross_entropy(
-                    pred_y, torch.squeeze(y.type(torch.long).to(self.device))
+                    pred_y, y.type(torch.long).to(self.device)
                 )
                 batch_loss.backward()
                 self.optimizer_alg.step()
@@ -934,10 +934,10 @@ class BratsNewSegmentationNet(nn.Module):
             self,
             train_loader,
             val_loader,
-            optimizer='adadelta',
+            optimizer='adam',
             epochs=100,
             patience=10,
-            weight_decay=1e-2,
+            weight_decay=1e-3,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),

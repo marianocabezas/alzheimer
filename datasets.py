@@ -683,7 +683,7 @@ class BBImageDataset(Dataset):
             if flipped:
                 targets = np.flipud(targets).copy()
 
-            targets = np.expand_dims(targets, axis=0)
+            # targets = np.expand_dims(targets, axis=0)
 
             if self.sampler:
                 return inputs, targets, index
