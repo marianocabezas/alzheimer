@@ -537,7 +537,7 @@ class BratsDataset(Dataset):
 
         if flipped:
             inputs = np.fliplr(inputs).copy()
-            target = np.fliplr(target).copy().astype(np.long)
+            target = np.fliplr(target).copy()
 
         return inputs, target
 
