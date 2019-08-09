@@ -176,6 +176,7 @@ class BratsSegmentationNet(nn.Module):
     def mini_batch_loop(
             self, training, train=True
     ):
+        self.drop = train
         losses = list()
         mid_losses = list()
         n_batches = len(training)
@@ -255,8 +256,8 @@ class BratsSegmentationNet(nn.Module):
             optimizer='adam',
             epochs=100,
             patience=10,
-            # weight_decay=1e-2,
-            weight_decay=0,
+            weight_decay=1e-2,
+            # weight_decay=0,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -273,7 +274,7 @@ class BratsSegmentationNet(nn.Module):
 
         optimizer_dict = {
             'adam': lambda params: torch.optim.Adam(
-                params, lr=0.5, weight_decay=weight_decay
+                params, lr=1e-1, weight_decay=weight_decay
             ),
             'adadelta': lambda params: torch.optim.Adadelta(
                 params, weight_decay=weight_decay
@@ -300,7 +301,6 @@ class BratsSegmentationNet(nn.Module):
         for self.epoch in range(epochs):
             # Main epoch loop
             self.t_train = time.time()
-            self.drop = True
             loss_tr = self.mini_batch_loop(train_loader)
             if loss_tr < best_loss_tr:
                 best_loss_tr = loss_tr
@@ -313,7 +313,6 @@ class BratsSegmentationNet(nn.Module):
 
             with torch.no_grad():
                 self.t_val = time.time()
-                self.drop = False
                 loss_val, mid_losses = self.mini_batch_loop(val_loader, False)
 
             losses_color = map(
