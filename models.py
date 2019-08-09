@@ -340,7 +340,7 @@ class BratsSegmentationNet(nn.Module):
             t_s = time_to_string(t_out)
 
             self.dropout = max(
-                0, self.dropout - (self.epoch + 1) * self.ann_rate
+                0, self.dropout - self.ann_rate
             )
 
             if verbose:
