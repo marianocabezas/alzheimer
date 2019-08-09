@@ -307,7 +307,7 @@ class BratsSegmentationNet(nn.Module):
                 tr_loss_s = '\033[32m%0.5f\033[0m' % loss_tr
             else:
                 if type(self.optimizer_alg) == torch.optim.Adam:
-                    for param_group in optimizer.param_groups:
+                    for param_group in self.optimizer_alg.param_groups:
                         param_group['lr'] = param_group['lr'] / 10
                 tr_loss_s = '%0.5f' % loss_tr
 
