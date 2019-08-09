@@ -271,7 +271,7 @@ class BratsSegmentationNet(nn.Module):
 
         optimizer_dict = {
             'adam': lambda params: torch.optim.Adam(
-                params, lr=1e-1, weight_decay=weight_decay
+                params, lr=5e-1, weight_decay=weight_decay
             ),
             'adadelta': lambda params: torch.optim.Adadelta(
                 params, weight_decay=weight_decay
