@@ -480,7 +480,7 @@ class BratsDataset(Dataset):
         self.patch_size = patch_size
 
         self.patch_slices_pos = get_slices_mask_bb(
-            self.labels, patch_size, patch_size[0] - 4
+            self.labels, patch_size, patch_size[0] - 8
         )
 
         brains = map(
@@ -492,7 +492,7 @@ class BratsDataset(Dataset):
         )
 
         patch_slices_neg = get_slices_mask_bb(
-            brains, patch_size, patch_size[0] - 4
+            brains, patch_size, patch_size[0] - 8
         )
         self.patch_slices_neg = map(
             lambda (pos, neg): map(
