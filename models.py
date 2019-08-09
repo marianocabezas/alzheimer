@@ -61,7 +61,6 @@ class BratsSegmentationNet(nn.Module):
         )
         self.convlist = map(
             lambda (ini, out, g): nn.Sequential(
-                nn.BatchNorm3d(ini),
                 nn.Conv3d(
                     ini, out, kernel_size,
                     padding=padding,
@@ -71,7 +70,7 @@ class BratsSegmentationNet(nn.Module):
                 # nn.ReLU(),
                 # nn.Dropout(dropout),
                 # nn.InstanceNorm3d(out),
-                nn.BatchNorm3d(out),
+                # nn.BatchNorm3d(out),
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
@@ -81,6 +80,7 @@ class BratsSegmentationNet(nn.Module):
                 # nn.ReLU(),
                 # nn.Dropout(dropout),
                 # nn.InstanceNorm3d(out),
+                # nn.BatchNorm3d(out),
             ),
             zip([n_images] + filter_list[:-1], filter_list, groups_list)
         )
@@ -91,7 +91,6 @@ class BratsSegmentationNet(nn.Module):
         self.pooling = [nn.AvgPool3d(pool_size)] * len(filter_list)
 
         self.midconv = nn.Sequential(
-            nn.BatchNorm3d(filters * (2 ** (depth - 1))),
             nn.Conv3d(
                 filters * (2 ** (depth - 1)),
                 filters * (2 ** depth), kernel_size,
@@ -101,7 +100,7 @@ class BratsSegmentationNet(nn.Module):
             # nn.ReLU(),
             # nn.Dropout(dropout),
             # nn.InstanceNorm3d(filters * (2 ** depth)),
-            nn.BatchNorm3d(filters * (2 ** depth)),
+            # nn.BatchNorm3d(filters * (2 ** depth)),
             nn.Conv3d(
                 filters * (2 ** depth),
                 filters * (2 ** (depth - 1)), kernel_size,
@@ -111,12 +110,12 @@ class BratsSegmentationNet(nn.Module):
             # nn.ReLU(),
             # nn.Dropout(dropout),
             # nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
+            # nn.BatchNorm3d(filters * (2 ** (depth - 1))),
         )
         self.midconv.to(self.device)
 
         self.deconvlist = map(
             lambda (ini, out, g): nn.Sequential(
-                nn.BatchNorm3d(2 * ini),
                 nn.ConvTranspose3d(
                     2 * ini, ini, kernel_size,
                     padding=padding,
@@ -126,7 +125,7 @@ class BratsSegmentationNet(nn.Module):
                 # nn.ReLU(),
                 # nn.Dropout(dropout),
                 # nn.InstanceNorm3d(ini),
-                nn.BatchNorm3d(ini),
+                # nn.BatchNorm3d(ini),
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
@@ -136,6 +135,7 @@ class BratsSegmentationNet(nn.Module):
                 # nn.ReLU(),
                 # nn.Dropout(dropout),
                 # nn.InstanceNorm3d(out),
+                # nn.BatchNorm3d(out),
             ),
             zip(
                 filter_list[::-1], filter_list[-2::-1] + [filters],
@@ -145,7 +145,6 @@ class BratsSegmentationNet(nn.Module):
 
         # Segmentation
         self.out = nn.Sequential(
-            nn.BatchNorm3d(filters),
             nn.Conv3d(filters, 4, 1),
             nn.Softmax(dim=1)
         )
@@ -454,7 +453,7 @@ class BratsSegmentationNet(nn.Module):
                         to_torch_var(data_i, self.device), 0
                     )
                     torch.cuda.synchronize()
-                    pred = self(input_i).squeeze().tolist()
+                    pred = self(input_i, dropout).squeeze().tolist()
                     torch.cuda.synchronize()
                     torch.cuda.empty_cache()
 
