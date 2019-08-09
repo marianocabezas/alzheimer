@@ -37,8 +37,8 @@ class BratsSegmentationNet(nn.Module):
             pool_size=2,
             depth=4,
             n_images=4,
-            dropout=0.5,
-            ann_rate=1e-2,
+            dropout=0.9,
+            ann_rate=5e-2,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -72,7 +72,7 @@ class BratsSegmentationNet(nn.Module):
                 # nn.ReLU(),
                 # nn.Dropout(dropout),
                 # nn.InstanceNorm3d(out),
-                # nn.BatchNorm3d(out),
+                nn.BatchNorm3d(out),
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
@@ -102,7 +102,7 @@ class BratsSegmentationNet(nn.Module):
             # nn.ReLU(),
             # nn.Dropout(dropout),
             # nn.InstanceNorm3d(filters * (2 ** depth)),
-            # nn.BatchNorm3d(filters * (2 ** depth)),
+            nn.BatchNorm3d(filters * (2 ** depth)),
             nn.Conv3d(
                 filters * (2 ** depth),
                 filters * (2 ** (depth - 1)), kernel_size,
@@ -127,7 +127,7 @@ class BratsSegmentationNet(nn.Module):
                 # nn.ReLU(),
                 # nn.Dropout(dropout),
                 # nn.InstanceNorm3d(ini),
-                # nn.BatchNorm3d(ini),
+                nn.BatchNorm3d(ini),
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
@@ -274,7 +274,7 @@ class BratsSegmentationNet(nn.Module):
 
         optimizer_dict = {
             'adam': lambda params: torch.optim.Adam(
-                params, lr=1, weight_decay=weight_decay
+                params, lr=0.5, weight_decay=weight_decay
             ),
             'adadelta': lambda params: torch.optim.Adadelta(
                 params, weight_decay=weight_decay
