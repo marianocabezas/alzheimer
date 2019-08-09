@@ -5,7 +5,6 @@ import csv
 from time import strftime
 import numpy as np
 from models import BratsSegmentationNet, BratsSurvivalNet
-from models import BratsNewSegmentationNet
 from datasets import BratsSegmentationCroppingDataset, BratsDataset
 from datasets import BBImageDataset, BBImageValueDataset
 from utils import color_codes, get_dirs
