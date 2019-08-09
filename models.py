@@ -263,7 +263,6 @@ class BratsSegmentationNet(nn.Module):
             verbose=True
     ):
         # Init
-        self.drop = True
         self.to(device)
         self.train()
 
@@ -301,6 +300,7 @@ class BratsSegmentationNet(nn.Module):
         for self.epoch in range(epochs):
             # Main epoch loop
             self.t_train = time.time()
+            self.drop = True
             loss_tr = self.mini_batch_loop(train_loader)
             if loss_tr < best_loss_tr:
                 best_loss_tr = loss_tr
@@ -313,6 +313,7 @@ class BratsSegmentationNet(nn.Module):
 
             with torch.no_grad():
                 self.t_val = time.time()
+                self.drop = False
                 loss_val, mid_losses = self.mini_batch_loop(val_loader, False)
 
             losses_color = map(
