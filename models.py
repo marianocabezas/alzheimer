@@ -68,9 +68,8 @@ class BratsSegmentationNet(nn.Module):
                     padding=padding,
                     # groups=g
                 ),
-                nn.LeakyReLU(),
-                # nn.ReLU(),
-                # nn.Dropout(dropout),
+                # nn.LeakyReLU(),
+                nn.ReLU(),
                 # nn.InstanceNorm3d(out),
                 nn.BatchNorm3d(out),
                 nn.Conv3d(
@@ -78,18 +77,17 @@ class BratsSegmentationNet(nn.Module):
                     padding=padding,
                     # groups=2 * g
                 ),
-                nn.LeakyReLU(),
-                # nn.ReLU(),
-                # nn.Dropout(dropout),
+                # nn.LeakyReLU(),
+                nn.ReLU(),
                 # nn.InstanceNorm3d(out),
                 # nn.BatchNorm3d(out),
             ),
             zip([n_images] + filter_list[:-1], filter_list, groups_list)
         )
-        # self.pooling = map(
-        #     lambda f: nn.Conv3d(f, f, pool_size, stride=pool_size, groups=f),
-        #     filter_list
-        # )
+        self.pooling = map(
+            lambda f: nn.Conv3d(f, f, pool_size, stride=pool_size, groups=f),
+            filter_list
+        )
         self.pooling = [nn.AvgPool3d(pool_size)] * len(filter_list)
 
         self.midconv = nn.Sequential(
@@ -98,9 +96,8 @@ class BratsSegmentationNet(nn.Module):
                 filters * (2 ** depth), kernel_size,
                 padding=padding
             ),
-            nn.LeakyReLU(),
-            # nn.ReLU(),
-            # nn.Dropout(dropout),
+            # nn.LeakyReLU(),
+            nn.ReLU(),
             # nn.InstanceNorm3d(filters * (2 ** depth)),
             nn.BatchNorm3d(filters * (2 ** depth)),
             nn.Conv3d(
@@ -108,9 +105,8 @@ class BratsSegmentationNet(nn.Module):
                 filters * (2 ** (depth - 1)), kernel_size,
                 padding=padding
             ),
-            nn.LeakyReLU(),
-            # nn.ReLU(),
-            # nn.Dropout(dropout),
+            # nn.LeakyReLU(),
+            nn.ReLU(),
             # nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
             # nn.BatchNorm3d(filters * (2 ** (depth - 1))),
         )
@@ -123,9 +119,8 @@ class BratsSegmentationNet(nn.Module):
                     padding=padding,
                     # groups=g
                 ),
-                nn.LeakyReLU(),
-                # nn.ReLU(),
-                # nn.Dropout(dropout),
+                # nn.LeakyReLU(),
+                nn.ReLU(),
                 # nn.InstanceNorm3d(ini),
                 nn.BatchNorm3d(ini),
                 nn.ConvTranspose3d(
@@ -133,9 +128,8 @@ class BratsSegmentationNet(nn.Module):
                     padding=padding,
                     # groups=g
                 ),
-                nn.LeakyReLU(),
-                # nn.ReLU(),
-                # nn.Dropout(dropout),
+                # nn.LeakyReLU(),
+                nn.ReLU(),
                 # nn.InstanceNorm3d(out),
                 # nn.BatchNorm3d(out),
             ),
@@ -345,7 +339,9 @@ class BratsSegmentationNet(nn.Module):
             t_out = time.time() - self.t_train
             t_s = time_to_string(t_out)
 
-            self.dropout = max(0, self.dropout - self.epoch * self.ann_rate)
+            self.dropout = max(
+                0, self.dropout - (self.epoch + 1) * self.ann_rate
+            )
 
             if verbose:
                 print('\033[K', end='')
