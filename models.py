@@ -38,12 +38,14 @@ class BratsSegmentationNet(nn.Module):
             depth=4,
             n_images=4,
             dropout=0.5,
+            ann_rate=1e-2,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
     ):
         super(BratsSegmentationNet, self).__init__()
         # Init
+        self.ann_rate = ann_rate
         self.drop = False
         self.dropout = dropout
         self.sampler = None
@@ -253,7 +255,7 @@ class BratsSegmentationNet(nn.Module):
             optimizer='adam',
             epochs=100,
             patience=10,
-            weight_decay=0,
+            weight_decay=1e-2,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -271,7 +273,7 @@ class BratsSegmentationNet(nn.Module):
 
         optimizer_dict = {
             'adam': lambda params: torch.optim.Adam(
-                params, lr=5e-1, weight_decay=weight_decay
+                params, lr=1, weight_decay=weight_decay
             ),
             'adadelta': lambda params: torch.optim.Adadelta(
                 params, weight_decay=weight_decay
@@ -303,6 +305,9 @@ class BratsSegmentationNet(nn.Module):
                 best_loss_tr = loss_tr
                 tr_loss_s = '\033[32m%0.5f\033[0m' % loss_tr
             else:
+                if type(self.optimizer_alg) == torch.optim.Adam:
+                    for param_group in optimizer.param_groups:
+                        param_group['lr'] = param_group['lr'] / 10
                 tr_loss_s = '%0.5f' % loss_tr
 
             with torch.no_grad():
@@ -338,6 +343,8 @@ class BratsSegmentationNet(nn.Module):
 
             t_out = time.time() - self.t_train
             t_s = time_to_string(t_out)
+
+            self.dropout = max(0, self.dropout - self.epoch * self.ann_rate)
 
             if verbose:
                 print('\033[K', end='')
@@ -731,470 +738,3 @@ class BratsSurvivalNet(nn.Module):
     def load_model(self, net_name):
         self.load_state_dict(torch.load(net_name))
 
-
-class BratsNewSegmentationNet(nn.Module):
-    """
-    This class is based on the nnUnet (No-New Unet).
-    """
-    def __init__(
-            self,
-            filters=32,
-            kernel_size=3,
-            pool_size=2,
-            depth=4,
-            n_images=4,
-            dropout=0.5,
-            device=torch.device(
-                "cuda:0" if torch.cuda.is_available() else "cpu"
-            ),
-    ):
-        super(BratsNewSegmentationNet, self).__init__()
-        # Init
-        self.drop = False
-        self.sampler = None
-        self.t_train = 0
-        self.t_val = 0
-        self.epoch = 0
-        self.optimizer_alg = None
-        self.device = device
-        self.final_dropout = dropout
-        self.dropout = 0
-        padding = kernel_size // 2
-
-        # Down path
-        filter_list = map(lambda i: filters * 2 ** i, range(depth))
-        groups_list = map(
-            lambda i: n_images * 2 ** i, range(depth)
-        )
-        self.convlist = map(
-            lambda (ini, out, g): nn.Sequential(
-                nn.Conv3d(
-                    ini, out, kernel_size,
-                    padding=padding,
-                    # groups=g
-                ),
-                nn.ReLU(),
-                nn.Conv3d(
-                    out, out, kernel_size,
-                    padding=padding,
-                    # groups=2 * g
-                ),
-                nn.ReLU(),
-            ),
-            zip([n_images] + filter_list[:-1], filter_list, groups_list)
-        )
-        self.pooling = map(
-            lambda f: nn.Conv3d(f, f, pool_size, stride=pool_size, groups=f),
-            filter_list
-        )
-        # self.pooling = [nn.AvgPool3d(pool_size)] * len(filter_list)
-
-        self.midconv = nn.Sequential(
-            nn.Conv3d(
-                filters * (2 ** (depth - 1)),
-                filters * (2 ** depth), kernel_size,
-                padding=padding
-            ),
-            nn.ReLU(),
-            nn.Conv3d(
-                filters * (2 ** depth),
-                filters * (2 ** (depth - 1)), kernel_size,
-                padding=padding
-            ),
-            nn.ReLU(),
-        )
-        self.midconv.to(self.device)
-
-        # self.unpooling = map(
-        #     lambda f: nn.ConvTranspose3d(
-        #         f, f, pool_size, stride=pool_size, groups=f
-        #     ),
-        #     filter_list[::-1]
-        # )
-
-        self.deconvlist = map(
-            lambda (ini, out, g): nn.Sequential(
-                nn.ConvTranspose3d(
-                    2 * ini, ini, kernel_size,
-                    padding=padding,
-                    # groups=g
-                ),
-                nn.ReLU(),
-                nn.ConvTranspose3d(
-                    ini, out, kernel_size,
-                    padding=padding,
-                    # groups=g
-                ),
-                nn.ReLU(),
-            ),
-            zip(
-                filter_list[::-1], filter_list[-2::-1] + [filters],
-                groups_list[::-1]
-            )
-        )
-
-        # Segmentation
-        self.out = nn.Sequential(
-            nn.Conv3d(filters, 4, 1),
-            nn.Softmax(dim=1)
-        )
-
-    def forward(self, x):
-        down_list = []
-        for c, p in zip(self.convlist, self.pooling):
-            c.to(self.device)
-            down = c(x)
-            down_list.append(down)
-            p.to(self.device)
-            drop = F.dropout(down, self.dropout)
-            x = p(drop)
-
-        x = self.midconv(x)
-
-        for d, prev in zip(self.deconvlist, down_list[::-1]):
-            interp = F.interpolate(x, size=prev.shape[2:])
-            # interp = u(x)
-            d.to(self.device)
-            x = d(torch.cat((prev, interp), dim=1))
-            x = F.dropout(x, self.dropout, self.drop)
-
-        output = self.out(x)
-        return output
-
-    def mini_batch_loop(
-            self, training, train=True
-    ):
-        losses = list()
-        mid_losses = list()
-        n_batches = len(training)
-        for batch_i, (x, y) in enumerate(training):
-            # We train the model and check the loss
-            torch.cuda.synchronize()
-            if train:
-                self.optimizer_alg.zero_grad()
-            pred_y = self(x.to(self.device))
-            if train:
-                batch_loss = F.cross_entropy(
-                    pred_y, y.type(torch.long).to(self.device)
-                )
-                batch_loss.backward()
-                self.optimizer_alg.step()
-                loss_value = batch_loss.tolist()
-            else:
-                y_r = (y > 0).type_as(y)
-                pred_tmr = torch.sum(pred_y[:, 1:, ...], dim=1)
-                pred_bck = pred_y[:, 0, ...]
-                pred_r = torch.stack((pred_bck, pred_tmr), dim=1)
-                batch_loss_t = multidsc_loss(
-                    pred_y, y.to(self.device), averaged=train
-                )
-                batch_loss_r = multidsc_loss(
-                    pred_r, y_r.to(self.device), averaged=train
-                )
-
-                roi_value = torch.mean(batch_loss_r).tolist()
-                tumor_value = torch.mean(batch_loss_t).tolist()
-                loss_value = roi_value + tumor_value
-                dsc_r = 1 - batch_loss_r
-                dsc_t = 1 - batch_loss_t
-                mid_losses.append(torch.cat((dsc_t, dsc_r)).tolist())
-
-            torch.cuda.synchronize()
-            torch.cuda.empty_cache()
-
-            losses.append(loss_value)
-
-            self.print_progress(
-                batch_i, n_batches, loss_value, np.mean(losses), train
-            )
-
-        if train:
-            return np.mean(losses)
-        else:
-            return np.mean(losses), np.mean(zip(*mid_losses), axis=1)
-
-    def print_progress(self, batch_i, n_batches, b_loss, mean_loss, train=True):
-        init_c = '\033[0m' if train else '\033[38;5;238m'
-        whites = ' '.join([''] * 12)
-        percent = 20 * (batch_i + 1) / n_batches
-        progress_s = ''.join(['-'] * percent)
-        remainder_s = ''.join([' '] * (20 - percent))
-        loss_name = 'train_loss' if train else 'val_loss'
-
-        if train:
-            t_out = time.time() - self.t_train
-        else:
-            t_out = time.time() - self.t_val
-        time_s = time_to_string(t_out)
-
-        t_eta = (t_out / (batch_i + 1)) * (n_batches - (batch_i + 1))
-        eta_s = time_to_string(t_eta)
-
-        batch_s = '%s%sEpoch %03d (%03d/%03d) [%s>%s] %s %f (%f) %s / ETA %s%s' % (
-            init_c, whites, self.epoch, batch_i + 1, n_batches,
-            progress_s, remainder_s,
-            loss_name, b_loss, mean_loss, time_s, eta_s, '\033[0m'
-        )
-        print('\033[K', end='')
-        print(batch_s, end='\r')
-        sys.stdout.flush()
-
-    def fit(
-            self,
-            train_loader,
-            val_loader,
-            optimizer='adam',
-            epochs=100,
-            patience=10,
-            weight_decay=1e-3,
-            device=torch.device(
-                "cuda:0" if torch.cuda.is_available() else "cpu"
-            ),
-            verbose=True
-    ):
-        # Init
-        self.drop = True
-        self.to(device)
-        self.train()
-
-        best_loss_tr = np.inf
-        best_loss_val = np.inf
-        no_improv_e = 0
-        best_state = deepcopy(self.state_dict())
-
-        optimizer_dict = {
-            'adam': lambda params: torch.optim.Adam(
-                params, lr=1e-2, weight_decay=weight_decay
-            ),
-            'adadelta': lambda params: torch.optim.Adadelta(
-                params, weight_decay=weight_decay
-            ),
-            'adabound': AdaBound,
-        }
-
-        model_params = filter(lambda p: p.requires_grad, self.parameters())
-
-        is_string = isinstance(optimizer, basestring)
-
-        self.optimizer_alg = optimizer_dict[optimizer](model_params) if is_string\
-            else optimizer
-
-        t_start = time.time()
-
-        l_names = [
-            'train', ' val ', '  BCK ', '  NET ', '  ED  ', '  ET  ',
-            ' BCK  ', ' TMR  '
-        ]
-        best_losses = [-np.inf] * (len(l_names))
-        best_e = 0
-
-        for self.epoch in range(epochs):
-            # Main epoch loop
-            self.t_train = time.time()
-            loss_tr = self.mini_batch_loop(train_loader, train=True)
-            if loss_tr < best_loss_tr:
-                best_loss_tr = loss_tr
-                tr_loss_s = '\033[32m%0.5f\033[0m' % loss_tr
-            else:
-                tr_loss_s = '%0.5f' % loss_tr
-
-            with torch.no_grad():
-                self.t_val = time.time()
-                loss_val, mid_losses = self.mini_batch_loop(
-                    val_loader, train=False
-                )
-
-            losses_color = map(
-                lambda (pl, l): '\033[36m%s\033[0m' if l > pl else '%s',
-                zip(best_losses, mid_losses)
-            )
-            losses_s = map(
-                lambda (c, l): c % '{:8.4f}'.format(l),
-                zip(losses_color, mid_losses)
-            )
-            best_losses = map(
-                lambda (pl, l): l if l > pl else pl,
-                zip(best_losses, mid_losses)
-            )
-
-            # Patience check
-            improvement = loss_val < best_loss_val
-            loss_s = '{:7.3f}'.format(loss_val)
-            if improvement:
-                best_loss_val = loss_val
-                epoch_s = '\033[32mEpoch %03d\033[0m' % self.epoch
-                loss_s = '\033[32m%s\033[0m' % loss_s
-                best_e = self.epoch
-                best_state = deepcopy(self.state_dict())
-                no_improv_e = 0
-            else:
-                epoch_s = 'Epoch %03d' % self.epoch
-                no_improv_e += 1
-
-            t_out = time.time() - self.t_train
-            t_s = time_to_string(t_out)
-
-            if verbose:
-                print('\033[K', end='')
-                whites = ' '.join([''] * 12)
-                if self.epoch == 0:
-                    l_bars = '--|--'.join(
-                        ['-' * 5] * 2 + ['-' * 6] * len(l_names[2:])
-                    )
-                    l_hdr = '  |  '.join(l_names)
-                    print('%sEpoch num |  %s  |' % (whites, l_hdr))
-                    print('%s----------|--%s--|' % (whites, l_bars))
-                final_s = whites + ' | '.join(
-                    [epoch_s, tr_loss_s, loss_s] + losses_s + [t_s]
-                )
-                print(final_s)
-
-            if no_improv_e == patience:
-                break
-
-        self.epoch = best_e
-        self.load_state_dict(best_state)
-        t_end = time.time() - t_start
-        t_end_s = time_to_string(t_end)
-        if verbose:
-            print(
-                'Training finished in %d epochs (%s) '
-                'with minimum loss = %f (epoch %d)' % (
-                    self.epoch + 1, t_end_s, best_loss_tr, best_e)
-            )
-
-    def segment(
-            self,
-            data,
-            device=torch.device(
-                "cuda:0" if torch.cuda.is_available() else "cpu"
-            ),
-            verbose=True
-    ):
-        # Init
-        self.drop = False
-        self.to(device)
-        self.eval()
-        whites = ' '.join([''] * 12)
-        results = []
-
-        with torch.no_grad():
-            cases = len(data)
-            t_in = time.time()
-            for i, data_i in enumerate(data):
-
-                # We test the model with the current batch
-                input_i = torch.unsqueeze(
-                    to_torch_var(data_i, self.device), 0
-                )
-                torch.cuda.synchronize()
-                pred = self(input_i).squeeze().tolist()
-                torch.cuda.synchronize()
-                torch.cuda.empty_cache()
-
-                results.append(pred)
-
-                t_out = time.time() - t_in
-                t_s = time_to_string(t_out)
-                # Print stuff
-                if verbose:
-                    percent = 20 * (i + 1) / cases
-                    progress_s = ''.join(['-'] * percent)
-                    remainder_s = ''.join([' '] * (20 - percent))
-                    t_eta = (t_out / (i + 1)) * (cases - (i + 1))
-                    eta_s = time_to_string(t_eta)
-                    print(
-                        '\033[K%sTested case (%02d/%02d) [%s>%s]'
-                        ' %s / ETA: %s' % (
-                            whites, i, cases, progress_s, remainder_s,
-                            t_s, eta_s
-                        ),
-                        end='\r'
-                    )
-                    sys.stdout.flush()
-
-        if verbose:
-            print('\033[K%sTesting finished succesfully' % whites)
-
-        return results
-
-    def uncertainty(
-            self,
-            data,
-            dropout=0.5,
-            steps=100,
-            device=torch.device(
-                "cuda:0" if torch.cuda.is_available() else "cpu"
-            ),
-            verbose=True
-    ):
-        # Init
-        self.drop = True
-        self.dropout = dropout
-        self.to(device)
-        self.eval()
-        whites = ' '.join([''] * 12)
-        entropy_results = []
-        seg_results = []
-
-        with torch.no_grad():
-            cases = len(data)
-            t_in = time.time()
-            for i, data_i in enumerate(data):
-                outputs = []
-                for e in range(steps):
-                    # We test the model with the current batch
-                    input_i = torch.unsqueeze(
-                        to_torch_var(data_i, self.device), 0
-                    )
-                    torch.cuda.synchronize()
-                    pred = self(input_i).squeeze().tolist()
-                    torch.cuda.synchronize()
-                    torch.cuda.empty_cache()
-
-                    outputs.append(pred)
-
-                    # Print stuff
-                    if verbose:
-                        percent_i = 20 * (i + 1) / cases
-                        percent_e = 20 * (e + 1) / steps
-                        progress_is = ''.join(['-'] * percent_i)
-                        progress_es = ''.join(['-'] * percent_e)
-                        remainder_is = ''.join([' '] * (20 - percent_i))
-                        remainder_es = ''.join([' '] * (20 - percent_e))
-                        remaining_e = steps - (e + 1)
-                        remaining_i = steps * (cases - (i + 1))
-                        completed = steps * cases - (remaining_i + remaining_e)
-                        t_out = time.time() - t_in
-                        t_out_e = t_out / completed
-                        t_s = time_to_string(t_out)
-                        t_eta = (remaining_e + remaining_i) * t_out_e
-                        eta_s = time_to_string(t_eta)
-                        print(
-                            '\033[K%sTested case (%02d/%02d - %02d/%02d) '
-                            '[%s>%s][%s>%s] %s / ETA: %s' % (
-                                whites, e, steps, i, cases,
-                                progress_es, remainder_es,
-                                progress_is, remainder_is,
-                                t_s, eta_s
-                            ),
-                            end='\r'
-                        )
-                        sys.stdout.flush()
-
-                mean_output = np.mean(outputs, axis=0)
-                entropy = - np.sum(mean_output * np.log(mean_output), axis=0)
-
-                entropy_results.append(entropy)
-                seg_results.append(mean_output)
-
-        if verbose:
-            print('\033[K%sTesting finished succesfully' % whites)
-
-        return entropy_results, seg_results
-
-    def save_model(self, net_name):
-        torch.save(self.state_dict(), net_name)
-
-    def load_model(self, net_name):
-        self.load_state_dict(torch.load(net_name))
