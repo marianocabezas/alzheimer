@@ -304,7 +304,7 @@ class BratsSegmentationNet(nn.Module):
 
         l_names = [
             'train', ' val ', '  BCK ', '  NET ', '  ED  ', '  ET  ',
-            ' BCK  ', ' TMR  '
+            ' BCK  ', ' TMR  ', 'p_drop'
         ]
         best_losses = [-np.inf] * (len(l_names))
         best_e = 0
@@ -341,7 +341,7 @@ class BratsSegmentationNet(nn.Module):
 
             # Patience check
             improvement = loss_val < best_loss_val
-            loss_s = '{:7.3f}'.format(loss_val)
+            loss_s = '{:7.5f}'.format(loss_val)
             if improvement:
                 best_loss_val = loss_val
                 epoch_s = '\033[32mEpoch %03d\033[0m' % self.epoch
@@ -356,6 +356,7 @@ class BratsSegmentationNet(nn.Module):
             t_out = time.time() - self.t_train
             t_s = time_to_string(t_out)
 
+            drop_s = '{:7.5f}'.format(self.dropout)
             self.dropout = max(
                 0, self.dropout - self.ann_rate
             )
@@ -371,7 +372,7 @@ class BratsSegmentationNet(nn.Module):
                     print('%sEpoch num |  %s  |' % (whites, l_hdr))
                     print('%s----------|--%s--|' % (whites, l_bars))
                 final_s = whites + ' | '.join(
-                    [epoch_s, tr_loss_s, loss_s] + losses_s + [t_s]
+                    [epoch_s, tr_loss_s, loss_s] + losses_s + [drop_s, t_s]
                 )
                 print(final_s)
 
