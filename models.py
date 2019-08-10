@@ -209,9 +209,13 @@ class BratsSegmentationNet(nn.Module):
                 batch_loss_r = multidsc_loss(
                     pred_r, y_r.to(self.device), averaged=train
                 )
-                roi_value = torch.mean(batch_loss_r).tolist()
-                tumor_value = torch.mean(batch_loss_t).tolist()
-                loss_value = roi_value + tumor_value
+                batch_loss = multidsc_loss(
+                    pred_labels, y.to(self.device), averaged=True
+                )
+                # roi_value = torch.mean(batch_loss_r).tolist()
+                # tumor_value = torch.mean(batch_loss_t).tolist()
+                # loss_value = roi_value + tumor_value
+                loss_value = batch_loss.tolist()
                 dsc_r = 1 - batch_loss_r
                 dsc_t = 1 - batch_loss_t
                 mid_losses.append(torch.cat((dsc_t, dsc_r)).tolist())
