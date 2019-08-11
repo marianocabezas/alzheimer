@@ -269,7 +269,7 @@ class BratsSegmentationNet(nn.Module):
             patience=10,
             current_lr=1,
             # weight_decay=1e-2,
-            # weight_decay=0,
+            weight_decay=0,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
