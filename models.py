@@ -267,6 +267,7 @@ class BratsSegmentationNet(nn.Module):
             optimizer='sgd',
             epochs=100,
             patience=10,
+            current_lr=0.5,
             weight_decay=1e-2,
             # weight_decay=0,
             device=torch.device(
@@ -282,7 +283,6 @@ class BratsSegmentationNet(nn.Module):
         best_loss_val = np.inf
         no_improv_e = 0
         best_state = deepcopy(self.state_dict())
-        current_lr = 0.5
 
         optimizer_dict = {
             'adam': lambda params, lr: torch.optim.Adam(
