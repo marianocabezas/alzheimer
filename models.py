@@ -264,11 +264,11 @@ class BratsSegmentationNet(nn.Module):
             self,
             train_loader,
             val_loader,
-            optimizer='adam',
+            optimizer='sgd',
             epochs=100,
             patience=10,
-            # weight_decay=1e-2,
-            weight_decay=0,
+            weight_decay=1e-2,
+            # weight_decay=0,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -282,12 +282,16 @@ class BratsSegmentationNet(nn.Module):
         best_loss_val = np.inf
         no_improv_e = 0
         best_state = deepcopy(self.state_dict())
+        current_lr = 0.5
 
         optimizer_dict = {
-            'adam': lambda params: torch.optim.Adam(
+            'adam': lambda (params, lr): torch.optim.Adam(
                 params, lr=0.5, weight_decay=weight_decay
             ),
-            'adadelta': lambda params: torch.optim.Adadelta(
+            'sgd': lambda (params, lr): torch.optim.SGD(
+                params, lr=0.5, weight_decay=weight_decay
+            ),
+            'adadelta': lambda (params, lr): torch.optim.Adadelta(
                 params, weight_decay=weight_decay
             ),
             'adabound': AdaBound,
@@ -297,8 +301,9 @@ class BratsSegmentationNet(nn.Module):
 
         is_string = isinstance(optimizer, basestring)
 
-        self.optimizer_alg = optimizer_dict[optimizer](model_params) if is_string\
-            else optimizer
+        self.optimizer_alg = optimizer_dict[optimizer](
+            model_params, current_lr
+        ) if is_string else optimizer
 
         t_start = time.time()
 
@@ -317,9 +322,11 @@ class BratsSegmentationNet(nn.Module):
                 best_loss_tr = loss_tr
                 tr_loss_s = '\033[32m%0.5f\033[0m' % loss_tr
             else:
-                if type(self.optimizer_alg) == torch.optim.Adam:
-                    for param_group in self.optimizer_alg.param_groups:
-                        param_group['lr'] = param_group['lr'] / 10
+                # Learning rate update
+                current_lr /= 10
+                self.optimizer_alg = optimizer_dict[optimizer](
+                    model_params, current_lr
+                ) if is_string else optimizer
                 tr_loss_s = '%0.5f' % loss_tr
 
             with torch.no_grad():
