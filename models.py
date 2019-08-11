@@ -267,7 +267,7 @@ class BratsSegmentationNet(nn.Module):
             optimizer='sgd',
             epochs=100,
             patience=10,
-            current_lr=0.5,
+            current_lr=1,
             weight_decay=1e-2,
             # weight_decay=0,
             device=torch.device(
