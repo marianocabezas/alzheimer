@@ -358,6 +358,15 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             )
         )
 
+        # The sub-regions considered for evaluation are:
+        #   1) the "enhancing tumor" (ET)
+        #   2) the "tumor core" (TC)
+        #   3) the "whole tumor" (WT)
+        #
+        # The provided segmentation labels have values of 1 for NCR & NET,
+        # 2 for ED, 4 for ET, and 0 for everything else.
+        # The participants are called to upload their segmentation labels
+        # as a single multi-label file in nifti (.nii.gz) format.
         pred_y = net.segment(test_x)
 
         for (path_i, p_i, pred_i) in zip(patient_paths, test_patients, pred_y):
@@ -385,10 +394,22 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             )
         )
 
+        # The participants are called to upload 4 nifti (.nii.gz) volumes
+        # (3 uncertainty maps and 1 multi-class segmentation volume from
+        # Task 1) onto CBICA's Image Processing Portal format. For example,
+        # for each ID in the dataset, participants are expected to upload
+        # following 4 volumes:
+        # 1. {ID}.nii.gz (multi-class label map)
+        # 2. {ID}_unc_whole.nii.gz (Uncertainty map associated with whole tumor)
+        # 3. {ID}_unc_core.nii.gz (Uncertainty map associated with tumor core)
+        # 4. {ID}_unc_enhance.nii.gz (Uncertainty map associated with enhancing tumor)
         uncert_y, pred_y = net.uncertainty(test_x, steps=25)
         for (path_i, p_i, pred_i, uncert_i) in zip(
                 patient_paths, test_patients, pred_y, uncert_y
         ):
+            whole_i = np.sum(pred_i[1:])
+            core_i = pred_i[1] + pred_i[4]
+            enhance_i = pred_i[4]
             seg_i = np.argmax(pred_i, axis=0)
             seg_i[seg_i == 3] = 4
 
@@ -407,6 +428,12 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             nii = load_nii(niiname)
             nii.get_data()[:] = uncert_i
             save_nii(nii, os.path.join(path_i, p_i + '_uncert.nii.gz'))
+            nii.get_data()[:] = whole_i
+            save_nii(nii, os.path.join(path_i, p_i + '_unc_whole.nii.gz'))
+            nii.get_data()[:] = core_i
+            save_nii(nii, os.path.join(path_i, p_i + '_unc_core.nii.gz'))
+            nii.get_data()[:] = enhance_i
+            save_nii(nii, os.path.join(path_i, p_i + '_unc_enhance.nii.gz'))
 
             print(
                 'Patient %s: %s' % (p_i, ' / '.join(map(str, dsc)))
