@@ -264,10 +264,10 @@ class BratsSegmentationNet(nn.Module):
             self,
             train_loader,
             val_loader,
-            optimizer='sgd',
+            optimizer='adabound',
             epochs=100,
             patience=10,
-            current_lr=1,
+            current_lr=0.5,
             # weight_decay=1e-2,
             weight_decay=0,
             device=torch.device(
@@ -481,8 +481,10 @@ class BratsSegmentationNet(nn.Module):
                     input_i = torch.unsqueeze(
                         to_torch_var(data_i, self.device), 0
                     )
+
+                    # Testing itself
                     torch.cuda.synchronize()
-                    pred = self(input_i, dropout).squeeze().tolist()
+                    pred = self(input_i).squeeze().tolist()
                     torch.cuda.synchronize()
                     torch.cuda.empty_cache()
 

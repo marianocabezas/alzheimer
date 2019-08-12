@@ -266,7 +266,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
                 (c['c'], c['nc'], n_params)
             )
 
-            num_workers = 16
+            num_workers = 8
 
             # Training
             train_cbica = fold_cbica[:n_cbica]
@@ -329,6 +329,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
         test_tmc = tmc[ini_tmc:end_tmc]
         test_b2013 = b2013[ini_b2013:end_b2013]
         test_patients = test_cbica + test_tcia + test_tmc + test_b2013
+
         patient_paths = map(lambda p: os.path.join(d_path, p), test_patients)
         brain_names = map(
             lambda p: os.path.join(
@@ -350,6 +351,13 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             ),
             zip(test_patients, brains_test)
         )
+
+        print(
+            'Testing patients = %d' % (
+                len(test_patients)
+            )
+        )
+
         pred_y = net.segment(test_x)
 
         for (path_i, p_i, pred_i) in zip(patient_paths, test_patients, pred_y):
@@ -371,32 +379,38 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
                 'Patient %s: %s' % (p_i, ' / '.join(map(str, dsc)))
             )
 
-        # uncert_y, pred_y = net.uncertainty(test_x, steps=20)
-        # for (path_i, p_i, pred_i, uncert_i) in zip(
-        #         patient_paths, test_patients, pred_y, uncert_y
-        # ):
-        #     seg_i = np.argmax(pred_i, axis=0)
-        #     seg_i[seg_i == 3] = 4
-        #
-        #     niiname = os.path.join(path_i, p_i + '_seg.nii.gz')
-        #     nii = load_nii(niiname)
-        #     seg = nii.get_data()
-        #
-        #     dsc = map(
-        #         lambda label: dsc_seg(seg == label, seg_i == label), [1, 2, 4]
-        #     )
-        #
-        #     nii.get_data()[:] = seg_i
-        #     save_nii(nii, os.path.join(path_i, p_i + '_uncert-seg.nii.gz'))
-        #
-        #     niiname = os.path.join(path_i, p_i + '_flair.nii.gz')
-        #     nii = load_nii(niiname)
-        #     nii.get_data()[:] = uncert_i
-        #     save_nii(nii, os.path.join(path_i, p_i + '_uncert.nii.gz'))
-        #
-        #     print(
-        #         'Patient %s: %s' % (p_i, ' / '.join(map(str, dsc)))
-        #     )
+        print(
+            'Uncertainty patients = %d' % (
+                len(test_patients)
+            )
+        )
+
+        uncert_y, pred_y = net.uncertainty(test_x, steps=25)
+        for (path_i, p_i, pred_i, uncert_i) in zip(
+                patient_paths, test_patients, pred_y, uncert_y
+        ):
+            seg_i = np.argmax(pred_i, axis=0)
+            seg_i[seg_i == 3] = 4
+
+            niiname = os.path.join(path_i, p_i + '_seg.nii.gz')
+            nii = load_nii(niiname)
+            seg = nii.get_data()
+
+            dsc = map(
+                lambda label: dsc_seg(seg == label, seg_i == label), [1, 2, 4]
+            )
+
+            nii.get_data()[:] = seg_i
+            save_nii(nii, os.path.join(path_i, p_i + '_uncert-seg.nii.gz'))
+
+            niiname = os.path.join(path_i, p_i + '_flair.nii.gz')
+            nii = load_nii(niiname)
+            nii.get_data()[:] = uncert_i
+            save_nii(nii, os.path.join(path_i, p_i + '_uncert.nii.gz'))
+
+            print(
+                'Patient %s: %s' % (p_i, ' / '.join(map(str, dsc)))
+            )
 
         print(
             '%s[%s] %sStarting training (%ssegmentation%s)%s' % (
@@ -441,7 +455,7 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
     try:
         net.base_model.load_model(os.path.join(d_path, model_name))
     except IOError:
-        num_workers = 16
+        num_workers = 8
 
         n_params = sum(
             p.numel() for p in net.base_model.parameters() if p.requires_grad
@@ -579,7 +593,7 @@ def main():
             c['c'], strftime("%H:%M:%S"), c['g'], n_folds, c['nc']
         )
     )
-    # train_test_survival(net_name, n_folds)
+    train_test_survival(net_name, n_folds)
 
     ''' <Segmentation task> '''
     print(
