@@ -180,45 +180,62 @@ class BratsSegmentationNet(nn.Module):
             if train:
                 self.optimizer_alg.zero_grad()
             pred_labels = self(x.to(self.device))
-            # y_r = (y > 0).type_as(y)
-            # pred_tmr = torch.sum(pred_labels[:, 1:, ...], dim=1)
-            # pred_bck = pred_labels[:, 0, ...]
-            # pred_r = torch.stack((pred_bck, pred_tmr), dim=1)
-            # batch_loss_t = multidsc_loss(
-            #     pred_labels, y.to(self.device), averaged=train
-            # )
-            # batch_loss_r = multidsc_loss(
-            #     pred_r, y_r.to(self.device), averaged=train
-            # )
+
+            # Regular class loss
+            batch_loss_c = multidsc_loss(
+                pred_labels, y.to(self.device), averaged=train
+            )
+
+            # Evaluated BraTS losses
+            pred_wt = torch.unsqueeze(
+                torch.sum(pred_labels[:, 1:, ...], dim=1), dim=0
+            )
+            y_wt = (y > 0).type_as(y)
+            batch_loss_wt = multidsc_loss(
+                pred_wt, y_wt.to(self.device), averaged=train
+            )
+
+            pred_tc = torch.unsqueeze(
+                pred_labels[:, 1, ...] + pred_labels[:, 1, ...], dim=0
+            )
+            y_tc = (y == 1).type_as(y) + (y == 3).type_as(y)
+            batch_loss_tc = multidsc_loss(
+                pred_tc, y_tc.to(self.device), averaged=train
+            )
+
+            pred_et = torch.unsqueeze(
+                pred_labels[:, 1, ...] + pred_labels[:, 1, ...], dim=0
+            )
+            y_et = (y == 1).type_as(y)
+            batch_loss_et = multidsc_loss(
+                pred_et, y_et.to(self.device), averaged=train
+            )
+
+            batch_loss_brats = batch_loss_wt + batch_loss_tc + batch_loss_et
+
             if train:
-                batch_loss = multidsc_loss(
-                    pred_labels, y.to(self.device), averaged=train
-                )
-                # batch_loss = batch_loss_r + batch_loss_t
+                # batch_loss = multidsc_loss(
+                #     pred_labels, y.to(self.device), averaged=train
+                # )
+                batch_loss = batch_loss_c + batch_loss_brats
                 batch_loss.backward()
                 self.optimizer_alg.step()
                 loss_value = batch_loss.tolist()
             else:
-                y_r = (y > 0).type_as(y)
-                pred_tmr = torch.sum(pred_labels[:, 1:, ...], dim=1)
-                pred_bck = pred_labels[:, 0, ...]
-                pred_r = torch.stack((pred_bck, pred_tmr), dim=1)
-                batch_loss_t = multidsc_loss(
-                    pred_labels, y.to(self.device), averaged=train
-                )
-                batch_loss_r = multidsc_loss(
-                    pred_r, y_r.to(self.device), averaged=train
-                )
-                batch_loss = multidsc_loss(
-                    pred_labels, y.to(self.device), averaged=True
-                )
                 # roi_value = torch.mean(batch_loss_r).tolist()
                 # tumor_value = torch.mean(batch_loss_t).tolist()
                 # loss_value = roi_value + tumor_value
+                batch_loss = (
+                        torch.mean(batch_loss_c) + batch_loss_brats
+                ).tolist()
                 loss_value = batch_loss.tolist()
-                dsc_r = 1 - batch_loss_r
-                dsc_t = 1 - batch_loss_t
-                mid_losses.append(torch.cat((dsc_t, dsc_r)).tolist())
+                dsc_c = 1 - batch_loss_c
+                dsc_wt = 1 - batch_loss_wt
+                dsc_tc = 1 - batch_loss_tc
+                dsc_et = 1 - batch_loss_et
+                mid_losses.append(torch.cat(
+                    (dsc_c, dsc_wt, dsc_tc, dsc_et)
+                ).tolist())
 
             torch.cuda.synchronize()
             torch.cuda.empty_cache()
@@ -309,7 +326,7 @@ class BratsSegmentationNet(nn.Module):
 
         l_names = [
             'train', ' val ', '  BCK ', '  NET ', '  ED  ', '  ET  ',
-            ' BCK  ', ' TMR  ', 'p_drop'
+            '  WT  ', '  TC  ', '  ET  ', 'p_drop'
         ]
         best_losses = [-np.inf] * (len(l_names))
         best_e = 0
