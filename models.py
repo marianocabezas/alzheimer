@@ -227,7 +227,7 @@ class BratsSegmentationNet(nn.Module):
                 # loss_value = roi_value + tumor_value
                 batch_loss = (
                         torch.mean(batch_loss_c) + batch_loss_brats
-                ).tolist()
+                )
                 loss_value = batch_loss.tolist()
                 dsc_c = 1 - batch_loss_c
                 dsc_wt = 1 - batch_loss_wt
