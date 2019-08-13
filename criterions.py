@@ -32,7 +32,8 @@ def multidsc_loss(pred, target, smooth=1, averaged=True):
             target = torch.stack(
                 map(lambda i: target == i, range(n_classes)), dim=1
             )
-        target = target.type_as(pred)
+
+    target = target.type_as(pred)
 
     reduce_dims = tuple(range(1, len(dims)))
     num = (2 * torch.sum(pred * target, dim=reduce_dims[1:])) + smooth
