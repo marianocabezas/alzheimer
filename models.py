@@ -190,25 +190,35 @@ class BratsSegmentationNet(nn.Module):
             pred_wt = torch.unsqueeze(
                 torch.sum(pred_labels[:, 1:, ...], dim=1), dim=1
             )
+            pred_nowt = torch.unsqueeze(
+                pred_labels[:, 0, ...], dim=1
+            )
             y_wt = (y > 0).type_as(y)
             batch_loss_wt = multidsc_loss(
-                pred_wt, y_wt.to(self.device), averaged=train
+                torch.stack((pred_nowt, pred_wt), dim=1), y_wt.to(self.device),
+                averaged=train
             )
 
             pred_tc = torch.unsqueeze(
                 pred_labels[:, 1, ...] + pred_labels[:, 3, ...], dim=1
             )
+            pred_notc = torch.unsqueeze(
+                pred_labels[:, 2, ...] + pred_labels[:, 4, ...], dim=1
+            )
             y_tc = (y == 1).type_as(y) + (y == 3).type_as(y)
             batch_loss_tc = multidsc_loss(
-                pred_tc, y_tc.to(self.device), averaged=train
+                torch.stack((pred_notc, pred_tc), dim=1), y_tc.to(self.device),
+                averaged=train
             )
 
-            pred_et = torch.unsqueeze(
-                pred_labels[:, 1, ...], dim=1
+            pred_et = pred_labels[:, 1, ...]
+            pred_noet = pred_labels[:, 0, ...] + torch.sum(
+                pred_labels[:, 2:, ...]
             )
             y_et = (y == 1).type_as(y)
             batch_loss_et = multidsc_loss(
-                pred_et, y_et.to(self.device), averaged=train
+                torch.stack((pred_noet, pred_et), dim=1), y_et.to(self.device),
+                averaged=train
             )
 
             # Final loss from BraTS
@@ -227,13 +237,13 @@ class BratsSegmentationNet(nn.Module):
                 # tumor_value = torch.mean(batch_loss_t).tolist()
                 # loss_value = roi_value + tumor_value
                 batch_loss = torch.squeeze(
-                        torch.mean(batch_loss_c) + batch_loss_brats
+                        torch.mean(batch_loss_c) + torch.mean(batch_loss_brats)
                 )
                 loss_value = batch_loss.tolist()
                 dsc_c = 1 - batch_loss_c
-                dsc_wt = 1 - batch_loss_wt
-                dsc_tc = 1 - batch_loss_tc
-                dsc_et = 1 - batch_loss_et
+                dsc_wt = 1 - batch_loss_wt[1]
+                dsc_tc = 1 - batch_loss_tc[1]
+                dsc_et = 1 - batch_loss_et[1]
                 mid_losses.append(torch.cat(
                     (dsc_c, dsc_wt, dsc_tc, dsc_et)
                 ).tolist())
