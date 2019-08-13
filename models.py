@@ -188,7 +188,7 @@ class BratsSegmentationNet(nn.Module):
 
             # Evaluated BraTS losses
             pred_wt = torch.unsqueeze(
-                torch.sum(pred_labels[:, 1:, ...], dim=1), dim=0
+                torch.sum(pred_labels[:, 1:, ...], dim=1), dim=1
             )
             y_wt = (y > 0).type_as(y)
             batch_loss_wt = multidsc_loss(
@@ -196,7 +196,7 @@ class BratsSegmentationNet(nn.Module):
             )
 
             pred_tc = torch.unsqueeze(
-                pred_labels[:, 1, ...] + pred_labels[:, 1, ...], dim=0
+                pred_labels[:, 1, ...] + pred_labels[:, 1, ...], dim=1
             )
             y_tc = (y == 1).type_as(y) + (y == 3).type_as(y)
             batch_loss_tc = multidsc_loss(
@@ -204,7 +204,7 @@ class BratsSegmentationNet(nn.Module):
             )
 
             pred_et = torch.unsqueeze(
-                pred_labels[:, 1, ...] + pred_labels[:, 1, ...], dim=0
+                pred_labels[:, 1, ...] + pred_labels[:, 1, ...], dim=1
             )
             y_et = (y == 1).type_as(y)
             batch_loss_et = multidsc_loss(
