@@ -196,7 +196,7 @@ class BratsSegmentationNet(nn.Module):
                 pred_wt, y_wt.to(self.device), averaged=train
             )
 
-            # TC = label 1 -ET- and 3 -NET+NCR- (4 in GT)
+            # TC = label 3 -ET- (4 in GT) and 1 -NET+NCR-
             pred_tc = torch.unsqueeze(
                 pred_labels[:, 1, ...] + pred_labels[:, 3, ...], dim=1
             )
@@ -207,9 +207,9 @@ class BratsSegmentationNet(nn.Module):
                 pred_tc, y_tc.to(self.device), averaged=train
             )
 
-            # ET = label 1 -ET-
-            pred_et = torch.unsqueeze(pred_labels[:, 1, ...], dim=1)
-            y_et = torch.unsqueeze((y == 1).type_as(y), dim=1)
+            # ET = label 3 -ET- (4 in GT)
+            pred_et = torch.unsqueeze(pred_labels[:, 3, ...], dim=1)
+            y_et = torch.unsqueeze((y == 3).type_as(y), dim=1)
             batch_loss_et = multidsc_loss(
                 pred_et, y_et.to(self.device), averaged=train
             )
