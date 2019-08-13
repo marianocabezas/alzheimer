@@ -196,7 +196,7 @@ class BratsSegmentationNet(nn.Module):
             )
 
             pred_tc = torch.unsqueeze(
-                pred_labels[:, 1, ...] + pred_labels[:, 1, ...], dim=1
+                pred_labels[:, 1, ...] + pred_labels[:, 3, ...], dim=1
             )
             y_tc = (y == 1).type_as(y) + (y == 3).type_as(y)
             batch_loss_tc = multidsc_loss(
