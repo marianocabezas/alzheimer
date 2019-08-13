@@ -211,6 +211,7 @@ class BratsSegmentationNet(nn.Module):
                 pred_et, y_et.to(self.device), averaged=train
             )
 
+            # Final loss from BraTS
             batch_loss_brats = batch_loss_wt + batch_loss_tc + batch_loss_et
 
             if train:
