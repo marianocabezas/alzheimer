@@ -176,7 +176,6 @@ class BratsSegmentationNet(nn.Module):
         n_batches = len(training)
         for batch_i, (x, y) in enumerate(training):
             # We train the model and check the loss
-            torch.cuda.synchronize()
             if train:
                 self.optimizer_alg.zero_grad()
             pred_labels = self(x.to(self.device))
@@ -240,9 +239,6 @@ class BratsSegmentationNet(nn.Module):
                 mid_losses.append(torch.cat(
                     (dsc_c, dsc_wt, dsc_tc, dsc_et)
                 ).tolist())
-
-            torch.cuda.synchronize()
-            torch.cuda.empty_cache()
 
             losses.append(loss_value)
 
