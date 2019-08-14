@@ -622,7 +622,7 @@ def main():
             c['c'], strftime("%H:%M:%S"), c['g'], n_folds, c['nc']
         )
     )
-    # train_test_survival(net_name, n_folds)
+    train_test_survival(net_name, n_folds)
 
     ''' <Segmentation task> '''
     print(
