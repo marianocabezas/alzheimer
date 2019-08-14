@@ -239,6 +239,7 @@ class BratsSegmentationNet(nn.Module):
                 mid_losses.append(torch.cat(
                     (dsc_c, dsc_wt, dsc_tc, dsc_et)
                 ).tolist())
+            torch.cuda.empty_cache()
 
             losses.append(loss_value)
 
