@@ -150,19 +150,19 @@ class BratsSegmentationNet(nn.Module):
         for c, p in zip(self.convlist, self.pooling):
             c.to(self.device)
             down = c(x)
-            drop = F.dropout(down, self.dropout, self.drop)
+            drop = F.dropout(down, p=self.dropout, training=self.drop)
             down_list.append(drop)
             p.to(self.device)
             x = p(drop)
 
         x = self.midconv(x)
-        x = F.dropout(x, self.dropout, self.drop)
+        x = F.dropout(x, p=self.dropout, training=self.drop)
 
         for d, prev in zip(self.deconvlist, down_list[::-1]):
             interp = F.interpolate(x, size=prev.shape[2:])
             d.to(self.device)
             x = d(torch.cat((prev, interp), dim=1))
-            x = F.dropout(x, self.dropout, self.drop)
+            x = F.dropout(x, p=self.dropout, training=self.drop)
 
         output = self.out(x)
         return output
