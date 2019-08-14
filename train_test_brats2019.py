@@ -13,10 +13,6 @@ from nibabel import save as save_nii
 from nibabel import load as load_nii
 from data_manipulation.metrics import dsc_seg
 from torch.utils.data import DataLoader
-import torch
-
-torch.backends.cudnn.benchmark = True
-
 
 def color_codes():
     codes = {
