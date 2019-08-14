@@ -428,6 +428,7 @@ class BratsSegmentationNet(nn.Module):
     ):
         # Init
         self.drop = False
+        self.dropout = 0
         self.to(device)
         self.eval()
         whites = ' '.join([''] * 12)
