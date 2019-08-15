@@ -674,7 +674,7 @@ class BBImageDataset(Dataset):
         else:
             bb = self.bb
 
-        inputs = self.cases[index][tuple([slice(None)] + bb)]
+        inputs = self.cases[index][(slice(None),) + bb]
         if flipped:
             inputs = np.fliplr(inputs).copy()
 
