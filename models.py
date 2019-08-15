@@ -184,7 +184,7 @@ class BratsSegmentationNet(nn.Module):
 
             # Regular class loss
             batch_loss_c = multidsc_loss(
-                pred_labels, y.to(self.device), averaged=train
+                pred_labels, y.to(self.device), averaged=False
             )
 
             # Evaluated BraTS losses
@@ -194,7 +194,7 @@ class BratsSegmentationNet(nn.Module):
             )
             y_wt = torch.unsqueeze((y > 0).type_as(y), dim=1)
             batch_loss_wt = multidsc_loss(
-                pred_wt, y_wt.to(self.device), averaged=train
+                pred_wt, y_wt.to(self.device),
             )
 
             # TC = label 3 -ET- (4 in GT) and 1 -NET+NCR-
@@ -205,42 +205,36 @@ class BratsSegmentationNet(nn.Module):
                 (y == 1).type_as(y) + (y == 3).type_as(y), dim=1
             )
             batch_loss_tc = multidsc_loss(
-                pred_tc, y_tc.to(self.device), averaged=train
+                pred_tc, y_tc.to(self.device),
             )
 
             # ET = label 3 -ET- (4 in GT)
             pred_et = torch.unsqueeze(pred_labels[:, 3, ...], dim=1)
             y_et = torch.unsqueeze((y == 3).type_as(y), dim=1)
             batch_loss_et = multidsc_loss(
-                pred_et, y_et.to(self.device), averaged=train
+                pred_et, y_et.to(self.device),
             )
 
             # Final loss from BraTS
             batch_loss_brats = batch_loss_wt + batch_loss_tc + batch_loss_et
+            batch_loss = torch.sum(batch_loss_c) + batch_loss_brats
+            loss_value = batch_loss.tolist()
 
             if train:
                 # batch_loss = multidsc_loss(
                 #     pred_labels, y.to(self.device), averaged=train
                 # )
-                batch_loss = batch_loss_c + batch_loss_brats
                 batch_loss.backward()
                 self.optimizer_alg.step()
-                loss_value = batch_loss.tolist()
             else:
                 # roi_value = torch.mean(batch_loss_r).tolist()
                 # tumor_value = torch.mean(batch_loss_t).tolist()
                 # loss_value = roi_value + tumor_value
-                batch_loss = torch.squeeze(
-                        torch.mean(batch_loss_c) + batch_loss_brats
-                )
-                loss_value = batch_loss.tolist()
-                dsc_c = 1 - batch_loss_c
-                dsc_wt = 1 - batch_loss_wt
-                dsc_tc = 1 - batch_loss_tc
-                dsc_et = 1 - batch_loss_et
-                mid_losses.append(torch.cat(
-                    (dsc_c, dsc_wt, dsc_tc, dsc_et)
-                ).tolist())
+                dsc = (1 - batch_loss_c).tolist()
+                dsc.append((1 - batch_loss_wt).tolist())
+                dsc.append((1 - batch_loss_tc).tolist())
+                dsc.append((1 - batch_loss_et).tolist())
+                mid_losses.append(dsc)
 
             torch.cuda.synchronize()
             torch.cuda.empty_cache()
