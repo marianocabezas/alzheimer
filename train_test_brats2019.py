@@ -480,10 +480,10 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
 
     # Training itself
     model_name = '%s-init.mdl' % net_name
+    num_workers = 8
     try:
         net.base_model.load_model(os.path.join(d_path, model_name))
     except IOError:
-        num_workers = 8
 
         n_params = sum(
             p.numel() for p in net.base_model.parameters() if p.requires_grad
