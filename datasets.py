@@ -765,7 +765,7 @@ class BBImageValueDataset(Dataset):
         else:
             bb = self.bb
 
-        images = self.cases[index][tuple([slice(None)] + bb)]
+        images = self.cases[index][(slice(None),) + bb]
         features = np.expand_dims(self.features[index], axis=0)
 
         if self.values is not None:
