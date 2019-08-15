@@ -237,9 +237,9 @@ class BratsSegmentationNet(nn.Module):
                 dsc_tc = 1 - batch_loss_tc
                 dsc_et = 1 - batch_loss_et
                 losses = dsc_c.tolist()
-                losses.append(dsc_wt)
-                losses.append(dsc_tc)
-                losses.append(dsc_et)
+                losses.append(dsc_wt.tolist())
+                losses.append(dsc_tc.tolist())
+                losses.append(dsc_et.tolist())
                 mid_losses.append(losses)
 
             torch.cuda.synchronize()
