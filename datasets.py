@@ -641,7 +641,7 @@ class BBImageDataset(Dataset):
             self.bb = map(
                 lambda (min_i, max_i): slice(min_i, max_i),
                 zip(min_bb, max_bb)
-            ),
+            )
         elif mode is 'max':
             min_bb = np.min(
                 map(
@@ -660,7 +660,7 @@ class BBImageDataset(Dataset):
             self.bb = map(
                 lambda (min_i, max_i): slice(min_i, max_i),
                 zip(min_bb, max_bb)
-            ),
+            )
 
     def __getitem__(self, index):
         if self.flip:
@@ -674,7 +674,7 @@ class BBImageDataset(Dataset):
         else:
             bb = self.bb
 
-        inputs = self.cases[index][(slice(None),) + bb]
+        inputs = self.cases[index][tuple([slice(None)] + bb)]
         if flipped:
             inputs = np.fliplr(inputs).copy()
 
@@ -765,7 +765,7 @@ class BBImageValueDataset(Dataset):
         else:
             bb = self.bb
 
-        images = self.cases[index][(slice(None),) + bb]
+        images = self.cases[index][tuple([slice(None)] + bb)]
         features = np.expand_dims(self.features[index], axis=0)
 
         if self.values is not None:
