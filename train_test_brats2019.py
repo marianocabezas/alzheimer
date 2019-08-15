@@ -206,8 +206,8 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
     tmc = filter(lambda p: 'TMC' in p, patients)
     b2013 = filter(lambda p: '2013' in p, patients)
 
-    # for i in range(n_folds):
-    for i in range(3, n_folds):
+    for i in range(n_folds):
+    # for i in range(3, n_folds):
     # for i in range(3):
         print(
             '%s[%s] %sFold %s(%s%d%s%s/%d)%s' % (
@@ -621,7 +621,7 @@ def main():
             c['c'], strftime("%H:%M:%S"), c['g'], n_folds, c['nc']
         )
     )
-    # train_test_survival(net_name, n_folds)
+    train_test_survival(net_name, n_folds)
 
     ''' <Segmentation task> '''
     print(
