@@ -237,7 +237,7 @@ class BratsSegmentationNet(nn.Module):
                 dsc_tc = 1 - batch_loss_tc
                 dsc_et = 1 - batch_loss_et
                 print(dsc_c, dsc_wt, dsc_tc, dsc_et)
-                print(dsc_c.shape.shape, dsc_wt.shape, dsc_tc.shape, dsc_et.shape)
+                print(dsc_c.shape, dsc_wt.shape, dsc_tc.shape, dsc_et.shape)
                 mid_losses.append(torch.cat(
                     (dsc_c, dsc_wt, dsc_tc, dsc_et)
                 ).tolist())
