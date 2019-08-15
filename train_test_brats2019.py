@@ -529,65 +529,65 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
 
         net.base_model.save_model(os.path.join(d_path, model_name))
 
-        ''' Survival training'''
-        # After that, we can finally train the model to predict the survival.
-        for i in range(n_folds):
-            ini_i = len(survival_patients) * i / n_folds
-            end_i = len(survival_patients) * (i + 1) / n_folds
-            fold_i = survival_patients[:ini_i] + survival_patients[end_i:]
-            survival_i = survivals[:ini_i] + survivals[end_i:]
-            n_fold = len(fold_i)
-            n_train = int(n_fold * (1 - val_split))
+    ''' Survival training'''
+    # After that, we can finally train the model to predict the survival.
+    for i in range(n_folds):
+        ini_i = len(survival_patients) * i / n_folds
+        end_i = len(survival_patients) * (i + 1) / n_folds
+        fold_i = survival_patients[:ini_i] + survival_patients[end_i:]
+        survival_i = survivals[:ini_i] + survivals[end_i:]
+        n_fold = len(fold_i)
+        n_train = int(n_fold * (1 - val_split))
 
-            # Data split (using numpy) for train and validation.
-            # We also compute the number of batches for both training and
-            # validation according to the batch size.
-            # Training
-            train_i = fold_i[:n_train]
-            train_ages = survival_ages[:n_train]
-            train_survival = survival_i[:n_train]
+        # Data split (using numpy) for train and validation.
+        # We also compute the number of batches for both training and
+        # validation according to the batch size.
+        # Training
+        train_i = fold_i[:n_train]
+        train_ages = survival_ages[:n_train]
+        train_survival = survival_i[:n_train]
 
-            print('< Training dataset >')
-            train_data, train_rois = get_images(train_i)
-            train_dataset = BBImageValueDataset(
-                train_data, train_ages, train_survival, train_rois
+        print('< Training dataset >')
+        train_data, train_rois = get_images(train_i)
+        train_dataset = BBImageValueDataset(
+            train_data, train_ages, train_survival, train_rois
+        )
+
+        print('Dataloader creation <train>')
+        train_loader = DataLoader(
+            train_dataset, batch_size, True, num_workers=num_workers,
+        )
+
+        # Validation
+        val_i = fold_i[n_train:]
+        val_ages = survival_ages[n_train:]
+        val_survival = survival_i[n_train:]
+
+        print('< Validation dataset >')
+        val_data, val_rois = get_images(val_i)
+        val_dataset = BBImageValueDataset(
+            val_data, val_ages, val_survival, val_rois
+        )
+
+        print('Dataloader creation <val>')
+        val_loader = DataLoader(
+            val_dataset, 1, num_workers=num_workers
+        )
+
+        print(
+            'Training / validation samples = %d / %d' % (
+                len(train_dataset), len(val_dataset)
             )
+        )
 
-            print('Dataloader creation <train>')
-            train_loader = DataLoader(
-                train_dataset, batch_size, True, num_workers=num_workers,
+        net.fit(train_loader, val_loader, epochs=epochs, patience=patience)
+
+        print(
+            '%s[%s] %sFold %s(%s%d%s%s/%d)%s' % (
+                c['c'], strftime("%H:%M:%S"), c['g'],
+                c['c'], c['b'], i + 1, c['nc'], c['c'], n_folds, c['nc']
             )
-
-            # Validation
-            val_i = fold_i[n_train:]
-            val_ages = survival_ages[n_train:]
-            val_survival = survival_i[n_train:]
-
-            print('< Validation dataset >')
-            val_data, val_rois = get_images(val_i)
-            val_dataset = BBImageValueDataset(
-                val_data, val_ages, val_survival, val_rois
-            )
-
-            print('Dataloader creation <val>')
-            val_loader = DataLoader(
-                val_dataset, 1, num_workers=num_workers
-            )
-
-            print(
-                'Training / validation samples = %d / %d' % (
-                    len(train_dataset), len(val_dataset)
-                )
-            )
-
-            net.fit(train_loader, val_loader, epochs=epochs, patience=patience)
-
-            print(
-                '%s[%s] %sFold %s(%s%d%s%s/%d)%s' % (
-                    c['c'], strftime("%H:%M:%S"), c['g'],
-                    c['c'], c['b'], i + 1, c['nc'], c['c'], n_folds, c['nc']
-                )
-            )
+        )
 
 
 def main():
