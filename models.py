@@ -37,8 +37,8 @@ class BratsSegmentationNet(nn.Module):
             pool_size=2,
             depth=4,
             n_images=4,
-            dropout=0.5,
-            ann_rate=1e-2,
+            dropout=0.95,
+            ann_rate=5e-2,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -236,11 +236,11 @@ class BratsSegmentationNet(nn.Module):
                 dsc_wt = 1 - batch_loss_wt
                 dsc_tc = 1 - batch_loss_tc
                 dsc_et = 1 - batch_loss_et
-                print(dsc_c, dsc_wt, dsc_tc, dsc_et)
-                print(dsc_c.shape, dsc_wt.shape, dsc_tc.shape, dsc_et.shape)
-                mid_losses.append(torch.cat(
-                    (dsc_c, dsc_wt, dsc_tc, dsc_et)
-                ).tolist())
+                losses = dsc_c.tolist()
+                losses.append(dsc_wt)
+                losses.append(dsc_tc)
+                losses.append(dsc_et)
+                mid_losses.append(losses)
 
             torch.cuda.synchronize()
             torch.cuda.empty_cache()
