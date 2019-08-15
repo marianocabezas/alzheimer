@@ -493,7 +493,7 @@ class BratsSegmentationNet(nn.Module):
             cases = len(data)
             t_in = time.time()
             for i, data_i in enumerate(data):
-                outputs = []
+                outputs = np.zeros(data_i.shape[1:])
                 for e in range(steps):
                     # We test the model with the current batch
                     input_i = torch.unsqueeze(
@@ -506,7 +506,7 @@ class BratsSegmentationNet(nn.Module):
                     torch.cuda.synchronize()
                     torch.cuda.empty_cache()
 
-                    outputs.append(pred)
+                    outputs += pred
 
                     # Print stuff
                     if verbose:
@@ -536,7 +536,7 @@ class BratsSegmentationNet(nn.Module):
                         )
                         sys.stdout.flush()
 
-                mean_output = np.mean(outputs, axis=0)
+                mean_output = outputs / steps
                 entropy = - np.sum(mean_output * np.log(mean_output), axis=0)
 
                 entropy_results.append(entropy)
