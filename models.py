@@ -178,6 +178,8 @@ class BratsSegmentationNet(nn.Module):
             # We train the model and check the loss
             if train:
                 self.optimizer_alg.zero_grad()
+
+            torch.cuda.synchronize()
             pred_labels = self(x.to(self.device))
 
             # Regular class loss
@@ -239,6 +241,8 @@ class BratsSegmentationNet(nn.Module):
                 mid_losses.append(torch.cat(
                     (dsc_c, dsc_wt, dsc_tc, dsc_et)
                 ).tolist())
+
+            torch.cuda.synchronize()
             torch.cuda.empty_cache()
 
             losses.append(loss_value)
