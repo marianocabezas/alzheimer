@@ -548,7 +548,7 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
         train_survival = survival_i[:n_train]
 
         print('< Training dataset >')
-        train_data, train_rois = get_images(train_i)
+        train_rois, train_data = get_images(train_i)
         train_dataset = BBImageValueDataset(
             train_data, train_ages, train_survival, train_rois
         )
@@ -564,7 +564,7 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
         val_survival = survival_i[n_train:]
 
         print('< Validation dataset >')
-        val_data, val_rois = get_images(val_i)
+        val_rois, val_data = get_images(val_i)
         val_dataset = BBImageValueDataset(
             val_data, val_ages, val_survival, val_rois
         )
