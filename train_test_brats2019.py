@@ -463,8 +463,8 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
     survival_dict = get_survival_data()
     seg_patients = filter(lambda p: p not in survival_dict.keys(), patients)
     survival_patients = survival_dict.keys()
-    survival_ages = map(lambda v: v['Age'], survival_dict.values())
-    survivals = map(lambda v: v['Survival'], survival_dict.values())
+    survival_ages = map(lambda v: float(v['Age']), survival_dict.values())
+    survivals = map(lambda v: float(v['Survival']), survival_dict.values())
 
     ''' Segmentation training'''
     # The goal here is to pretrain a unique segmentation network for all
