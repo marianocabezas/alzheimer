@@ -633,7 +633,7 @@ class BBImageDataset(Dataset):
             )
             max_bb = np.min(
                 map(
-                    lambda idx: np.min(idx, axis=-1),
+                    lambda idx: np.max(idx, axis=-1),
                     indices
                 ),
                 axis=0
@@ -652,7 +652,7 @@ class BBImageDataset(Dataset):
             )
             max_bb = np.max(
                 map(
-                    lambda idx: np.min(idx, axis=-1),
+                    lambda idx: np.max(idx, axis=-1),
                     indices
                 ),
                 axis=0
@@ -730,7 +730,7 @@ class BBImageValueDataset(Dataset):
             )
             max_bb = np.min(
                 map(
-                    lambda idx: np.min(idx, axis=-1),
+                    lambda idx: np.max(idx, axis=-1),
                     indices
                 ),
                 axis=0
@@ -749,7 +749,7 @@ class BBImageValueDataset(Dataset):
             )
             max_bb = np.max(
                 map(
-                    lambda idx: np.min(idx, axis=-1),
+                    lambda idx: np.max(idx, axis=-1),
                     indices
                 ),
                 axis=0
