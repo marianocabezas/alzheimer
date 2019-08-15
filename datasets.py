@@ -738,7 +738,7 @@ class BBImageValueDataset(Dataset):
             self.bb = map(
                 lambda (min_i, max_i): slice(min_i, max_i),
                 zip(min_bb, max_bb)
-            ),
+            )
         elif mode is 'max':
             min_bb = np.min(
                 map(
@@ -757,7 +757,7 @@ class BBImageValueDataset(Dataset):
             self.bb = map(
                 lambda (min_i, max_i): slice(min_i, max_i),
                 zip(min_bb, max_bb)
-            ),
+            )
 
     def __getitem__(self, index):
         if len(self.bb) == len(self.cases):
