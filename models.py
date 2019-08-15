@@ -299,7 +299,6 @@ class BratsSegmentationNet(nn.Module):
     ):
         # Init
         self.to(device)
-        self.train()
 
         best_loss_tr = np.inf
         best_loss_val = np.inf
@@ -339,6 +338,7 @@ class BratsSegmentationNet(nn.Module):
         for self.epoch in range(epochs):
             # Main epoch loop
             self.t_train = time.time()
+            self.train()
             loss_tr = self.mini_batch_loop(train_loader)
             if loss_tr < best_loss_tr:
                 best_loss_tr = loss_tr
@@ -352,6 +352,7 @@ class BratsSegmentationNet(nn.Module):
                 tr_loss_s = '%0.5f' % loss_tr
 
             with torch.no_grad():
+                self.eval()
                 self.t_val = time.time()
                 loss_val, mid_losses = self.mini_batch_loop(val_loader, False)
 
