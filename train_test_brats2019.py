@@ -207,7 +207,8 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
     b2013 = filter(lambda p: '2013' in p, patients)
 
     # for i in range(n_folds):
-    for i in range(3,n_folds):
+    # for i in range(3, n_folds):
+    for i in range(3):
         print(
             '%s[%s] %sFold %s(%s%d%s%s/%d)%s' % (
                 c['c'], strftime("%H:%M:%S"), c['g'],
