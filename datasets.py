@@ -661,7 +661,6 @@ class BBImageDataset(Dataset):
                 lambda (min_i, max_i): slice(min_i, max_i),
                 zip(min_bb, max_bb)
             )
-            print(self.bb)
 
     def __getitem__(self, index):
         if self.flip:
@@ -759,6 +758,7 @@ class BBImageValueDataset(Dataset):
                 lambda (min_i, max_i): slice(min_i, max_i),
                 zip(min_bb, max_bb)
             )
+            print(self.bb)
 
     def __getitem__(self, index):
         if len(self.bb) == len(self.cases):
