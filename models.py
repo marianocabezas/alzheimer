@@ -217,7 +217,7 @@ class BratsSegmentationNet(nn.Module):
 
             # Final loss from BraTS
             batch_loss_brats = batch_loss_wt + batch_loss_tc + batch_loss_et
-            batch_loss = torch.sum(batch_loss_c) + batch_loss_brats
+            batch_loss = torch.mean(batch_loss_c) + batch_loss_brats
             loss_value = batch_loss.tolist()
 
             if train:
@@ -590,15 +590,10 @@ class BratsSurvivalNet(nn.Module):
                 nn.Conv3d(
                     init_features * (2 ** d),
                     init_features * (2 ** (d + 1)),
-                    kernel_size,
+                    1,
                 ),
                 nn.ReLU(),
-                nn.InstanceNorm3d(init_features * (2 ** (d + 1))),
-                nn.Conv3d(
-                    init_features * (2 ** d),
-                    init_features * (2 ** (d + 1)),
-                    pool_pred, stride=pool_pred
-                )
+                nn.InstanceNorm3d(init_features * (2 ** (d + 1)))
             ),
             range(depth_pred)
         )
