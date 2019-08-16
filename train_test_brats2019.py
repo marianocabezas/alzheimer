@@ -4,11 +4,12 @@ import os
 import csv
 from time import strftime
 import numpy as np
+from numpy import logical_not as log_not
 from models import BratsSegmentationNet, BratsSurvivalNet
 from datasets import BratsSegmentationCroppingDataset, BratsDataset
 from datasets import BBImageDataset, BBImageValueDataset
 from utils import color_codes, get_dirs
-from utils import get_mask, get_normalised_image
+from utils import get_mask, get_normalised_image, remove_small_regions
 from nibabel import save as save_nii
 from nibabel import load as load_nii
 from data_manipulation.metrics import dsc_seg
@@ -371,8 +372,15 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
         pred_y = net.segment(test_x)
 
         for (path_i, p_i, pred_i) in zip(patient_paths, test_patients, pred_y):
+
             seg_i = np.argmax(pred_i, axis=0)
             seg_i[seg_i == 3] = 4
+
+            tumor_mask = remove_small_regions(
+                seg_i.astype(np.bool), min_size=30
+            )
+
+            seg_i[log_not(tumor_mask)] = 0
 
             niiname = os.path.join(path_i, p_i + '_seg.nii.gz')
             nii = load_nii(niiname)
@@ -413,6 +421,16 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             enhance_i = pred_i[4]
             seg_i = np.argmax(pred_i, axis=0)
             seg_i[seg_i == 3] = 4
+
+            tumor_mask = remove_small_regions(
+                seg_i.astype(np.bool), min_size=30
+            )
+
+            seg_i[log_not(tumor_mask)] = 0
+
+            whole_i *= tumor_mask.astype(np.float32)
+            core_i *= tumor_mask.astype(np.float32)
+            enhance_i *= tumor_mask.astype(np.float32)
 
             niiname = os.path.join(path_i, p_i + '_seg.nii.gz')
             nii = load_nii(niiname)
