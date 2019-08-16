@@ -417,8 +417,8 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
                 patient_paths, test_patients, pred_y
         ):
             whole_i = np.sum(pred_i[1:])
-            core_i = pred_i[1] + pred_i[4]
-            enhance_i = pred_i[4]
+            core_i = pred_i[1] + pred_i[-1]
+            enhance_i = pred_i[-1]
             seg_i = np.argmax(pred_i, axis=0)
             seg_i[seg_i == 3] = 4
 
@@ -645,7 +645,7 @@ def main():
             c['c'], strftime("%H:%M:%S"), c['g'], n_folds, c['nc']
         )
     )
-    train_test_survival(net_name, n_folds)
+    # train_test_survival(net_name, n_folds)
 
     ''' <Segmentation task> '''
     print(
@@ -658,7 +658,7 @@ def main():
         filters_s, depth_s
     )
 
-    # train_test_seg(net_name, n_folds)
+    train_test_seg(net_name, n_folds)
 
 
 if __name__ == '__main__':
