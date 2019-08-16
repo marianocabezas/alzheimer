@@ -217,14 +217,14 @@ class BratsSegmentationNet(nn.Module):
 
             # Final loss from BraTS
             batch_loss_brats = batch_loss_wt + batch_loss_tc + batch_loss_et
-            batch_loss = torch.mean(batch_loss_c) + batch_loss_brats
+            batch_loss = torch.sum(batch_loss_c) + batch_loss_brats
             loss_value = batch_loss.tolist()
 
             if train:
                 # batch_loss = multidsc_loss(
                 #     pred_labels, y.to(self.device), averaged=train
                 # )
-                batch_loss.backward()
+                ((1 + self.dropout) * batch_loss).backward()
                 self.optimizer_alg.step()
             else:
                 # roi_value = torch.mean(batch_loss_r).tolist()
@@ -338,11 +338,11 @@ class BratsSegmentationNet(nn.Module):
                 best_loss_tr = loss_tr
                 tr_loss_s = '\033[32m%0.5f\033[0m' % loss_tr
             else:
-                # Learning rate update
-                current_lr /= 10
-                self.optimizer_alg = optimizer_dict[optimizer](
-                    model_params, current_lr
-                ) if is_string else optimizer
+                # # Learning rate update
+                # current_lr /= 10
+                # self.optimizer_alg = optimizer_dict[optimizer](
+                #     model_params, current_lr
+                # ) if is_string else optimizer
                 tr_loss_s = '%0.5f' % loss_tr
 
             with torch.no_grad():
