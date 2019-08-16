@@ -591,9 +591,9 @@ class BratsSurvivalNet(nn.Module):
                     init_features * (2 ** d),
                     init_features * (2 ** (d + 1)),
                     1,
+                    groups=init_features * (2 ** d),
                 ),
-                nn.ReLU(),
-                nn.InstanceNorm3d(init_features * (2 ** (d + 1)))
+                nn.LeakyReLU(),
             ),
             range(depth_pred)
         )
@@ -602,12 +602,11 @@ class BratsSurvivalNet(nn.Module):
 
         self.linear = nn.Sequential(
             nn.Linear(end_features + n_features, dense_size),
-            nn.ReLU(),
-            nn.InstanceNorm1d(dense_size)
+            nn.LeakyReLU(),
         )
 
         self.out = nn.Sequential(
-            nn.Linear(dense_size, 1),
+            nn.Linear(dense_size // 2, 1),
             nn.ReLU()
         )
 
