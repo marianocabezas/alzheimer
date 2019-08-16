@@ -493,7 +493,7 @@ class BratsSegmentationNet(nn.Module):
             cases = len(data)
             t_in = time.time()
             for i, data_i in enumerate(data):
-                outputs = np.zeros(data_i.shape[1:])
+                outputs = np.zeros((4,) + data_i.shape[1:])
                 for e in range(steps):
                     # We test the model with the current batch
                     input_i = torch.unsqueeze(
