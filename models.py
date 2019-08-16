@@ -648,7 +648,9 @@ class BratsSurvivalNet(nn.Module):
                 self.optimizer_alg.zero_grad()
             # We train the model and check the loss
             pred_y = self(im.to(self.device), feat.to(self.device))
-            batch_loss = nn.MSELoss()(pred_y, y.to(self.device))
+            batch_loss = nn.MSELoss()(
+                pred_y, y.to(self.device).type_as(pred_y)
+            )
 
             if train:
                 batch_loss.backward()
