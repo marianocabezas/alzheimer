@@ -667,9 +667,6 @@ class BratsSurvivalNet(nn.Module):
                 batch_i, n_batches, loss_value, np.mean(losses), train
             )
 
-        if self.sampler is not None and train:
-            self.sampler.update()
-
         return np.mean(losses)
 
     def fit(
