@@ -624,7 +624,7 @@ class BratsSurvivalNet(nn.Module):
         self.global_pooling.to(self.device)
         im = self.global_pooling(im).view(im.shape[:2])
 
-        x = torch.cat((im, features), dim=1)
+        x = torch.cat((im, features.type_as(im)), dim=1)
 
         self.linear.to(self.device)
         x = self.linear(x)
