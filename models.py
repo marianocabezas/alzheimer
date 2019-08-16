@@ -403,7 +403,7 @@ class BratsSegmentationNet(nn.Module):
                 )
                 print(final_s)
 
-            if no_improv_e == patience:
+            if no_improv_e == int(patience / (1 - self.dropout)):
                 break
 
         self.epoch = best_e
