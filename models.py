@@ -606,7 +606,10 @@ class BratsSurvivalNet(nn.Module):
             nn.InstanceNorm1d(dense_size)
         )
 
-        self.out = nn.Linear(dense_size, 1)
+        self.out = nn.Sequential(
+            nn.Linear(dense_size, 1),
+            nn.Relu()
+        )
 
     def forward(self, im, features):
         for c, p in zip(self.base_model.convlist, self.base_model.pooling):
