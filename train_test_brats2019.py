@@ -412,9 +412,9 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
         # 2. {ID}_unc_whole.nii.gz (Uncertainty map associated with whole tumor)
         # 3. {ID}_unc_core.nii.gz (Uncertainty map associated with tumor core)
         # 4. {ID}_unc_enhance.nii.gz (Uncertainty map associated with enhancing tumor)
-        uncert_y, pred_y = net.uncertainty(test_x, steps=25)
-        for (path_i, p_i, pred_i, uncert_i) in zip(
-                patient_paths, test_patients, pred_y, uncert_y
+        pred_y = net.uncertainty(test_x, steps=25)
+        for (path_i, p_i, pred_i) in zip(
+                patient_paths, test_patients, pred_y
         ):
             whole_i = np.sum(pred_i[1:])
             core_i = pred_i[1] + pred_i[4]

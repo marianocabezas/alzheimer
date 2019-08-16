@@ -486,7 +486,6 @@ class BratsSegmentationNet(nn.Module):
         self.to(device)
         self.eval()
         whites = ' '.join([''] * 12)
-        entropy_results = []
         seg_results = []
 
         with torch.no_grad():
@@ -537,15 +536,12 @@ class BratsSegmentationNet(nn.Module):
                         sys.stdout.flush()
 
                 mean_output = outputs / steps
-                entropy = - np.sum(mean_output * np.log(mean_output), axis=0)
-
-                entropy_results.append(entropy)
                 seg_results.append(mean_output)
 
         if verbose:
             print('\033[K%sTesting finished succesfully' % whites)
 
-        return entropy_results, seg_results
+        return seg_results
 
     def save_model(self, net_name):
         torch.save(self.state_dict(), net_name)
