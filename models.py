@@ -70,6 +70,7 @@ class BratsSegmentationNet(nn.Module):
                 ),
                 # nn.LeakyReLU(),
                 nn.ReLU(),
+                # nn.LayerNorm3d(out),
                 # nn.InstanceNorm3d(out),
                 # nn.BatchNorm3d(out),
                 nn.Conv3d(
@@ -98,6 +99,7 @@ class BratsSegmentationNet(nn.Module):
             ),
             # nn.LeakyReLU(),
             nn.ReLU(),
+            # nn.LayerNorm3d(filters * (2 ** depth)),
             # nn.InstanceNorm3d(filters * (2 ** depth)),
             # nn.BatchNorm3d(filters * (2 ** depth)),
             nn.Conv3d(
@@ -121,6 +123,7 @@ class BratsSegmentationNet(nn.Module):
                 ),
                 # nn.LeakyReLU(),
                 nn.ReLU(),
+                # nn.LayerNorm3d(ini),
                 # nn.InstanceNorm3d(ini),
                 # nn.BatchNorm3d(ini),
                 nn.ConvTranspose3d(
@@ -217,7 +220,7 @@ class BratsSegmentationNet(nn.Module):
 
             # Final loss from BraTS
             batch_loss_brats = batch_loss_wt + batch_loss_tc + batch_loss_et
-            batch_loss = torch.sum(batch_loss_c) + batch_loss_brats
+            batch_loss = torch.mean(batch_loss_c) + batch_loss_brats
             loss_value = batch_loss.tolist()
 
             if train:
