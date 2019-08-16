@@ -583,7 +583,7 @@ class BratsSurvivalNet(nn.Module):
         )
 
         init_features = filters * (2 ** (depth_pred - 1))
-        end_features = filters * (2 ** (depth_pred))
+        end_features = init_features * (2 ** (depth_pred))
 
         self.pooling = map(
             lambda d: nn.Sequential(
