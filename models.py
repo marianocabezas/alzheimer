@@ -630,7 +630,6 @@ class BratsSurvivalNet(nn.Module):
         x = torch.cat((im, features.type_as(im)), dim=1)
 
         self.linear.to(self.device)
-        print(x.shape)
         x = self.linear(x)
 
         self.out.to(self.device)
