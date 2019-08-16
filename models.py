@@ -774,6 +774,32 @@ class BratsSurvivalNet(nn.Module):
                     self.epoch + 1, t_end_s, best_loss_tr, best_e)
             )
 
+    def print_progress(self, batch_i, n_batches, b_loss, mean_loss, train=True):
+        init_c = '\033[0m' if train else '\033[38;5;238m'
+        whites = ' '.join([''] * 12)
+        percent = 20 * (batch_i + 1) / n_batches
+        progress_s = ''.join(['-'] * percent)
+        remainder_s = ''.join([' '] * (20 - percent))
+        loss_name = 'train_loss' if train else 'val_loss'
+
+        if train:
+            t_out = time.time() - self.t_train
+        else:
+            t_out = time.time() - self.t_val
+        time_s = time_to_string(t_out)
+
+        t_eta = (t_out / (batch_i + 1)) * (n_batches - (batch_i + 1))
+        eta_s = time_to_string(t_eta)
+
+        batch_s = '%s%sEpoch %03d (%03d/%03d) [%s>%s] %s %f (%f) %s / ETA %s%s' % (
+            init_c, whites, self.epoch, batch_i + 1, n_batches,
+            progress_s, remainder_s,
+            loss_name, b_loss, mean_loss, time_s, eta_s, '\033[0m'
+        )
+        print('\033[K', end='')
+        print(batch_s, end='\r')
+        sys.stdout.flush()
+
     def save_model(self, net_name):
         torch.save(self.state_dict(), net_name)
 
