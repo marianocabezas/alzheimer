@@ -37,8 +37,8 @@ class BratsSegmentationNet(nn.Module):
             pool_size=2,
             depth=4,
             n_images=4,
-            dropout=0.975,
-            ann_rate=2.5e-2,
+            dropout=0.5,
+            ann_rate=1e-2,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -75,7 +75,7 @@ class BratsSegmentationNet(nn.Module):
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
-                    # groups=out
+                    groups=out
                 ),
                 # nn.LeakyReLU(),
                 nn.ReLU(),
@@ -104,7 +104,8 @@ class BratsSegmentationNet(nn.Module):
             nn.Conv3d(
                 filters * (2 ** depth),
                 filters * (2 ** (depth - 1)), kernel_size,
-                padding=padding
+                padding=padding,
+                groups=filters * (2 ** (depth - 1)),
             ),
             # nn.LeakyReLU(),
             nn.ReLU(),
@@ -127,7 +128,7 @@ class BratsSegmentationNet(nn.Module):
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
-                    # groups=out
+                    groups=out
                 ),
                 # nn.LeakyReLU(),
                 nn.ReLU(),
