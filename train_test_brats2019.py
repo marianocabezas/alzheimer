@@ -210,7 +210,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
     # for i in range(n_folds):
     # for i in range(3, n_folds):
     # for i in range(3):
-    for i in [0]:
+    for i in [3]:
         print(
             '%s[%s] %sFold %s(%s%d%s%s/%d)%s' % (
                 c['c'], strftime("%H:%M:%S"), c['g'],
