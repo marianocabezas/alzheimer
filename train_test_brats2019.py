@@ -411,10 +411,10 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
         # 2. {ID}_unc_whole.nii.gz (Uncertainty map associated with whole tumor)
         # 3. {ID}_unc_core.nii.gz (Uncertainty map associated with tumor core)
         # 4. {ID}_unc_enhance.nii.gz (Uncertainty map associated with enhancing tumor)
-        pred_y = net.uncertainty(test_x, steps=25)
-        for (path_i, p_i, pred_i) in zip(
-                patient_paths, test_patients, pred_y
+        for (path_i, p_i, test_i) in zip(
+                patient_paths, test_patients, test_x
         ):
+            pred_i = net.uncertainty([test_i], steps=25)[0]
             whole_i = np.sum(pred_i[1:])
             core_i = pred_i[1] + pred_i[-1]
             enhance_i = pred_i[-1]
@@ -693,7 +693,7 @@ def main():
             c['c'], strftime("%H:%M:%S"), c['g'], n_folds, c['nc']
         )
     )
-    # train_test_survival(net_name, n_folds)
+    train_test_survival(net_name, n_folds)
 
     ''' <Segmentation task> '''
     print(
@@ -706,7 +706,7 @@ def main():
         filters_s, depth_s
     )
 
-    train_test_seg(net_name, n_folds)
+    # train_test_seg(net_name, n_folds)
 
 
 if __name__ == '__main__':

@@ -39,6 +39,7 @@ class BratsSegmentationNet(nn.Module):
             n_images=4,
             dropout=0.95,
             ann_rate=5e-2,
+            final_dropout=0.2,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -48,6 +49,7 @@ class BratsSegmentationNet(nn.Module):
         self.ann_rate = ann_rate
         self.drop = False
         self.dropout = dropout
+        self.final_dropout = final_dropout
         self.sampler = None
         self.t_train = 0
         self.t_val = 0
@@ -195,15 +197,8 @@ class BratsSegmentationNet(nn.Module):
                 pred_tc, y_tc.to(self.device),
             )
 
-            # ET = label 3 -ET- (4 in GT)
-            pred_et = torch.unsqueeze(pred_labels[:, 3, ...], dim=1)
-            y_et = torch.unsqueeze((y == 3).type_as(y), dim=1)
-            batch_loss_et = multidsc_loss(
-                pred_et, y_et.to(self.device),
-            )
-
             # Final loss from BraTS
-            batch_loss_brats = batch_loss_wt + batch_loss_tc + batch_loss_et
+            batch_loss_brats = batch_loss_wt + batch_loss_tc
             batch_loss = torch.sum(batch_loss_c) + batch_loss_brats
             loss_value = batch_loss.tolist()
 
@@ -220,11 +215,9 @@ class BratsSegmentationNet(nn.Module):
                 dsc = (1 - batch_loss_c).tolist()
                 dsc.append((1 - batch_loss_wt).tolist())
                 dsc.append((1 - batch_loss_tc).tolist())
-                dsc.append((1 - batch_loss_et).tolist())
                 mid_losses.append(dsc)
 
             torch.cuda.synchronize()
-            torch.cuda.empty_cache()
 
             losses.append(loss_value)
 
@@ -270,7 +263,7 @@ class BratsSegmentationNet(nn.Module):
             optimizer='adabound',
             epochs=100,
             patience=10,
-            current_lr=0.5,
+            initial_lr=0.5,
             # weight_decay=1e-2,
             weight_decay=0,
             device=torch.device(
@@ -306,14 +299,14 @@ class BratsSegmentationNet(nn.Module):
         is_string = isinstance(optimizer, basestring)
 
         self.optimizer_alg = optimizer_dict[optimizer](
-            model_params, current_lr
+            model_params, initial_lr
         ) if is_string else optimizer
 
         t_start = time.time()
 
         l_names = [
             'train', ' val ', '  BCK ', '  NET ', '  ED  ', '  ET  ',
-            '  WT  ', '  TC  ', '  ET  ', 'p_drop'
+            '  WT  ', '  TC  ', 'p_drop'
         ]
         best_losses = [-np.inf] * (len(l_names))
         best_e = 0
@@ -371,7 +364,7 @@ class BratsSegmentationNet(nn.Module):
 
             drop_s = '{:8.5f}'.format(self.dropout)
             self.dropout = max(
-                0, self.dropout - self.ann_rate
+                self.final_dropout, self.dropout - self.ann_rate
             )
 
             if verbose:
@@ -431,7 +424,6 @@ class BratsSegmentationNet(nn.Module):
                 torch.cuda.synchronize()
                 pred = self(input_i).squeeze().tolist()
                 torch.cuda.synchronize()
-                torch.cuda.empty_cache()
 
                 results.append(pred)
 
@@ -492,7 +484,6 @@ class BratsSegmentationNet(nn.Module):
                     torch.cuda.synchronize()
                     pred = self(input_i).squeeze().tolist()
                     torch.cuda.synchronize()
-                    torch.cuda.empty_cache()
 
                     outputs += pred
 
@@ -648,7 +639,6 @@ class BratsSurvivalNet(nn.Module):
                 self.optimizer_alg.step()
 
             torch.cuda.synchronize()
-            torch.cuda.empty_cache()
 
             loss_value = batch_loss.tolist()
 
@@ -818,7 +808,6 @@ class BratsSurvivalNet(nn.Module):
                 torch.cuda.synchronize()
                 pred = self(inputd_i, inputf_i).squeeze().tolist()
                 torch.cuda.synchronize()
-                torch.cuda.empty_cache()
 
                 results.append(pred)
 
