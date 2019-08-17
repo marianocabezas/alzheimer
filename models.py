@@ -279,7 +279,7 @@ class BratsSegmentationNet(nn.Module):
             self,
             train_loader,
             val_loader,
-            optimizer='adabound',
+            optimizer='sgd',
             epochs=100,
             patience=10,
             current_lr=0.5,
