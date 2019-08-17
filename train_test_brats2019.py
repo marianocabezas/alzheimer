@@ -482,6 +482,7 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
     survival_dict = get_survival_data()
     seg_patients = filter(lambda p: p not in survival_dict.keys(), patients)
     survival_patients = survival_dict.keys()
+    
     survival_ages = map(lambda v: float(v['Age']), survival_dict.values())
     survivals = map(lambda v: float(v['Survival']), survival_dict.values())
 
@@ -548,71 +549,121 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
 
         net.base_model.save_model(os.path.join(d_path, model_name))
 
-    ''' Survival training'''
-    # After that, we can finally train the model to predict the survival.
-    for i in range(n_folds):
-        model_name = '%s_f%d.mdl' % (net_name, i)
-        print(
-            '%s[%s] %sFold %s(%s%d%s%s/%d)%s' % (
-                c['c'], strftime("%H:%M:%S"), c['g'],
-                c['c'], c['b'], i + 1, c['nc'], c['c'], n_folds, c['nc']
-            )
+    with open(os.path.join(options['loo_dir'], 'survival_results.csv'), 'w') as csvfile:
+        csvwriter = csv.writer(csvfile, delimiter=',')
+        # First we'll define the maximum bounding box, for training and testing
+        masks, _ = get_images(survival_patients)
+        indices = map(lambda mask: np.where(mask > 0), masks)
+        min_bb = np.min(
+            map(
+                lambda idx: np.min(idx, axis=-1),
+                indices
+            ),
+            axis=0
+        )
+        max_bb = np.max(
+            map(
+                lambda idx: np.max(idx, axis=-1),
+                indices
+            ),
+            axis=0
+        )
+        bb = map(
+            lambda (min_i, max_i): slice(min_i, max_i),
+            zip(min_bb, max_bb)
         )
 
-        try:
-            net.load_model(os.path.join(d_path, model_name))
-        except IOError:
-            ini_i = len(survival_patients) * i / n_folds
-            end_i = len(survival_patients) * (i + 1) / n_folds
-            fold_i = survival_patients[:ini_i] + survival_patients[end_i:]
-            survival_i = survivals[:ini_i] + survivals[end_i:]
-            n_fold = len(fold_i)
-            n_train = int(n_fold * (1 - val_split))
-
-            # Data split (using numpy) for train and validation.
-            # We also compute the number of batches for both training and
-            # validation according to the batch size.
-            # Training
-            train_i = fold_i[:n_train]
-            train_ages = survival_ages[:n_train]
-            train_survival = survival_i[:n_train]
-
-            print('< Training dataset >')
-            train_rois, train_data = get_images(train_i)
-            train_dataset = BBImageValueDataset(
-                train_data, train_ages, train_survival, train_rois
-            )
-
-            print('Dataloader creation <train>')
-            train_loader = DataLoader(
-                train_dataset, batch_size, True, num_workers=num_workers,
-            )
-
-            # Validation
-            val_i = fold_i[n_train:]
-            val_ages = survival_ages[n_train:]
-            val_survival = survival_i[n_train:]
-
-            print('< Validation dataset >')
-            val_rois, val_data = get_images(val_i)
-            val_dataset = BBImageValueDataset(
-                val_data, val_ages, val_survival, val_rois
-            )
-
-            print('Dataloader creation <val>')
-            val_loader = DataLoader(
-                val_dataset, 1, num_workers=num_workers
-            )
-
+        # After that, we can finally train the model to predict the survival.
+        for i in range(n_folds):
+            ''' Survival training'''
+            model_name = '%s_f%d.mdl' % (net_name, i)
             print(
-                'Training / validation samples = %d / %d' % (
-                    len(train_dataset), len(val_dataset)
+                '%s[%s] %sFold %s(%s%d%s%s/%d)%s' % (
+                    c['c'], strftime("%H:%M:%S"), c['g'],
+                    c['c'], c['b'], i + 1, c['nc'], c['c'], n_folds, c['nc']
                 )
             )
 
-            net.fit(train_loader, val_loader, epochs=epochs, patience=patience)
+            try:
+                net.load_model(os.path.join(d_path, model_name))
+            except IOError:
+                ini_i = len(survival_patients) * i / n_folds
+                end_i = len(survival_patients) * (i + 1) / n_folds
+                fold_i = survival_patients[:ini_i] + survival_patients[end_i:]
+                survival_i = survivals[:ini_i] + survivals[end_i:]
+                ages_i = survival_ages[:ini_i] + survival_ages[end_i:]
+                n_fold = len(fold_i)
+                n_train = int(n_fold * (1 - val_split))
 
-            net.save_model(os.path.join(d_path, model_name))
+                # Data split (using numpy) for train and validation.
+                # We also compute the number of batches for both training and
+                # validation according to the batch size.
+                # Training
+                train_i = fold_i[:n_train]
+                train_ages = ages_i[:n_train]
+                train_survival = survival_i[:n_train]
+
+                print('< Training dataset >')
+                train_rois, train_data = get_images(train_i)
+                train_dataset = BBImageValueDataset(
+                    train_data, train_ages, train_survival, train_rois, bb=bb
+                )
+
+                print('Dataloader creation <train>')
+                train_loader = DataLoader(
+                    train_dataset, batch_size, True, num_workers=num_workers,
+                )
+
+                # Validation
+                val_i = fold_i[n_train:]
+                val_ages = ages_i[n_train:]
+                val_survival = survival_i[n_train:]
+
+                print('< Validation dataset >')
+                val_rois, val_data = get_images(val_i)
+                val_dataset = BBImageValueDataset(
+                    val_data, val_ages, val_survival, val_rois, bb=bb
+                )
+
+                print('Dataloader creation <val>')
+                val_loader = DataLoader(
+                    val_dataset, 1, num_workers=num_workers
+                )
+
+                print(
+                    'Training / validation samples = %d / %d' % (
+                        len(train_dataset), len(val_dataset)
+                    )
+                )
+
+                net.fit(
+                    train_loader, val_loader, epochs=epochs, patience=patience
+                )
+
+                net.save_model(os.path.join(d_path, model_name))
+
+            ''' Survival testing '''
+            # Testing data
+            test_patients = survival_patients[ini_i:end_i]
+            test_survival = survivals[ini_i:end_i]
+            test_ages = survival_ages[ini_i:end_i]
+
+            _, test_data = get_images(test_patients)
+
+            print(
+                'Testing patients = %d' % (
+                    len(test_patients)
+                )
+            )
+
+            pred_y = net.predict(test_data, test_ages)
+            for p, survival_out, survival in zip(
+                    test_patients, pred_y, test_survival
+            ):
+                print(
+                    'Estimated survival = %f (%f)' % (survival_out, survival)
+                )
+                csvwriter.writerow([p, '%f' % float(survival_out)])
 
 
 def main():

@@ -699,11 +699,10 @@ class BBImageDataset(Dataset):
 class BBImageValueDataset(Dataset):
     def __init__(
             self,
-            cases, features, values, masks, sampler=False, mode='max',
+            cases, features, values, masks, bb=None, mode='max',
     ):
         # Init
         # Image and mask should be numpy arrays
-        self.sampler = sampler
         self.cases = cases
         self.features = features
         self.values = values
@@ -711,53 +710,55 @@ class BBImageValueDataset(Dataset):
         self.masks = masks
 
         indices = map(lambda mask: np.where(mask > 0), self.masks)
-
-        if mode is None:
-            self.bb = map(
-                lambda idx: map(
+        if bb is None:
+            if mode is None:
+                self.bb = map(
+                    lambda idx: map(
+                        lambda (min_i, max_i): slice(min_i, max_i),
+                        zip(np.min(idx, axis=-1), np.max(idx, axis=-1))
+                    ),
+                    indices
+                )
+            elif mode is 'min':
+                min_bb = np.max(
+                    map(
+                        lambda idx: np.min(idx, axis=-1),
+                        indices
+                    ),
+                    axis=0
+                )
+                max_bb = np.min(
+                    map(
+                        lambda idx: np.max(idx, axis=-1),
+                        indices
+                    ),
+                    axis=0
+                )
+                self.bb = map(
                     lambda (min_i, max_i): slice(min_i, max_i),
-                    zip(np.min(idx, axis=-1), np.max(idx, axis=-1))
-                ),
-                indices
-            )
-        elif mode is 'min':
-            min_bb = np.max(
-                map(
-                    lambda idx: np.min(idx, axis=-1),
-                    indices
-                ),
-                axis=0
-            )
-            max_bb = np.min(
-                map(
-                    lambda idx: np.max(idx, axis=-1),
-                    indices
-                ),
-                axis=0
-            )
-            self.bb = map(
-                lambda (min_i, max_i): slice(min_i, max_i),
-                zip(min_bb, max_bb)
-            )
-        elif mode is 'max':
-            min_bb = np.min(
-                map(
-                    lambda idx: np.min(idx, axis=-1),
-                    indices
-                ),
-                axis=0
-            )
-            max_bb = np.max(
-                map(
-                    lambda idx: np.max(idx, axis=-1),
-                    indices
-                ),
-                axis=0
-            )
-            self.bb = map(
-                lambda (min_i, max_i): slice(min_i, max_i),
-                zip(min_bb, max_bb)
-            )
+                    zip(min_bb, max_bb)
+                )
+            elif mode is 'max':
+                min_bb = np.min(
+                    map(
+                        lambda idx: np.min(idx, axis=-1),
+                        indices
+                    ),
+                    axis=0
+                )
+                max_bb = np.max(
+                    map(
+                        lambda idx: np.max(idx, axis=-1),
+                        indices
+                    ),
+                    axis=0
+                )
+                self.bb = map(
+                    lambda (min_i, max_i): slice(min_i, max_i),
+                    zip(min_bb, max_bb)
+                )
+            else:
+                self.bb = bb
 
     def __getitem__(self, index):
         if len(self.bb) == len(self.cases):
