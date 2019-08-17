@@ -140,19 +140,30 @@ class BratsSegmentationNet(nn.Module):
         for c, p in zip(self.convlist, self.pooling):
             c.to(self.device)
             down = c(x)
-            drop = F.dropout(down, p=self.dropout, training=self.drop)
-            down_list.append(drop)
-            p.to(self.device)
-            x = p(drop)
+            if self.drop:
+                print(self.drop, self.dropout)
+                drop = F.dropout(down, p=self.dropout, training=self.drop)
+                down_list.append(drop)
+                p.to(self.device)
+                x = p(drop)
+            else:
+                print(self.drop, self.dropout)
+                down_list.append(down)
+                p.to(self.device)
+                x = p(down)
 
         x = self.midconv(x)
-        x = F.dropout(x, p=self.dropout, training=self.drop)
+        if self.drop:
+            print(self.drop, self.dropout)
+            x = F.dropout(x, p=self.dropout, training=self.drop)
 
         for d, prev in zip(self.deconvlist, down_list[::-1]):
             interp = F.interpolate(x, size=prev.shape[2:])
             d.to(self.device)
             x = d(torch.cat((prev, interp), dim=1))
-            x = F.dropout(x, p=self.dropout, training=self.drop)
+            if self.drop:
+                print(self.drop, self.dropout)
+                x = F.dropout(x, p=self.dropout, training=self.drop)
 
         output = self.out(x)
         return output
@@ -539,10 +550,7 @@ class BratsSegmentationNet(nn.Module):
         torch.save(self.state_dict(), net_name)
 
     def load_model(self, net_name):
-        print(self.state_dict()['midconv.0.bias'])
-        print(torch.load(net_name)['midconv.0.bias'])
         self.load_state_dict(torch.load(net_name))
-        print(self.state_dict()['midconv.0.bias'])
 
 
 class BratsSurvivalNet(nn.Module):
