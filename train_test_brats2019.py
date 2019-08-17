@@ -50,6 +50,11 @@ def parse_inputs():
              'folder with all the patients.'
     )
     parser.add_argument(
+        '-v', '--validation-directory',
+        dest='val_dir', default='/home/mariano/DATA/Brats19ValidationData',
+        help='Directory containing the data for only testing'
+    )
+    parser.add_argument(
         '-e', '--epochs',
         dest='epochs',
         type=int,  default=10,
@@ -142,10 +147,10 @@ def get_survival_data():
     return final_dict
 
 
-def get_images(names):
+def get_images(names, test=False):
     options = parse_inputs()
     images = ['_flair.nii.gz', '_t1.nii.gz', '_t1ce.nii.gz', '_t2.nii.gz']
-    d_path = options['loo_dir']
+    d_path = options['val_dir'] if test else options['loo_dir']
     print('Loading rois...')
     brain_names = map(
         lambda p: os.path.join(
@@ -200,6 +205,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
     images = ['_flair.nii.gz', '_t1.nii.gz', '_t1ce.nii.gz', '_t2.nii.gz']
 
     d_path = options['loo_dir']
+    v_path = options['val_dir']
     patients = get_dirs(d_path)
 
     cbica = filter(lambda p: 'CBICA' in p, patients)
@@ -208,7 +214,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
     b2013 = filter(lambda p: '2013' in p, patients)
 
     # for i in range(n_folds):
-    for i in [1]:
+    for i in [0]:
         print(
             '%s[%s] %sFold %s(%s%d%s%s/%d)%s' % (
                 c['c'], strftime("%H:%M:%S"), c['g'],
@@ -324,7 +330,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
 
             net.save_model(os.path.join(d_path, model_name))
 
-        # Testing data
+        # Testing data (with GT)
         test_cbica = cbica[ini_cbica:end_cbica]
         test_tcia = tcia[ini_tcia:end_tcia]
         test_tmc = tmc[ini_tmc:end_tmc]
@@ -332,29 +338,10 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
         test_patients = test_cbica + test_tcia + test_tmc + test_b2013
 
         patient_paths = map(lambda p: os.path.join(d_path, p), test_patients)
-        brain_names = map(
-            lambda p: os.path.join(
-                d_path, p, p + '_t1.nii.gz'
-            ),
-            test_patients
-        )
-        brains_test = map(get_mask, brain_names)
-        test_x = map(
-            lambda (p, mask_i): np.stack(
-                map(
-                    lambda im: get_normalised_image(
-                        os.path.join(d_path, p, p + im),
-                        mask_i,
-                    ),
-                    images
-                ),
-                axis=0
-            ),
-            zip(test_patients, brains_test)
-        )
+        _, test_x = get_images(test_patients)
 
         print(
-            'Testing patients = %d' % (
+            'Testing patients (with GT) = %d' % (
                 len(test_patients)
             )
         )
@@ -368,40 +355,6 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
         # 2 for ED, 4 for ET, and 0 for everything else.
         # The participants are called to upload their segmentation labels
         # as a single multi-label file in nifti (.nii.gz) format.
-        for (path_i, p_i, test_i) in zip(patient_paths, test_patients, test_x):
-
-            pred_i = net.segment(test_i)[0]
-
-            seg_i = np.argmax(pred_i, axis=0)
-            seg_i[seg_i == 3] = 4
-
-            tumor_mask = remove_small_regions(
-                seg_i.astype(np.bool), min_size=30
-            )
-
-            seg_i[log_not(tumor_mask)] = 0
-
-            niiname = os.path.join(path_i, p_i + '_seg.nii.gz')
-            nii = load_nii(niiname)
-            seg = nii.get_data()
-
-            dsc = map(
-                lambda label: dsc_seg(seg == label, seg_i == label), [1, 2, 4]
-            )
-
-            nii.get_data()[:] = seg_i
-            save_nii(nii, os.path.join(d_path, p_i + '.nii.gz'))
-
-            print(
-                'Patient %s: %s' % (p_i, ' / '.join(map(str, dsc)))
-            )
-
-        print(
-            'Uncertainty patients = %d' % (
-                len(test_patients)
-            )
-        )
-
         # The participants are called to upload 4 nifti (.nii.gz) volumes
         # (3 uncertainty maps and 1 multi-class segmentation volume from
         # Task 1) onto CBICA's Image Processing Portal format. For example,
@@ -440,7 +393,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             )
 
             nii.get_data()[:] = seg_i
-            save_nii(nii, os.path.join(path_i, p_i + '_uncert-seg.nii.gz'))
+            save_nii(nii, os.path.join(path_i, p_i + '.nii.gz'))
 
             niiname = os.path.join(path_i, p_i + '_flair.nii.gz')
             nii = load_nii(niiname)
@@ -455,12 +408,57 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
                 'Patient %s: %s' % (p_i, ' / '.join(map(str, dsc)))
             )
 
+        # Testing data
+        test_patients = get_dirs(v_path)
+        patient_paths = map(
+            lambda p: os.path.join(v_path, p), test_patients
+        )
+        _, test_x = get_images(test_patients, True)
+
         print(
-            '%s[%s] %sStarting training (%ssegmentation%s)%s' % (
-                c['c'], strftime("%H:%M:%S"),
-                c['g'], c['b'], c['nc'] + c['g'], c['nc']
+            'Testing patients = %d' % (
+                len(test_patients)
             )
         )
+
+        for (path_i, p_i, test_i) in zip(
+                patient_paths, test_patients, test_x
+        ):
+            pred_i = net.uncertainty([test_i], steps=10)[0]
+            whole_i = np.sum(pred_i[1:])
+            core_i = pred_i[1] + pred_i[-1]
+            enhance_i = pred_i[-1]
+            seg_i = np.argmax(pred_i, axis=0)
+            seg_i[seg_i == 3] = 4
+
+            tumor_mask = remove_small_regions(
+                seg_i.astype(np.bool), min_size=30
+            )
+
+            seg_i[log_not(tumor_mask)] = 0
+
+            whole_i *= tumor_mask.astype(np.float32)
+            core_i *= tumor_mask.astype(np.float32)
+            enhance_i *= tumor_mask.astype(np.float32)
+
+            niiname = os.path.join(path_i, p_i + '_flair.nii.gz')
+            nii = load_nii(niiname)
+            nii.get_data()[:] = whole_i
+            save_nii(
+                nii, os.path.join(path_i, p_i + '_unc_whole-f%d.nii.gz' %i)
+            )
+            nii.get_data()[:] = core_i
+            save_nii(
+                nii, os.path.join(path_i, p_i + '_unc_core-f%d.nii.gz' %i)
+            )
+            nii.get_data()[:] = enhance_i
+            save_nii(
+                nii, os.path.join(path_i, p_i + '_unc_enhance-f%d.nii.gz' %i)
+            )
+
+            print(
+                'Patient %s: %s' % p_i
+            )
 
 
 def train_test_survival(net_name, n_folds, val_split=0.1):
