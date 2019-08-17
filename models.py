@@ -62,11 +62,10 @@ class BratsSegmentationNet(nn.Module):
             lambda i: n_images * 2 ** i, range(depth)
         )
         self.convlist = map(
-            lambda (ini, out, g): nn.Sequential(
+            lambda (ini, out): nn.Sequential(
                 nn.Conv3d(
                     ini, out, kernel_size,
                     padding=padding,
-                    # groups=g
                 ),
                 # nn.LeakyReLU(),
                 nn.ReLU(),
@@ -76,14 +75,14 @@ class BratsSegmentationNet(nn.Module):
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
-                    # groups=2 * g
+                    groups=out
                 ),
                 # nn.LeakyReLU(),
                 nn.ReLU(),
                 # nn.InstanceNorm3d(out),
                 # nn.BatchNorm3d(out),
             ),
-            zip([n_images] + filter_list[:-1], filter_list, groups_list)
+            zip([n_images] + filter_list[:-1], filter_list)
         )
         self.pooling = map(
             lambda f: nn.Conv3d(f, f, pool_size, stride=pool_size, groups=f),
@@ -115,11 +114,10 @@ class BratsSegmentationNet(nn.Module):
         self.midconv.to(self.device)
 
         self.deconvlist = map(
-            lambda (ini, out, g): nn.Sequential(
+            lambda (ini, out): nn.Sequential(
                 nn.ConvTranspose3d(
                     2 * ini, ini, kernel_size,
                     padding=padding,
-                    # groups=g
                 ),
                 # nn.LeakyReLU(),
                 nn.ReLU(),
@@ -129,17 +127,14 @@ class BratsSegmentationNet(nn.Module):
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
-                    # groups=g
+                    groups=out
                 ),
                 # nn.LeakyReLU(),
                 nn.ReLU(),
                 # nn.InstanceNorm3d(out),
                 # nn.BatchNorm3d(out),
             ),
-            zip(
-                filter_list[::-1], filter_list[-2::-1] + [filters],
-                groups_list[::-1]
-            )
+            zip(filter_list[::-1], filter_list[-2::-1] + [filters])
         )
 
         # Segmentation
@@ -283,7 +278,7 @@ class BratsSegmentationNet(nn.Module):
             self,
             train_loader,
             val_loader,
-            optimizer='adabound',
+            optimizer='adam',
             epochs=100,
             patience=10,
             current_lr=0.5,
@@ -312,7 +307,9 @@ class BratsSegmentationNet(nn.Module):
             'adadelta': lambda params, lr: torch.optim.Adadelta(
                 params, weight_decay=weight_decay
             ),
-            'adabound': AdaBound,
+            'adabound': lambda params, lr: AdaBound(
+                params, lr=lr, weight_decay=weight_decay
+            ),
         }
 
         model_params = filter(lambda p: p.requires_grad, self.parameters())
