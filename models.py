@@ -65,8 +65,7 @@ class BratsSegmentationNet(nn.Module):
                     padding=padding,
                 ),
                 nn.ReLU(),
-                nn.LayerNorm3d(out),
-                # nn.InstanceNorm3d(out),
+                nn.InstanceNorm3d(out),
                 # nn.BatchNorm3d(out),
                 nn.Conv3d(
                     out, out, kernel_size,
@@ -92,8 +91,7 @@ class BratsSegmentationNet(nn.Module):
                 padding=padding
             ),
             nn.ReLU(),
-            nn.LayerNorm3d(filters * (2 ** depth)),
-            # nn.InstanceNorm3d(filters * (2 ** depth)),
+            nn.InstanceNorm3d(filters * (2 ** depth)),
             # nn.BatchNorm3d(filters * (2 ** depth)),
             nn.Conv3d(
                 filters * (2 ** depth),
@@ -114,8 +112,7 @@ class BratsSegmentationNet(nn.Module):
                     padding=padding,
                 ),
                 nn.ReLU(),
-                nn.LayerNorm3d(ini),
-                # nn.InstanceNorm3d(ini),
+                nn.InstanceNorm3d(ini),
                 # nn.BatchNorm3d(ini),
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
