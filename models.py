@@ -58,9 +58,6 @@ class BratsSegmentationNet(nn.Module):
 
         # Down path
         filter_list = map(lambda i: filters * 2 ** i, range(depth))
-        groups_list = map(
-            lambda i: n_images * 2 ** i, range(depth)
-        )
         self.convlist = map(
             lambda (ini, out): nn.Sequential(
                 nn.Conv3d(
@@ -542,7 +539,10 @@ class BratsSegmentationNet(nn.Module):
         torch.save(self.state_dict(), net_name)
 
     def load_model(self, net_name):
+        print(self.state_dict())
+        print(torch.load(net_name))
         self.load_state_dict(torch.load(net_name))
+        print(self.state_dict())
 
 
 class BratsSurvivalNet(nn.Module):
