@@ -37,8 +37,8 @@ class BratsSegmentationNet(nn.Module):
             pool_size=2,
             depth=4,
             n_images=4,
-            dropout=0.5,
-            ann_rate=1e-2,
+            dropout=0.975,
+            ann_rate=2.5e-2,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -67,7 +67,6 @@ class BratsSegmentationNet(nn.Module):
                     ini, out, kernel_size,
                     padding=padding,
                 ),
-                # nn.LeakyReLU(),
                 nn.ReLU(),
                 # nn.LayerNorm3d(out),
                 # nn.InstanceNorm3d(out),
@@ -75,9 +74,8 @@ class BratsSegmentationNet(nn.Module):
                 nn.Conv3d(
                     out, out, kernel_size,
                     padding=padding,
-                    groups=out
+                    # groups=out
                 ),
-                # nn.LeakyReLU(),
                 nn.ReLU(),
                 # nn.InstanceNorm3d(out),
                 # nn.BatchNorm3d(out),
@@ -96,7 +94,6 @@ class BratsSegmentationNet(nn.Module):
                 filters * (2 ** depth), kernel_size,
                 padding=padding
             ),
-            # nn.LeakyReLU(),
             nn.ReLU(),
             # nn.LayerNorm3d(filters * (2 ** depth)),
             # nn.InstanceNorm3d(filters * (2 ** depth)),
@@ -105,9 +102,8 @@ class BratsSegmentationNet(nn.Module):
                 filters * (2 ** depth),
                 filters * (2 ** (depth - 1)), kernel_size,
                 padding=padding,
-                groups=filters * (2 ** (depth - 1)),
+                # groups=filters * (2 ** (depth - 1)),
             ),
-            # nn.LeakyReLU(),
             nn.ReLU(),
             # nn.InstanceNorm3d(filters * (2 ** (depth - 1))),
             # nn.BatchNorm3d(filters * (2 ** (depth - 1))),
@@ -120,7 +116,6 @@ class BratsSegmentationNet(nn.Module):
                     2 * ini, ini, kernel_size,
                     padding=padding,
                 ),
-                # nn.LeakyReLU(),
                 nn.ReLU(),
                 # nn.LayerNorm3d(ini),
                 # nn.InstanceNorm3d(ini),
@@ -128,9 +123,8 @@ class BratsSegmentationNet(nn.Module):
                 nn.ConvTranspose3d(
                     ini, out, kernel_size,
                     padding=padding,
-                    groups=out
+                    # groups=out
                 ),
-                # nn.LeakyReLU(),
                 nn.ReLU(),
                 # nn.InstanceNorm3d(out),
                 # nn.BatchNorm3d(out),
@@ -279,10 +273,10 @@ class BratsSegmentationNet(nn.Module):
             self,
             train_loader,
             val_loader,
-            optimizer='sgd',
+            optimizer='adabound',
             epochs=100,
             patience=10,
-            current_lr=1,
+            current_lr=0.5,
             # weight_decay=1e-2,
             weight_decay=0,
             device=torch.device(

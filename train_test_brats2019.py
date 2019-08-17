@@ -207,10 +207,10 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
     tmc = filter(lambda p: 'TMC' in p, patients)
     b2013 = filter(lambda p: '2013' in p, patients)
 
-    for i in range(n_folds):
+    # for i in range(n_folds):
     # for i in range(3, n_folds):
     # for i in range(3):
-    # for i in [1]:
+    for i in [1]:
         print(
             '%s[%s] %sFold %s(%s%d%s%s/%d)%s' % (
                 c['c'], strftime("%H:%M:%S"), c['g'],
@@ -655,7 +655,7 @@ def main():
         )
     )
 
-    net_name = 'brats2019-seg-groups%s%s' % (
+    net_name = 'brats2019-seg%s%s' % (
         filters_s, depth_s
     )
 
