@@ -218,6 +218,7 @@ class BratsSegmentationNet(nn.Module):
                 mid_losses.append(dsc)
 
             torch.cuda.synchronize()
+            torch.cuda.empty_cache()
 
             losses.append(loss_value)
 
@@ -424,6 +425,7 @@ class BratsSegmentationNet(nn.Module):
                 torch.cuda.synchronize()
                 pred = self(input_i).squeeze().tolist()
                 torch.cuda.synchronize()
+                torch.cuda.empty_cache()
 
                 results.append(pred)
 
@@ -484,6 +486,7 @@ class BratsSegmentationNet(nn.Module):
                     torch.cuda.synchronize()
                     pred = self(input_i).squeeze().tolist()
                     torch.cuda.synchronize()
+                    torch.cuda.empty_cache()
 
                     outputs += pred
 
@@ -639,6 +642,7 @@ class BratsSurvivalNet(nn.Module):
                 self.optimizer_alg.step()
 
             torch.cuda.synchronize()
+            torch.cuda.empty_cache()
 
             loss_value = batch_loss.tolist()
 
@@ -808,6 +812,7 @@ class BratsSurvivalNet(nn.Module):
                 torch.cuda.synchronize()
                 pred = self(inputd_i, inputf_i).squeeze().tolist()
                 torch.cuda.synchronize()
+                torch.cuda.empty_cache()
 
                 results.append(pred)
 
