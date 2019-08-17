@@ -208,7 +208,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
     b2013 = filter(lambda p: '2013' in p, patients)
 
     # for i in range(n_folds):
-    for i in [1]:
+    for i in [0]:
         print(
             '%s[%s] %sFold %s(%s%d%s%s/%d)%s' % (
                 c['c'], strftime("%H:%M:%S"), c['g'],
@@ -368,9 +368,9 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
         # 2 for ED, 4 for ET, and 0 for everything else.
         # The participants are called to upload their segmentation labels
         # as a single multi-label file in nifti (.nii.gz) format.
-        pred_y = net.segment(test_x)
+        for (path_i, p_i, test_i) in zip(patient_paths, test_patients, test_x):
 
-        for (path_i, p_i, pred_i) in zip(patient_paths, test_patients, pred_y):
+            pred_i = net.segment(test_i)[0]
 
             seg_i = np.argmax(pred_i, axis=0)
             seg_i[seg_i == 3] = 4
