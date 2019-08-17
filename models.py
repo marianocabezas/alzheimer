@@ -37,8 +37,8 @@ class BratsSegmentationNet(nn.Module):
             pool_size=2,
             depth=4,
             n_images=4,
-            dropout=0.975,
-            ann_rate=2.5e-2,
+            dropout=0.95,
+            ann_rate=5e-2,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -65,7 +65,7 @@ class BratsSegmentationNet(nn.Module):
                     padding=padding,
                 ),
                 nn.ReLU(),
-                # nn.LayerNorm3d(out),
+                nn.LayerNorm3d(out),
                 # nn.InstanceNorm3d(out),
                 # nn.BatchNorm3d(out),
                 nn.Conv3d(
@@ -92,7 +92,7 @@ class BratsSegmentationNet(nn.Module):
                 padding=padding
             ),
             nn.ReLU(),
-            # nn.LayerNorm3d(filters * (2 ** depth)),
+            nn.LayerNorm3d(filters * (2 ** depth)),
             # nn.InstanceNorm3d(filters * (2 ** depth)),
             # nn.BatchNorm3d(filters * (2 ** depth)),
             nn.Conv3d(
@@ -114,7 +114,7 @@ class BratsSegmentationNet(nn.Module):
                     padding=padding,
                 ),
                 nn.ReLU(),
-                # nn.LayerNorm3d(ini),
+                nn.LayerNorm3d(ini),
                 # nn.InstanceNorm3d(ini),
                 # nn.BatchNorm3d(ini),
                 nn.ConvTranspose3d(
@@ -140,30 +140,19 @@ class BratsSegmentationNet(nn.Module):
         for c, p in zip(self.convlist, self.pooling):
             c.to(self.device)
             down = c(x)
-            if self.drop:
-                print(self.drop, self.dropout)
-                drop = F.dropout(down, p=self.dropout, training=self.drop)
-                down_list.append(drop)
-                p.to(self.device)
-                x = p(drop)
-            else:
-                print(self.drop, self.dropout)
-                down_list.append(down)
-                p.to(self.device)
-                x = p(down)
+            drop = F.dropout3d(down, p=self.dropout, training=self.drop)
+            down_list.append(drop)
+            p.to(self.device)
+            x = p(drop)
 
         x = self.midconv(x)
-        if self.drop:
-            print(self.drop, self.dropout)
-            x = F.dropout(x, p=self.dropout, training=self.drop)
+        x = F.dropout3d(x, p=self.dropout, training=self.drop)
 
         for d, prev in zip(self.deconvlist, down_list[::-1]):
             interp = F.interpolate(x, size=prev.shape[2:])
             d.to(self.device)
             x = d(torch.cat((prev, interp), dim=1))
-            if self.drop:
-                print(self.drop, self.dropout)
-                x = F.dropout(x, p=self.dropout, training=self.drop)
+            x = F.dropout3d(x, p=self.dropout, training=self.drop)
 
         output = self.out(x)
         return output
