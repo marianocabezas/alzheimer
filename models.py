@@ -539,10 +539,10 @@ class BratsSegmentationNet(nn.Module):
         torch.save(self.state_dict(), net_name)
 
     def load_model(self, net_name):
-        print(self.state_dict())
-        print(torch.load(net_name))
+        print(self.state_dict()['midconv.0.bias'])
+        print(torch.load(net_name)['midconv.0.bias'])
         self.load_state_dict(torch.load(net_name))
-        print(self.state_dict())
+        print(self.state_dict()['midconv.0.bias'])
 
 
 class BratsSurvivalNet(nn.Module):
