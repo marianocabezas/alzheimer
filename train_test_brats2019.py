@@ -256,7 +256,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             )
         )
 
-        model_name = '%s-hybrid_f%d.mdl' % (net_name, i)
+        model_name = '%s-f%d.mdl' % (net_name, i)
         net = BratsSegmentationNet(depth=depth, filters=filters)
         try:
             net.load_model(os.path.join(d_path, model_name))
@@ -446,8 +446,6 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
 
             niiname = os.path.join(path_i, p_i + '_flair.nii.gz')
             nii = load_nii(niiname)
-            nii.get_data()[:] = uncert_i
-            save_nii(nii, os.path.join(path_i, p_i + '_uncert.nii.gz'))
             nii.get_data()[:] = whole_i
             save_nii(nii, os.path.join(path_i, p_i + '_unc_whole.nii.gz'))
             nii.get_data()[:] = core_i
@@ -677,9 +675,9 @@ def main():
 
     # Prepare the sufix that will be added to the results for the net and images
     n_folds = 5
-    filters_s = '-fold%d' % filters
+    filters_s = '-filt%d' % filters
     patch_s = '-ps%d' % patch_size if patch_size is not None else ''
-    depth_s = '-filt%d' % depth
+    depth_s = '-d%d' % depth
 
     print(
         '%s[%s] %s<BRATS 2019 pipeline testing>%s' % (
