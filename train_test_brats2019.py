@@ -121,10 +121,10 @@ def isint(s):
     # return s.isdigit()
 
 
-def get_survival_data():
+def get_survival_data(test=False):
     # Init
     options = parse_inputs()
-    path = options['loo_dir']
+    path = options['val_dir'] if test else options['loo_dir']
 
     with open(os.path.join(path, 'survival_data.csv')) as csvfile:
         csvreader = csv.reader(csvfile, delimiter=',')
@@ -473,13 +473,20 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
     filters = options['filters']
 
     d_path = options['loo_dir']
+    v_path = options['loo_dir']
     patients = get_dirs(d_path)
     survival_dict = get_survival_data()
     seg_patients = filter(lambda p: p not in survival_dict.keys(), patients)
     survival_patients = survival_dict.keys()
+
+    t_survival_dict = get_survival_data(True)
+    t_survival_patients = t_survival_dict.keys()
+    test_survivals = np.zeros(len(t_survival_patients))
     
     survival_ages = map(lambda v: float(v['Age']), survival_dict.values())
     survivals = map(lambda v: float(v['Survival']), survival_dict.values())
+
+    t_survival_ages = map(lambda v: float(v['Age']), t_survival_dict.values())
 
     ''' Segmentation training'''
     # The goal here is to pretrain a unique segmentation network for all
@@ -544,8 +551,11 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
 
         net.base_model.save_model(os.path.join(d_path, model_name))
 
-    with open(os.path.join(options['loo_dir'], 'survival_results.csv'), 'w') as csvfile:
+    tr_csv = os.path.join(options['loo_dir'], 'survival_results.csv')
+    val_csv = os.path.join(options['val_dir'], 'survival_results.csv')
+    with open(tr_csv, 'w') as csvfile, open(val_csv, 'w') as val_csvfile:
         csvwriter = csv.writer(csvfile, delimiter=',')
+        val_csvwriter = csv.writer(val_csvfile, delimiter=',')
         # First we'll define the maximum bounding box, for training and testing
         masks, _ = get_images(survival_patients)
         indices = map(lambda mask: np.where(mask > 0), masks)
@@ -646,7 +656,7 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
             _, test_data = get_images(test_patients)
 
             print(
-                'Testing patients = %d' % (
+                'Testing patients (with GT) = %d' % (
                     len(test_patients)
                 )
             )
@@ -659,6 +669,27 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
                     'Estimated survival = %f (%f)' % (survival_out, survival)
                 )
                 csvwriter.writerow([p, '%f' % float(survival_out)])
+
+            _, test_data = get_images(test_patients)
+
+            print(
+                'Testing patients = %d' % (
+                    len(test_patients)
+                )
+            )
+            pred_y = net.predict(test_data, test_ages)
+            test_survivals += np.array(pred_y)
+            for p, survival_out, s in zip(test_patients, pred_y, test_survivals):
+                print(
+                    'Estimated survival = %f (%f)' % (
+                        survival_out, s / (i + 1)
+                    )
+                )
+
+        test_survivals = test_survivals / n_folds
+        for p, survival_out in zip(test_patients, test_survivals):
+            print('Final estimated survival = %f' % survival_out)
+            val_csvwriter.writerow([p, '%f' % float(survival_out)])
 
 
 def main():
