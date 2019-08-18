@@ -757,8 +757,8 @@ class BBImageValueDataset(Dataset):
                     lambda (min_i, max_i): slice(min_i, max_i),
                     zip(min_bb, max_bb)
                 )
-            else:
-                self.bb = bb
+        else:
+            self.bb = bb
 
     def __getitem__(self, index):
         if len(self.bb) == len(self.cases):

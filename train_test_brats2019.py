@@ -6,7 +6,7 @@ from time import strftime
 import numpy as np
 from numpy import logical_not as log_not
 from models import BratsSegmentationNet, BratsSurvivalNet
-from datasets import BratsSegmentationCroppingDataset, BratsDataset
+from datasets import BratsDataset
 from datasets import BBImageDataset, BBImageValueDataset
 from utils import color_codes, get_dirs
 from utils import get_mask, get_normalised_image, remove_small_regions
@@ -355,6 +355,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
         # 2 for ED, 4 for ET, and 0 for everything else.
         # The participants are called to upload their segmentation labels
         # as a single multi-label file in nifti (.nii.gz) format.
+        #
         # The participants are called to upload 4 nifti (.nii.gz) volumes
         # (3 uncertainty maps and 1 multi-class segmentation volume from
         # Task 1) onto CBICA's Image Processing Portal format. For example,
@@ -691,7 +692,7 @@ def main():
             c['c'], strftime("%H:%M:%S"), c['g'], n_folds, c['nc']
         )
     )
-    # train_test_survival(net_name, n_folds)
+    train_test_survival(net_name, n_folds)
 
     ''' <Segmentation task> '''
     print(
@@ -704,7 +705,7 @@ def main():
         filters_s, depth_s
     )
 
-    train_test_seg(net_name, n_folds)
+    # train_test_seg(net_name, n_folds)
 
 
 if __name__ == '__main__':
