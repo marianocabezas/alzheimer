@@ -154,6 +154,7 @@ class BratsSegmentationNet(nn.Module):
             x = d(torch.cat((prev, interp), dim=1))
             x = F.dropout3d(x, p=self.dropout, training=self.drop)
 
+        self.out.to(self.device)
         output = self.out(x)
         return output
 
