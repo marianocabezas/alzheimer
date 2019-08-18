@@ -458,7 +458,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             )
 
             print(
-                'Patient %s: %s' % p_i
+                'Finished patient %s' % p_i
             )
 
 
