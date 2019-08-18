@@ -635,7 +635,11 @@ class BratsSurvivalNet(nn.Module):
         for batch_i, (im, feat, y) in enumerate(training):
             torch.cuda.synchronize()
             if train:
+                self.train()
+                self.base_model.eval()
                 self.optimizer_alg.zero_grad()
+            else:
+                self.eval()
             # We train the model and check the loss
             pred_y = self(im.to(self.device), feat.to(self.device))
             batch_loss = nn.MSELoss()(
@@ -722,7 +726,7 @@ class BratsSurvivalNet(nn.Module):
                 tr_loss_s = '%0.5f' % loss_tr
 
             with torch.no_grad():
-                self.t_val = time.time()
+                self.t_val = time.time()al()
                 loss_val = self.mini_batch_loop(val_loader, False)
 
             # Patience check
