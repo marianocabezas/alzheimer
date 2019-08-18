@@ -672,7 +672,6 @@ class BratsSurvivalNet(nn.Module):
     ):
         # Init
         self.train()
-
         self.base_model.eval()
 
         # Now we actually train the prediction network.

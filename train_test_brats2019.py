@@ -654,10 +654,11 @@ def test_seg_validation(net_name):
     options = parse_inputs()
     depth = options['blocks']
     filters = options['filters']
-    d_path = options['val_dir']
-    test_patients = get_dirs(d_path)
+    v_path = options['loo_dir']
+    v_path = options['val_dir']
+    test_patients = get_dirs(v_path)
     patient_paths = map(
-        lambda p: os.path.join(d_path, p), test_patients
+        lambda p: os.path.join(v_path, p), test_patients
     )
     _, test_x = get_images(test_patients, True)
 
