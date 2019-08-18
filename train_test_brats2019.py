@@ -630,12 +630,14 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
 
             print(
                 'Testing patients = %d' % (
-                    len(test_patients)
+                    len(t_survival_patients)
                 )
             )
             pred_y = net.predict(test_data, t_survival_ages, bb)
             test_survivals += np.array(pred_y)
-            for p, survival_out, s in zip(test_patients, pred_y, test_survivals):
+            for p, survival_out, s in zip(
+                    t_survival_patients, pred_y, test_survivals
+            ):
                 print(
                     'Estimated survival = %f (%f)' % (
                         survival_out, s / (i + 1)
@@ -769,7 +771,7 @@ def main():
             c['c'], strftime("%H:%M:%S"), c['g'], n_folds, c['nc']
         )
     )
-    # train_test_survival(net_name, n_folds)
+    train_test_survival(net_name, n_folds)
 
     ''' <Segmentation task> '''
     print(
@@ -784,7 +786,7 @@ def main():
 
     # train_test_seg(net_name, n_folds)
 
-    test_seg_validation(net_name)
+    # test_seg_validation(net_name)
 
 
 if __name__ == '__main__':
