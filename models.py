@@ -578,17 +578,8 @@ class BratsSurvivalNet(nn.Module):
 
         self.global_pooling = nn.AdaptiveAvgPool3d((1, 1, 1))
 
-        self.linear1 = nn.Sequential(
-            nn.Linear(end_features + n_features, dense_size),
-            nn.ReLU(),
-        )
-        self.linear2 = nn.Sequential(
-            nn.Linear(dense_size, dense_size // 2),
-            nn.ReLU(),
-        )
-
         self.out = nn.Sequential(
-            nn.Linear(dense_size // 2, 1),
+            nn.Linear(end_features + n_features, 1),
             nn.ReLU()
         )
 
@@ -612,14 +603,6 @@ class BratsSurvivalNet(nn.Module):
         drop = F.dropout(im, p=self.dropout, training=self.drop)
 
         x = torch.cat((drop, features.type_as(drop)), dim=1)
-
-        self.linear1.to(self.device)
-        x = self.linear1(x)
-        x = F.dropout(x, p=self.dropout, training=self.drop)
-
-        self.linear2.to(self.device)
-        x = self.linear2(x)
-        x = F.dropout(x, p=self.dropout, training=self.drop)
 
         self.out.to(self.device)
         output = self.out(x)
