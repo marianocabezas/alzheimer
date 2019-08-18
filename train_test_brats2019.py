@@ -136,13 +136,20 @@ def get_survival_data(test=False):
             }
             for p in csvreader
         }
-
-    final_dict = dict(
-        filter(
-            lambda (k, v): v['ResectionStatus'] == 'GTR' and isint(v['Survival']),
-            survivaldict.items()
+    if test:
+        final_dict = dict(
+            filter(
+                lambda (k, v): v['ResectionStatus'] == 'GTR',
+                survivaldict.items()
+            )
         )
-    )
+    else:
+        final_dict = dict(
+            filter(
+                lambda (k, v): v['ResectionStatus'] == 'GTR' and isint(v['Survival']),
+                survivaldict.items()
+            )
+        )
 
     return final_dict
 
