@@ -61,7 +61,7 @@ class BratsSegmentationNet(nn.Module):
 
         # Down path
         filter_list = map(lambda i: filters * 2 ** i, range(depth))
-        self.convlist = map(
+        self.convlist = nn.ModuleList(map(
             lambda (ini, out): nn.Sequential(
                 nn.Conv3d(
                     ini, out, kernel_size,
@@ -80,12 +80,14 @@ class BratsSegmentationNet(nn.Module):
                 # nn.BatchNorm3d(out),
             ),
             zip([n_images] + filter_list[:-1], filter_list)
+        ))
+        # self.pooling = map(
+        #     lambda f: nn.Conv3d(f, f, pool_size, stride=pool_size, groups=f),
+        #     filter_list
+        # )
+        self.pooling = nn.ModuleList(
+            [nn.AvgPool3d(pool_size)] * len(filter_list)
         )
-        self.pooling = map(
-            lambda f: nn.Conv3d(f, f, pool_size, stride=pool_size, groups=f),
-            filter_list
-        )
-        self.pooling = [nn.AvgPool3d(pool_size)] * len(filter_list)
 
         self.midconv = nn.Sequential(
             nn.Conv3d(
@@ -108,7 +110,7 @@ class BratsSegmentationNet(nn.Module):
         )
         self.midconv.to(self.device)
 
-        self.deconvlist = map(
+        self.deconvlist = nn.ModuleList(map(
             lambda (ini, out): nn.Sequential(
                 nn.ConvTranspose3d(
                     2 * ini, ini, kernel_size,
@@ -127,7 +129,7 @@ class BratsSegmentationNet(nn.Module):
                 # nn.BatchNorm3d(out),
             ),
             zip(filter_list[::-1], filter_list[-2::-1] + [filters])
-        )
+        ))
 
         # Segmentation
         self.out = nn.Sequential(
@@ -561,7 +563,7 @@ class BratsSurvivalNet(nn.Module):
         init_features = filters * (2 ** (depth_pred - 1))
         end_features = init_features * (2 ** (depth_pred))
 
-        self.pooling = map(
+        self.pooling = nn.ModuleList(map(
             lambda d: nn.Sequential(
                 nn.Conv3d(
                     init_features * (2 ** d),
@@ -572,7 +574,7 @@ class BratsSurvivalNet(nn.Module):
                 nn.SELU(),
             ),
             range(depth_pred)
-        )
+        ))
 
         self.global_pooling = nn.AdaptiveAvgPool3d((1, 1, 1))
 
