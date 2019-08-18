@@ -571,17 +571,23 @@ class BratsSurvivalNet(nn.Module):
                     1,
                     groups=init_features * (2 ** d),
                 ),
-                nn.ReLU(),
+                nn.SELU(),
             ),
             range(depth_pred)
         ))
 
         self.global_pooling = nn.AdaptiveAvgPool3d((1, 1, 1))
 
-        self.out = nn.Sequential(
-            nn.Linear(end_features + n_features, 1),
-            nn.ReLU()
+        self.linear1 = nn.Sequential(
+            nn.Linear(end_features + n_features, dense_size),
+            nn.SELU(),
         )
+        self.linear2 = nn.Sequential(
+            nn.Linear(dense_size, dense_size // 2),
+            nn.SELU(),
+        )
+
+        self.out = nn.Linear(dense_size // 2, 1)
 
     def forward(self, im, features):
         for c, p in zip(self.base_model.convlist, self.base_model.pooling):
@@ -604,6 +610,14 @@ class BratsSurvivalNet(nn.Module):
 
         x = torch.cat((drop, features.type_as(drop)), dim=1)
 
+        self.linear1.to(self.device)
+        x = self.linear1(x)
+        x = F.dropout(x, p=self.dropout, training=self.drop)
+
+        self.linear2.to(self.device)
+        x = self.linear2(x)
+        x = F.dropout(x, p=self.dropout, training=self.drop)
+
         self.out.to(self.device)
         output = self.out(x)
 
@@ -612,7 +626,7 @@ class BratsSurvivalNet(nn.Module):
     def mini_batch_loop(
             self, training, train=True
     ):
-        self.drop = False
+        self.drop = train
         losses = list()
         n_batches = len(training)
         for batch_i, (im, feat, y) in enumerate(training):
@@ -654,7 +668,7 @@ class BratsSurvivalNet(nn.Module):
             epochs=50,
             patience=5,
             initial_lr=0.1,
-            weight_decay=0,
+            weight_decay=1e-2,
             verbose=True
     ):
         # Init
