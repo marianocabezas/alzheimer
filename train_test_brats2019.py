@@ -654,7 +654,7 @@ def test_seg_validation(net_name):
     options = parse_inputs()
     depth = options['blocks']
     filters = options['filters']
-    v_path = options['loo_dir']
+    d_path = options['loo_dir']
     v_path = options['val_dir']
     test_patients = get_dirs(v_path)
     patient_paths = map(
@@ -768,7 +768,7 @@ def main():
             c['c'], strftime("%H:%M:%S"), c['g'], n_folds, c['nc']
         )
     )
-    train_test_survival(net_name, n_folds)
+    # train_test_survival(net_name, n_folds)
 
     ''' <Segmentation task> '''
     print(
@@ -783,7 +783,7 @@ def main():
 
     # train_test_seg(net_name, n_folds)
 
-    # test_seg_validation(net_name)
+    test_seg_validation(net_name)
 
 
 if __name__ == '__main__':
