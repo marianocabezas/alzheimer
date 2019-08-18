@@ -696,7 +696,11 @@ class BratsSurvivalNet(nn.Module):
         }
 
         for p in self.parameters():
-            print(p in self.base_model.parameters())
+            if p in self.base_model.parameters():
+                print('copy', p)
+            else:
+                print('nothing')
+
         model_params = filter(lambda p: p.requires_grad, self.parameters())
 
         is_string = isinstance(optimizer, basestring)
