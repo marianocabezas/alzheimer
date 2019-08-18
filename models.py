@@ -387,7 +387,9 @@ class BratsSegmentationNet(nn.Module):
                 break
 
         self.epoch = best_e
+        print(self.state_dict().values()[-1][:10])
         self.load_state_dict(best_state)
+        print(self.state_dict().values()[-1][:10])
         t_end = time.time() - t_start
         t_end_s = time_to_string(t_end)
         if verbose:
@@ -527,9 +529,12 @@ class BratsSegmentationNet(nn.Module):
         return seg_results
 
     def save_model(self, net_name):
+        print(self.state_dict().values()[-1][:10])
         torch.save(self.state_dict(), net_name)
+        print(self.state_dict().values()[-1][:10])
 
     def load_model(self, net_name):
+        print(self.state_dict().values()[-1][:10])
         self.load_state_dict(torch.load(net_name))
 
 

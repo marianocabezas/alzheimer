@@ -269,6 +269,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
 
         model_name = '%s-f%d.mdl' % (net_name, i)
         net = BratsSegmentationNet(depth=depth, filters=filters)
+
         try:
             net.load_model(os.path.join(d_path, model_name))
         except IOError:
