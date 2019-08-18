@@ -690,10 +690,10 @@ def test_seg_validation(net_name):
     for (path_i, p_i, test_i) in zip(
             patient_paths, test_patients, test_x
     ):
-        bck_i = np.zeros(test_x[0].shape)
-        net_i = np.zeros(test_x[0].shape)
-        ed_i = np.zeros(test_x[0].shape)
-        et_i = np.zeros(test_x[0].shape)
+        bck_i = np.zeros(test_i.shape[1:])
+        net_i = np.zeros(test_i.shape[1:])
+        ed_i = np.zeros(test_i.shape[1:])
+        et_i = np.zeros(test_i.shape[1:])
         for f in range(4):
             model_name = '%s-f%d.mdl' % (net_name, f)
             net = BratsSegmentationNet(depth=depth, filters=filters)
