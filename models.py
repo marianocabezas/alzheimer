@@ -726,7 +726,7 @@ class BratsSurvivalNet(nn.Module):
                 tr_loss_s = '%0.5f' % loss_tr
 
             with torch.no_grad():
-                self.t_val = time.time()al()
+                self.t_val = time.time()
                 loss_val = self.mini_batch_loop(val_loader, False)
 
             # Patience check
