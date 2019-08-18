@@ -667,7 +667,7 @@ class BratsSurvivalNet(nn.Module):
             epochs=50,
             patience=5,
             initial_lr=0.1,
-            weight_decay=0,
+            weight_decay=1e-2,
             verbose=True
     ):
         # Init
@@ -695,18 +695,16 @@ class BratsSurvivalNet(nn.Module):
             ),
         }
 
-        all_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
-        base_params = sum(p.numel() for p in self.base_model.parameters() if p.requires_grad)
         for p in self.base_model.parameters():
             p.requires_grad = False
-        new_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
 
         model_params = filter(lambda p: p.requires_grad, self.parameters())
 
         is_string = isinstance(optimizer, basestring)
 
         self.optimizer_alg = optimizer_dict[optimizer](
-            model_params, initial_lr) if is_string else optimizer
+            model_params, initial_lr
+        ) if is_string else optimizer
 
         t_start = time.time()
 
