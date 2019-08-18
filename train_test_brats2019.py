@@ -221,7 +221,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
     b2013 = filter(lambda p: '2013' in p, patients)
 
     # for i in range(n_folds):
-    for i in [1]:
+    for i in [0]:
         print(
             '%s[%s] %sFold %s(%s%d%s%s/%d)%s' % (
                 c['c'], strftime("%H:%M:%S"), c['g'],
@@ -338,21 +338,21 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
 
             net.save_model(os.path.join(d_path, model_name))
 
-        # Testing data (with GT)
-        test_cbica = cbica[ini_cbica:end_cbica]
-        test_tcia = tcia[ini_tcia:end_tcia]
-        test_tmc = tmc[ini_tmc:end_tmc]
-        test_b2013 = b2013[ini_b2013:end_b2013]
-        test_patients = test_cbica + test_tcia + test_tmc + test_b2013
-
-        patient_paths = map(lambda p: os.path.join(d_path, p), test_patients)
-        _, test_x = get_images(test_patients)
-
-        print(
-            'Testing patients (with GT) = %d' % (
-                len(test_patients)
-            )
-        )
+        # # Testing data (with GT)
+        # test_cbica = cbica[ini_cbica:end_cbica]
+        # test_tcia = tcia[ini_tcia:end_tcia]
+        # test_tmc = tmc[ini_tmc:end_tmc]
+        # test_b2013 = b2013[ini_b2013:end_b2013]
+        # test_patients = test_cbica + test_tcia + test_tmc + test_b2013
+        #
+        # patient_paths = map(lambda p: os.path.join(d_path, p), test_patients)
+        # _, test_x = get_images(test_patients)
+        #
+        # print(
+        #     'Testing patients (with GT) = %d' % (
+        #         len(test_patients)
+        #     )
+        # )
 
         # The sub-regions considered for evaluation are:
         #   1) the "enhancing tumor" (ET)
@@ -373,49 +373,49 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
         # 2. {ID}_unc_whole.nii.gz (Uncertainty map associated with whole tumor)
         # 3. {ID}_unc_core.nii.gz (Uncertainty map associated with tumor core)
         # 4. {ID}_unc_enhance.nii.gz (Uncertainty map associated with enhancing tumor)
-        for (path_i, p_i, test_i) in zip(
-                patient_paths, test_patients, test_x
-        ):
-            pred_i = net.uncertainty([test_i], steps=25)[0]
-            whole_i = np.sum(pred_i[1:])
-            core_i = pred_i[1] + pred_i[-1]
-            enhance_i = pred_i[-1]
-            seg_i = np.argmax(pred_i, axis=0)
-            seg_i[seg_i == 3] = 4
-
-            tumor_mask = remove_small_regions(
-                seg_i.astype(np.bool), min_size=30
-            )
-
-            seg_i[log_not(tumor_mask)] = 0
-
-            whole_i *= tumor_mask.astype(np.float32)
-            core_i *= tumor_mask.astype(np.float32)
-            enhance_i *= tumor_mask.astype(np.float32)
-
-            niiname = os.path.join(path_i, p_i + '_seg.nii.gz')
-            nii = load_nii(niiname)
-            seg = nii.get_data()
-
-            dsc = map(
-                lambda label: dsc_seg(seg == label, seg_i == label), [1, 2, 4]
-            )
-
-            nii.get_data()[:] = seg_i
-            save_nii(nii, os.path.join(path_i, p_i + '.nii.gz'))
-
-            niiname = os.path.join(path_i, p_i + '_flair.nii.gz')
-            nii = load_nii(niiname)
-            nii.get_data()[:] = whole_i
-            save_nii(nii, os.path.join(path_i, p_i + '_unc_whole.nii.gz'))
-            nii.get_data()[:] = core_i
-            save_nii(nii, os.path.join(path_i, p_i + '_unc_core.nii.gz'))
-            nii.get_data()[:] = enhance_i
-            save_nii(nii, os.path.join(path_i, p_i + '_unc_enhance.nii.gz'))
-
-            print(
-                'Patient %s: %s' % (p_i, ' / '.join(map(str, dsc)))
-            )
+        # for (path_i, p_i, test_i) in zip(
+        #         patient_paths, test_patients, test_x
+        # ):
+        #     pred_i = net.uncertainty([test_i], steps=25)[0]
+        #     whole_i = np.sum(pred_i[1:])
+        #     core_i = pred_i[1] + pred_i[-1]
+        #     enhance_i = pred_i[-1]
+        #     seg_i = np.argmax(pred_i, axis=0)
+        #     seg_i[seg_i == 3] = 4
+        #
+        #     tumor_mask = remove_small_regions(
+        #         seg_i.astype(np.bool), min_size=30
+        #     )
+        #
+        #     seg_i[log_not(tumor_mask)] = 0
+        #
+        #     whole_i *= tumor_mask.astype(np.float32)
+        #     core_i *= tumor_mask.astype(np.float32)
+        #     enhance_i *= tumor_mask.astype(np.float32)
+        #
+        #     niiname = os.path.join(path_i, p_i + '_seg.nii.gz')
+        #     nii = load_nii(niiname)
+        #     seg = nii.get_data()
+        #
+        #     dsc = map(
+        #         lambda label: dsc_seg(seg == label, seg_i == label), [1, 2, 4]
+        #     )
+        #
+        #     nii.get_data()[:] = seg_i
+        #     save_nii(nii, os.path.join(path_i, p_i + '.nii.gz'))
+        #
+        #     niiname = os.path.join(path_i, p_i + '_flair.nii.gz')
+        #     nii = load_nii(niiname)
+        #     nii.get_data()[:] = whole_i
+        #     save_nii(nii, os.path.join(path_i, p_i + '_unc_whole.nii.gz'))
+        #     nii.get_data()[:] = core_i
+        #     save_nii(nii, os.path.join(path_i, p_i + '_unc_core.nii.gz'))
+        #     nii.get_data()[:] = enhance_i
+        #     save_nii(nii, os.path.join(path_i, p_i + '_unc_enhance.nii.gz'))
+        #
+        #     print(
+        #         'Patient %s: %s' % (p_i, ' / '.join(map(str, dsc)))
+        #     )
 
         # Testing data
         test_patients = get_dirs(v_path)
@@ -481,7 +481,6 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
     filters = options['filters']
 
     d_path = options['loo_dir']
-    v_path = options['loo_dir']
     patients = get_dirs(d_path)
     survival_dict = get_survival_data()
     seg_patients = filter(lambda p: p not in survival_dict.keys(), patients)
@@ -732,7 +731,7 @@ def main():
             c['c'], strftime("%H:%M:%S"), c['g'], n_folds, c['nc']
         )
     )
-    train_test_survival(net_name, n_folds)
+    # train_test_survival(net_name, n_folds)
 
     ''' <Segmentation task> '''
     print(
@@ -745,7 +744,7 @@ def main():
         filters_s, depth_s
     )
 
-    # train_test_seg(net_name, n_folds)
+    train_test_seg(net_name, n_folds)
 
 
 if __name__ == '__main__':
