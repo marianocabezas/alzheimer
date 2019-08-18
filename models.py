@@ -695,11 +695,12 @@ class BratsSurvivalNet(nn.Module):
             ),
         }
 
-        for p in self.parameters():
-            if p in self.base_model.parameters():
-                print('copy', p)
-            else:
-                print('nothing')
+        all_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        base_params = sum(p.numel() for p in self.base_model.parameters() if p.requires_grad)
+        for p in self.base_model.parameters():
+            p.requires_grad = False
+        new_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        print(all_params, base_params, new_params)
 
         model_params = filter(lambda p: p.requires_grad, self.parameters())
 
