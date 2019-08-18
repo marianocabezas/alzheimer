@@ -670,14 +670,14 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
                 )
                 csvwriter.writerow([p, '%f' % float(survival_out)])
 
-            _, test_data = get_images(test_patients)
+            _, test_data = get_images(test_patients, True)
 
             print(
                 'Testing patients = %d' % (
                     len(test_patients)
                 )
             )
-            pred_y = net.predict(test_data, test_ages)
+            pred_y = net.predict(test_data, t_survival_ages)
             test_survivals += np.array(pred_y)
             for p, survival_out, s in zip(test_patients, pred_y, test_survivals):
                 print(
