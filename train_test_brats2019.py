@@ -656,6 +656,7 @@ def test_seg_validation(net_name):
     filters = options['filters']
     d_path = options['loo_dir']
     v_path = options['val_dir']
+    p = get_dirs(d_path)[0]
     test_patients = get_dirs(v_path)
     patient_paths = map(
         lambda p: os.path.join(v_path, p), test_patients
@@ -716,6 +717,11 @@ def test_seg_validation(net_name):
         enhance_i = unc_i[-1]
         seg_i = np.argmax(unc_i, axis=0)
         seg_i[seg_i == 3] = 4
+
+        niiname = os.path.join(d_path, p, p + '_seg.nii.gz')
+        nii = load_nii(niiname)
+        nii.get_data()[:] = seg_i
+        save_nii(nii, os.path.join(path_i, p_i + '.nii.gz'))
 
         niiname = os.path.join(path_i, p_i + '_flair.nii.gz')
         nii = load_nii(niiname)
