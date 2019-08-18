@@ -700,6 +700,75 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
             val_csvwriter.writerow([p, '%f' % float(survival_out)])
 
 
+def test_seg_validation(net_name):
+    # Init
+    c = color_codes()
+    options = parse_inputs()
+    depth = options['blocks']
+    filters = options['filters']
+    d_path = options['val_dir']
+    test_patients = get_dirs(d_path)
+    patient_paths = map(
+        lambda p: os.path.join(d_path, p), test_patients
+    )
+    _, test_x = get_images(test_patients, True)
+
+    print(
+        'Testing patients = %d' % (
+            len(test_patients)
+        )
+    )
+
+    for (path_i, p_i, test_i) in zip(
+            patient_paths, test_patients, test_x
+    ):
+        bck_i = np.zeros(test_x.shape[1:])
+        net_i = np.zeros(test_x.shape[1:])
+        ed_i = np.zeros(test_x.shape[1:])
+        et_i = np.zeros(test_x.shape[1:])
+        for f in range(4):
+            model_name = '%s_f%d.mdl' % (net_name, f)
+            net = BratsSegmentationNet(depth=depth, filters=filters)
+            net.load_model(os.path.join(d_path, model_name))
+
+            pred_fi = net.uncertainty([test_i], steps=10)[0]
+
+            if f in [0, 1, 3]:
+                net_i += (pred_fi[1] / 3)
+            if f < 3:
+                ed_i += (pred_fi[2] / 3)
+            ed_i += (pred_fi[3] / 4)
+            bck_i += (pred_fi[0] / 4)
+
+        unc_i = np.stack(
+            [bck_i, net_i, ed_i, et_i]
+        )
+        whole_i = np.sum(unc_i[1:])
+        core_i = unc_i[1] + unc_i[-1]
+        enhance_i = unc_i[-1]
+        seg_i = np.argmax(unc_i, axis=0)
+        seg_i[seg_i == 3] = 4
+
+        niiname = os.path.join(path_i, p_i + '_flair.nii.gz')
+        nii = load_nii(niiname)
+        nii.get_data()[:] = whole_i
+        save_nii(
+            nii, os.path.join(path_i, p_i + '_unc_whole.nii.gz')
+        )
+        nii.get_data()[:] = core_i
+        save_nii(
+            nii, os.path.join(path_i, p_i + '_unc_core.nii.gz')
+        )
+        nii.get_data()[:] = enhance_i
+        save_nii(
+            nii, os.path.join(path_i, p_i + '_unc_enhance.nii.gz')
+        )
+
+        print(
+            'Finished patient %s' % p_i
+        )
+
+
 def main():
     # Init
     c = color_codes()
@@ -731,7 +800,7 @@ def main():
             c['c'], strftime("%H:%M:%S"), c['g'], n_folds, c['nc']
         )
     )
-    train_test_survival(net_name, n_folds)
+    # train_test_survival(net_name, n_folds)
 
     ''' <Segmentation task> '''
     print(
@@ -745,6 +814,8 @@ def main():
     )
 
     # train_test_seg(net_name, n_folds)
+
+    test_seg_validation(net_name)
 
 
 if __name__ == '__main__':
