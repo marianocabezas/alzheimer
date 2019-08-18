@@ -433,7 +433,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             seg_i[seg_i == 3] = 4
 
             tumor_mask = remove_small_regions(
-                seg_i.astype(np.bool), min_size=30
+                seg_i.astype(np.bool), min_size=100
             )
 
             seg_i[log_not(tumor_mask)] = 0

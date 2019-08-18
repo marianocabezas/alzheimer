@@ -540,11 +540,13 @@ class BratsSurvivalNet(nn.Module):
             kernel_size=3,
             pool_seg=2,
             depth_seg=4,
-            pool_pred=2,
             depth_pred=4,
             n_images=4,
             n_features=1,
             dense_size=256,
+            dropout=0.95,
+            ann_rate=5e-2,
+            final_dropout=0,
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     ):
 
@@ -555,6 +557,11 @@ class BratsSurvivalNet(nn.Module):
         self.t_train = 0
         self.t_val = 0
         self.epoch = 0
+        # Annealed dropout
+        self.drop = False
+        self.dropout = dropout
+        self.final_dropout = final_dropout
+        self.ann_rate = ann_rate
 
         self.base_model = BratsSegmentationNet(
             filters=filters, kernel_size=kernel_size, pool_size=pool_seg,
@@ -601,21 +608,26 @@ class BratsSurvivalNet(nn.Module):
 
         self.base_model.midconv.to(self.device)
         im = self.base_model.midconv(im)
+        drop = F.dropout(im, p=self.dropout, training=self.drop)
 
         for p in self.pooling:
             p.to(self.device)
-            im = p(im)
+            im = p(drop)
+            drop = F.dropout(im, p=self.dropout, training=self.drop)
 
         self.global_pooling.to(self.device)
-        im = self.global_pooling(im).view(im.shape[:2])
+        im = self.global_pooling(drop).view(im.shape[:2])
+        drop = F.dropout(im, p=self.dropout, training=self.drop)
 
         x = torch.cat((im, features.type_as(im)), dim=1)
 
         self.linear1.to(self.device)
         x = self.linear1(x)
+        x = F.dropout(x, p=self.dropout, training=self.drop)
 
         self.linear2.to(self.device)
         x = self.linear2(x)
+        x = F.dropout(x, p=self.dropout, training=self.drop)
 
         self.out.to(self.device)
         output = self.out(x)
@@ -625,6 +637,7 @@ class BratsSurvivalNet(nn.Module):
     def mini_batch_loop(
             self, training, train=True
     ):
+        self.drop = train
         losses = list()
         n_batches = len(training)
         for batch_i, (im, feat, y) in enumerate(training):
@@ -661,6 +674,8 @@ class BratsSurvivalNet(nn.Module):
             optimizer='adadelta',
             epochs=50,
             patience=5,
+            initial_lr=0.5,
+            weight_decay=1e-2,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -679,21 +694,30 @@ class BratsSurvivalNet(nn.Module):
         best_state = deepcopy(self.state_dict())
 
         optimizer_dict = {
-            'adam': torch.optim.Adam,
-            'adadelta': torch.optim.Adadelta,
-            'adabound': AdaBound,
+            'adam': lambda params, lr: torch.optim.Adam(
+                params, lr=lr, weight_decay=weight_decay
+            ),
+            'sgd': lambda params, lr: torch.optim.SGD(
+                params, lr=lr, weight_decay=weight_decay
+            ),
+            'adadelta': lambda params, lr: torch.optim.Adadelta(
+                params, weight_decay=weight_decay
+            ),
+            'adabound': lambda params, lr: AdaBound(
+                params, lr=lr, weight_decay=weight_decay
+            ),
         }
 
         model_params = filter(lambda p: p.requires_grad, self.parameters())
 
         is_string = isinstance(optimizer, basestring)
 
-        self.optimizer_alg = optimizer_dict[optimizer](model_params) if is_string\
-            else optimizer
+        self.optimizer_alg = optimizer_dict[optimizer](
+            model_params, initial_lr) if is_string else optimizer
 
         t_start = time.time()
 
-        l_names = ['train', ' val ']
+        l_names = ['train', ' val ', 'pdrop']
         best_e = 0
 
         for self.epoch in range(epochs):
@@ -726,6 +750,10 @@ class BratsSurvivalNet(nn.Module):
 
             t_out = time.time() - self.t_train
             t_s = time_to_string(t_out)
+            drop_s = '{:8.5f}'.format(self.dropout)
+            self.dropout = max(
+                self.final_dropout, self.dropout - self.ann_rate
+            )
 
             if verbose:
                 print('\033[K', end='')
@@ -738,7 +766,7 @@ class BratsSurvivalNet(nn.Module):
                     print('%sEpoch num |  %s  |' % (whites, l_hdr))
                     print('%s----------|--%s--|' % (whites, l_bars))
                 final_s = whites + ' | '.join(
-                    [epoch_s, tr_loss_s, loss_s] + [t_s]
+                    [epoch_s, tr_loss_s, loss_s, drop_s] + [t_s]
                 )
                 print(final_s)
 
@@ -794,6 +822,8 @@ class BratsSurvivalNet(nn.Module):
         # Init
         self.to(device)
         self.eval()
+        self.drop = False
+        self.dropout = 0
         whites = ' '.join([''] * 12)
         results = []
 
