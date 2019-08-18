@@ -696,6 +696,8 @@ class BratsSurvivalNet(nn.Module):
             ),
         }
 
+        for p in self.parameters():
+            print(p in self.base_model.parameters())
         model_params = filter(lambda p: p.requires_grad, self.parameters())
 
         is_string = isinstance(optimizer, basestring)
