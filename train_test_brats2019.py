@@ -695,7 +695,7 @@ def test_seg_validation(net_name):
         ed_i = np.zeros(test_x[0].shape)
         et_i = np.zeros(test_x[0].shape)
         for f in range(4):
-            model_name = '%s_f%d.mdl' % (net_name, f)
+            model_name = '%s-f%d.mdl' % (net_name, f)
             net = BratsSegmentationNet(depth=depth, filters=filters)
             net.load_model(os.path.join(d_path, model_name))
 
