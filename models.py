@@ -818,14 +818,10 @@ class BratsSurvivalNet(nn.Module):
             for i, (data_i, feat_i) in enumerate(zip(data, features)):
 
                 # We test the model with the current batch
-                inputd_i = torch.unsqueeze(
-                    to_torch_var(
-                        data_i[tuple([slice(None)] + bb)], self.device
-                    ), 0
+                inputd_i = to_torch_var(
+                        [data_i[tuple([slice(None)] + bb)]], self.device
                 )
-                inputf_i = torch.unsqueeze(
-                    to_torch_var(feat_i, self.device), 0
-                )
+                inputf_i = [to_torch_var([feat_i], self.device)]
                 print(inputd_i.shape, inputf_i.shape)
                 torch.cuda.synchronize()
                 pred = self(inputd_i, inputf_i).squeeze().tolist()
