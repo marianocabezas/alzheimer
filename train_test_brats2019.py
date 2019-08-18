@@ -597,11 +597,12 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
                 )
             )
 
+            ini_i = len(survival_patients) * i / n_folds
+            end_i = len(survival_patients) * (i + 1) / n_folds
+
             try:
                 net.load_model(os.path.join(d_path, model_name))
             except IOError:
-                ini_i = len(survival_patients) * i / n_folds
-                end_i = len(survival_patients) * (i + 1) / n_folds
                 fold_i = survival_patients[:ini_i] + survival_patients[end_i:]
                 survival_i = survivals[:ini_i] + survivals[end_i:]
                 ages_i = survival_ages[:ini_i] + survival_ages[end_i:]
