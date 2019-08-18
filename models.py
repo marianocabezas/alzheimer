@@ -46,6 +46,7 @@ class BratsSegmentationNet(nn.Module):
     ):
         super(BratsSegmentationNet, self).__init__()
         # Init
+        self.to(device)
         self.ann_rate = ann_rate
         self.drop = False
         self.dropout = dropout
@@ -267,14 +268,9 @@ class BratsSegmentationNet(nn.Module):
             initial_lr=0.5,
             # weight_decay=1e-2,
             weight_decay=0,
-            device=torch.device(
-                "cuda:0" if torch.cuda.is_available() else "cpu"
-            ),
             verbose=True
     ):
         # Init
-        self.to(device)
-
         best_loss_tr = np.inf
         best_loss_val = np.inf
         no_improv_e = 0
@@ -387,9 +383,7 @@ class BratsSegmentationNet(nn.Module):
                 break
 
         self.epoch = best_e
-        print(self.state_dict().values()[-1][:10])
         self.load_state_dict(best_state)
-        print(self.state_dict().values()[-1][:10])
         t_end = time.time() - t_start
         t_end_s = time_to_string(t_end)
         if verbose:
@@ -402,15 +396,11 @@ class BratsSegmentationNet(nn.Module):
     def segment(
             self,
             data,
-            device=torch.device(
-                "cuda:0" if torch.cuda.is_available() else "cpu"
-            ),
             verbose=True
     ):
         # Init
         self.drop = False
         self.dropout = 0
-        self.to(device)
         self.eval()
         whites = ' '.join([''] * 12)
         results = []
@@ -460,15 +450,11 @@ class BratsSegmentationNet(nn.Module):
             data,
             dropout=0.5,
             steps=100,
-            device=torch.device(
-                "cuda:0" if torch.cuda.is_available() else "cpu"
-            ),
             verbose=True
     ):
         # Init
         self.drop = True
         self.dropout = dropout
-        self.to(device)
         self.eval()
         whites = ' '.join([''] * 12)
         seg_results = []
@@ -529,13 +515,12 @@ class BratsSegmentationNet(nn.Module):
         return seg_results
 
     def save_model(self, net_name):
-        print(self.state_dict().values()[-1][:10])
         torch.save(self.state_dict(), net_name)
-        print(self.state_dict().values()[-1][:10])
 
     def load_model(self, net_name):
         print(self.state_dict().values()[-1][:10])
         self.load_state_dict(torch.load(net_name))
+        print(self.state_dict().values()[-1][:10])
 
 
 class BratsSurvivalNet(nn.Module):
@@ -557,6 +542,7 @@ class BratsSurvivalNet(nn.Module):
 
         # Init
         super(BratsSurvivalNet, self).__init__()
+        self.to(device)
         self.device = device
         self.optimizer_alg = None
         self.t_train = 0
@@ -681,13 +667,9 @@ class BratsSurvivalNet(nn.Module):
             patience=5,
             initial_lr=0.1,
             weight_decay=0.1,
-            device=torch.device(
-                "cuda:0" if torch.cuda.is_available() else "cpu"
-            ),
             verbose=True
     ):
         # Init
-        self.to(device)
         self.train()
 
         self.base_model.eval()
@@ -820,13 +802,9 @@ class BratsSurvivalNet(nn.Module):
             data,
             features,
             bb,
-            device=torch.device(
-                "cuda:0" if torch.cuda.is_available() else "cpu"
-            ),
             verbose=True
     ):
         # Init
-        self.to(device)
         self.eval()
         self.drop = False
         self.dropout = 0
