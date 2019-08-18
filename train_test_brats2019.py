@@ -417,58 +417,6 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
                 'Patient %s: %s' % (p_i, ' / '.join(map(str, dsc)))
             )
 
-        # Testing data
-        test_patients = get_dirs(v_path)
-        patient_paths = map(
-            lambda p: os.path.join(v_path, p), test_patients
-        )
-        _, test_x = get_images(test_patients, True)
-
-        print(
-            'Testing patients = %d' % (
-                len(test_patients)
-            )
-        )
-
-        for (path_i, p_i, test_i) in zip(
-                patient_paths, test_patients, test_x
-        ):
-            pred_i = net.uncertainty([test_i], steps=10)[0]
-            whole_i = np.sum(pred_i[1:])
-            core_i = pred_i[1] + pred_i[-1]
-            enhance_i = pred_i[-1]
-            seg_i = np.argmax(pred_i, axis=0)
-            seg_i[seg_i == 3] = 4
-
-            tumor_mask = remove_small_regions(
-                seg_i.astype(np.bool), min_size=100
-            )
-
-            seg_i[log_not(tumor_mask)] = 0
-
-            whole_i *= tumor_mask.astype(np.float32)
-            core_i *= tumor_mask.astype(np.float32)
-            enhance_i *= tumor_mask.astype(np.float32)
-
-            niiname = os.path.join(path_i, p_i + '_flair.nii.gz')
-            nii = load_nii(niiname)
-            nii.get_data()[:] = whole_i
-            save_nii(
-                nii, os.path.join(path_i, p_i + '_unc_whole-f%d.nii.gz' %i)
-            )
-            nii.get_data()[:] = core_i
-            save_nii(
-                nii, os.path.join(path_i, p_i + '_unc_core-f%d.nii.gz' %i)
-            )
-            nii.get_data()[:] = enhance_i
-            save_nii(
-                nii, os.path.join(path_i, p_i + '_unc_enhance-f%d.nii.gz' %i)
-            )
-
-            print(
-                'Finished patient %s' % p_i
-            )
-
 
 def train_test_survival(net_name, n_folds, val_split=0.1):
     # Init
@@ -719,6 +667,25 @@ def test_seg_validation(net_name):
         )
     )
 
+    # The sub-regions considered for evaluation are:
+    #   1) the "enhancing tumor" (ET)
+    #   2) the "tumor core" (TC)
+    #   3) the "whole tumor" (WT)
+    #
+    # The provided segmentation labels have values of 1 for NCR & NET,
+    # 2 for ED, 4 for ET, and 0 for everything else.
+    # The participants are called to upload their segmentation labels
+    # as a single multi-label file in nifti (.nii.gz) format.
+    #
+    # The participants are called to upload 4 nifti (.nii.gz) volumes
+    # (3 uncertainty maps and 1 multi-class segmentation volume from
+    # Task 1) onto CBICA's Image Processing Portal format. For example,
+    # for each ID in the dataset, participants are expected to upload
+    # following 4 volumes:
+    # 1. {ID}.nii.gz (multi-class label map)
+    # 2. {ID}_unc_whole.nii.gz (Uncertainty map associated with whole tumor)
+    # 3. {ID}_unc_core.nii.gz (Uncertainty map associated with tumor core)
+    # 4. {ID}_unc_enhance.nii.gz (Uncertainty map associated with enhancing tumor)
     for (path_i, p_i, test_i) in zip(
             patient_paths, test_patients, test_x
     ):
