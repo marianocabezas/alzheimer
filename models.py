@@ -674,7 +674,7 @@ class BratsSurvivalNet(nn.Module):
             optimizer='sgd',
             epochs=50,
             patience=5,
-            initial_lr=0.5,
+            initial_lr=0.1,
             weight_decay=1e-2,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
