@@ -661,7 +661,7 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
                 )
             )
 
-            pred_y = net.predict(test_data, test_ages)
+            pred_y = net.predict(test_data, test_ages, bb)
             for p, survival_out, survival in zip(
                     test_patients, pred_y, test_survival
             ):
@@ -677,7 +677,7 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
                     len(test_patients)
                 )
             )
-            pred_y = net.predict(test_data, t_survival_ages)
+            pred_y = net.predict(test_data, t_survival_ages, bb)
             test_survivals += np.array(pred_y)
             for p, survival_out, s in zip(test_patients, pred_y, test_survivals):
                 print(

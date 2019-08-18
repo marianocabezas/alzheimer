@@ -814,6 +814,7 @@ class BratsSurvivalNet(nn.Module):
             self,
             data,
             features,
+            bb,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -834,7 +835,9 @@ class BratsSurvivalNet(nn.Module):
 
                 # We test the model with the current batch
                 inputd_i = torch.unsqueeze(
-                    to_torch_var(data_i, self.device), 0
+                    to_torch_var(
+                        data_i[tuple([slice(None)] + bb)], self.device
+                    ), 0
                 )
                 inputf_i = torch.unsqueeze(
                     to_torch_var(feat_i, self.device), 0
