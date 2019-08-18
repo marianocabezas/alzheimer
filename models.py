@@ -611,7 +611,7 @@ class BratsSurvivalNet(nn.Module):
         im = self.global_pooling(drop).view(im.shape[:2])
         drop = F.dropout(im, p=self.dropout, training=self.drop)
 
-        x = torch.cat((im, features.type_as(im)), dim=1)
+        x = torch.cat((drop, features.type_as(drop)), dim=1)
 
         self.linear1.to(self.device)
         x = self.linear1(x)
@@ -826,6 +826,7 @@ class BratsSurvivalNet(nn.Module):
                 inputf_i = torch.unsqueeze(
                     to_torch_var(feat_i, self.device), 0
                 )
+                print(inputd_i.shape, inputf_i.shape)
                 torch.cuda.synchronize()
                 pred = self(inputd_i, inputf_i).squeeze().tolist()
                 torch.cuda.synchronize()
