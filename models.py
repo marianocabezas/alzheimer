@@ -571,7 +571,7 @@ class BratsSurvivalNet(nn.Module):
                     1,
                     groups=init_features * (2 ** d),
                 ),
-                nn.SELU(),
+                nn.ReLU(),
             ),
             range(depth_pred)
         ))
@@ -580,11 +580,11 @@ class BratsSurvivalNet(nn.Module):
 
         self.linear1 = nn.Sequential(
             nn.Linear(end_features + n_features, dense_size),
-            nn.SELU(),
+            nn.ReLU(),
         )
         self.linear2 = nn.Sequential(
             nn.Linear(dense_size, dense_size // 2),
-            nn.SELU(),
+            nn.ReLU(),
         )
 
         self.out = nn.Linear(dense_size // 2, 1)
@@ -664,11 +664,11 @@ class BratsSurvivalNet(nn.Module):
             self,
             train_loader,
             val_loader,
-            optimizer='adam',
+            optimizer='adabound',
             epochs=50,
             patience=5,
             initial_lr=0.1,
-            weight_decay=1e-2,
+            weight_decay=1e-1,
             verbose=True
     ):
         # Init
