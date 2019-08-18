@@ -658,9 +658,6 @@ def test_seg_validation(net_name):
     v_path = options['val_dir']
     p = get_dirs(d_path)[0]
     test_patients = get_dirs(v_path)
-    patient_paths = map(
-        lambda p: os.path.join(v_path, p), test_patients
-    )
     _, test_x = get_images(test_patients, True)
 
     print(
@@ -688,9 +685,7 @@ def test_seg_validation(net_name):
     # 2. {ID}_unc_whole.nii.gz (Uncertainty map associated with whole tumor)
     # 3. {ID}_unc_core.nii.gz (Uncertainty map associated with tumor core)
     # 4. {ID}_unc_enhance.nii.gz (Uncertainty map associated with enhancing tumor)
-    for (path_i, p_i, test_i) in zip(
-            patient_paths, test_patients, test_x
-    ):
+    for (p_i, test_i) in zip(test_patients, test_x):
         bck_i = np.zeros(test_i.shape[1:])
         net_i = np.zeros(test_i.shape[1:])
         ed_i = np.zeros(test_i.shape[1:])
@@ -721,21 +716,21 @@ def test_seg_validation(net_name):
         niiname = os.path.join(d_path, p, p + '_seg.nii.gz')
         nii = load_nii(niiname)
         nii.get_data()[:] = seg_i
-        save_nii(nii, os.path.join(path_i, p_i + '.nii.gz'))
+        save_nii(nii, os.path.join(d_path, p_i + '.nii.gz'))
 
-        niiname = os.path.join(path_i, p_i + '_flair.nii.gz')
+        niiname = os.path.join(d_path, p_i + '_flair.nii.gz')
         nii = load_nii(niiname)
         nii.get_data()[:] = whole_i
         save_nii(
-            nii, os.path.join(path_i, p_i + '_unc_whole.nii.gz')
+            nii, os.path.join(d_path, p_i + '_unc_whole.nii.gz')
         )
         nii.get_data()[:] = core_i
         save_nii(
-            nii, os.path.join(path_i, p_i + '_unc_core.nii.gz')
+            nii, os.path.join(d_path, p_i + '_unc_core.nii.gz')
         )
         nii.get_data()[:] = enhance_i
         save_nii(
-            nii, os.path.join(path_i, p_i + '_unc_enhance.nii.gz')
+            nii, os.path.join(d_path, p_i + '_unc_enhance.nii.gz')
         )
 
         print(
@@ -774,7 +769,7 @@ def main():
             c['c'], strftime("%H:%M:%S"), c['g'], n_folds, c['nc']
         )
     )
-    train_test_survival(net_name, n_folds)
+    # train_test_survival(net_name, n_folds)
 
     ''' <Segmentation task> '''
     print(
@@ -789,7 +784,7 @@ def main():
 
     # train_test_seg(net_name, n_folds)
 
-    # test_seg_validation(net_name)
+    test_seg_validation(net_name)
 
 
 if __name__ == '__main__':
