@@ -535,7 +535,7 @@ class BratsSurvivalNet(nn.Module):
             n_images=4,
             n_features=1,
             dense_size=32,
-            dropout=0.5,
+            dropout=0.99,
             ann_rate=1e-2,
             final_dropout=0,
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -595,30 +595,19 @@ class BratsSurvivalNet(nn.Module):
             p.to(self.device)
             im = p(c(im))
 
-        self.base_model.midconv.to(self.device)
         im = self.base_model.midconv(im)
-        drop = F.dropout(im, p=self.dropout, training=self.drop)
+        drop = F.dropout3d(im, p=self.dropout, training=self.drop)
 
         for p in self.pooling:
             p.to(self.device)
             im = p(drop)
-            drop = F.dropout(im, p=self.dropout, training=self.drop)
+            drop = F.dropout3d(im, p=self.dropout, training=self.drop)
 
-        self.global_pooling.to(self.device)
-        im = self.global_pooling(drop).view(im.shape[:2])
-        drop = F.dropout(im, p=self.dropout, training=self.drop)
+        x = self.global_pooling(drop).view(im.shape[:2])
+        x = torch.cat((drop, features.type_as(x)), dim=1)
 
-        x = torch.cat((drop, features.type_as(drop)), dim=1)
-
-        self.linear1.to(self.device)
         x = self.linear1(x)
-        x = F.dropout(x, p=self.dropout, training=self.drop)
-
-        self.linear2.to(self.device)
         x = self.linear2(x)
-        x = F.dropout(x, p=self.dropout, training=self.drop)
-
-        self.out.to(self.device)
         output = self.out(x)
 
         return output
