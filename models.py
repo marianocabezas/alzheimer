@@ -268,7 +268,7 @@ class BratsSegmentationNet(nn.Module):
             optimizer='sgd',
             epochs=100,
             patience=10,
-            initial_lr=0.5,
+            initial_lr=1,
             weight_decay=1e-1,
             # weight_decay=0,
             verbose=True
