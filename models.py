@@ -202,13 +202,13 @@ class BratsSegmentationNet(nn.Module):
             )
 
             # Final loss from BraTS
-            batch_loss_brats = batch_loss_wt + batch_loss_tc[-1]
+            batch_loss_brats = batch_loss_wt + batch_loss_tc
 
             if train:
                 # batch_loss = multidsc_loss(
                 #     pred_labels, y.to(self.device), averaged=train
                 # )
-                batch_loss = batch_loss_wt + batch_loss_tc + batch_loss
+                batch_loss = torch.sum(batch_loss_c)
                 batch_loss.backward()
                 self.optimizer_alg.step()
             else:
