@@ -266,10 +266,10 @@ class BratsSegmentationNet(nn.Module):
             self,
             train_loader,
             val_loader,
-            optimizer='adam',
+            optimizer='adabound',
             epochs=100,
             patience=10,
-            initial_lr=1e-2,
+            initial_lr=1e-1,
             weight_decay=1e-2,
             # weight_decay=0,
             verbose=True
