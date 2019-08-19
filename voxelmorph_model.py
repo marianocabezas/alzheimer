@@ -122,12 +122,12 @@ class VoxelMorph(nn.Module):
         self.device = device
         # Down path of the unet
         conv_in = [2] + conv_filters[:-1]
-        self.conv = map(
+        self.conv = nn.ModuleList(map(
             lambda (f_in, f_out): nn.Conv3d(
                 f_in, f_out, 3, padding=1, stride=2
             ),
             zip(conv_in, conv_filters)
-        )
+        ))
         unet_filters = len(conv_filters)
         for c in self.conv:
             c.to(device)
@@ -138,7 +138,7 @@ class VoxelMorph(nn.Module):
         deconv_in = [conv_out] + map(
             sum, zip(deconv_filters[:unet_filters - 1], conv_in[::-1])
         )
-        self.deconv_u = map(
+        self.deconv_u = nn.ModuleList(map(
             lambda (f_in, f_out): nn.ConvTranspose3d(
                 f_in, f_out, 3, padding=1, stride=2
             ),
@@ -146,14 +146,14 @@ class VoxelMorph(nn.Module):
                 deconv_in,
                 deconv_filters[:unet_filters]
             )
-        )
+        ))
         for d in self.deconv_u:
             d.to(device)
             nn.init.kaiming_normal_(d.weight)
 
         # Extra DF path
         deconv_out = 2 + deconv_filters[unet_filters - 1]
-        self.deconv = map(
+        self.deconv = nn.ModuleList(map(
             lambda (f_in, f_out): nn.Conv3d(
                 f_in, f_out, 3, padding=1
             ),
@@ -161,7 +161,7 @@ class VoxelMorph(nn.Module):
                 [deconv_out] + deconv_filters[unet_filters:-1],
                 deconv_filters[unet_filters:]
             )
-        )
+        ))
         for d in self.deconv:
             d.to(device)
             nn.init.kaiming_normal_(d.weight)
