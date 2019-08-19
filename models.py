@@ -37,7 +37,7 @@ class BratsSegmentationNet(nn.Module):
             pool_size=2,
             depth=4,
             n_images=4,
-            dropout=0.5,
+            dropout=0.99,
             ann_rate=1e-2,
             final_dropout=0,
             device=torch.device(
@@ -163,7 +163,8 @@ class BratsSegmentationNet(nn.Module):
     def mini_batch_loop(
             self, training, train=True
     ):
-        self.drop = train
+        # self.drop = train
+        self.drop = False
         losses = list()
         mid_losses = list()
         n_batches = len(training)
@@ -270,11 +271,12 @@ class BratsSegmentationNet(nn.Module):
             epochs=100,
             patience=10,
             initial_lr=0.5,
-            weight_decay=1e-2,
-            # weight_decay=0,
+            # weight_decay=1e-2,
+            weight_decay=0,
             verbose=True
     ):
         # Init
+        current_lr = initial_lr
         best_loss_tr = np.inf
         best_loss_val = np.inf
         no_improv_e = 0
@@ -321,11 +323,12 @@ class BratsSegmentationNet(nn.Module):
                 best_loss_tr = loss_tr
                 tr_loss_s = '\033[32m%0.5f\033[0m' % loss_tr
             else:
-                # # Learning rate update
-                # current_lr /= 10
-                # self.optimizer_alg = optimizer_dict[optimizer](
-                #     model_params, current_lr
-                # ) if is_string else optimizer
+                # Learning rate update
+                if optimizer == 'sgd':
+                    current_lr /= 10
+                    self.optimizer_alg = optimizer_dict[optimizer](
+                        model_params, current_lr
+                    )
                 tr_loss_s = '%0.5f' % loss_tr
 
             with torch.no_grad():
