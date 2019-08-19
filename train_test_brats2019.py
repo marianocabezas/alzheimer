@@ -475,11 +475,11 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
 
         print('< Training dataset >')
         if patch_size is None:
-            train_dataset = BBImageDataset(
+            seg_dataset = BBImageDataset(
                 data, targets, rois, flip=True
             )
         else:
-            train_dataset = BoundarySegmentationCroppingDataset(
+            seg_dataset = BoundarySegmentationCroppingDataset(
                 data, targets, rois, patch_size
             )
 
