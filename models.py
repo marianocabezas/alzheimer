@@ -163,8 +163,7 @@ class BratsSegmentationNet(nn.Module):
     def mini_batch_loop(
             self, training, train=True
     ):
-        # self.drop = train
-        self.drop = False
+        self.drop = train
         losses = list()
         mid_losses = list()
         n_batches = len(training)
@@ -203,13 +202,13 @@ class BratsSegmentationNet(nn.Module):
             )
 
             # Final loss from BraTS
-            batch_loss_brats = batch_loss_wt + batch_loss_tc
+            batch_loss_brats = batch_loss_wt + batch_loss_tc[-1]
 
             if train:
                 # batch_loss = multidsc_loss(
                 #     pred_labels, y.to(self.device), averaged=train
                 # )
-                batch_loss = torch.sum(batch_loss_c)
+                batch_loss = batch_loss_wt + batch_loss_tc + batch_loss
                 batch_loss.backward()
                 self.optimizer_alg.step()
             else:
@@ -267,7 +266,7 @@ class BratsSegmentationNet(nn.Module):
             self,
             train_loader,
             val_loader,
-            optimizer='adam',
+            optimizer='adabound',
             epochs=100,
             patience=10,
             initial_lr=1e-1,
