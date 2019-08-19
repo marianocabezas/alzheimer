@@ -267,12 +267,12 @@ class BratsSegmentationNet(nn.Module):
             self,
             train_loader,
             val_loader,
-            optimizer='sgd',
+            optimizer='adam',
             epochs=100,
             patience=10,
-            initial_lr=0.5,
-            # weight_decay=1e-2,
-            weight_decay=0,
+            initial_lr=1e-2,
+            weight_decay=1e-2,
+            # weight_decay=0,
             verbose=True
     ):
         # Init
