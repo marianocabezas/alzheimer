@@ -604,7 +604,7 @@ class BratsSurvivalNet(nn.Module):
             drop = F.dropout3d(im, p=self.dropout, training=self.drop)
 
         x = self.global_pooling(drop).view(im.shape[:2])
-        x = torch.cat((drop, features.type_as(x)), dim=1)
+        x = torch.cat((x, features.type_as(x)), dim=1)
 
         x = self.linear1(x)
         x = self.linear2(x)
