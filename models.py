@@ -271,7 +271,7 @@ class BratsSegmentationNet(nn.Module):
             patience=10,
             initial_lr=1,
             # weight_decay=1e-2,
-            # weight_decay=0,
+            weight_decay=0,
             verbose=True
     ):
         # Init
