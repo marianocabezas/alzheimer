@@ -37,7 +37,7 @@ class BratsSegmentationNet(nn.Module):
             pool_size=2,
             depth=4,
             n_images=4,
-            dropout=0.99,
+            dropout=0.5,
             ann_rate=1e-2,
             final_dropout=0,
             device=torch.device(
@@ -269,8 +269,8 @@ class BratsSegmentationNet(nn.Module):
             optimizer='sgd',
             epochs=100,
             patience=10,
-            initial_lr=1,
-            weight_decay=1e-1,
+            initial_lr=0.5,
+            weight_decay=1e-2,
             # weight_decay=0,
             verbose=True
     ):
@@ -535,8 +535,8 @@ class BratsSurvivalNet(nn.Module):
             depth_pred=5,
             n_images=4,
             n_features=1,
-            dense_size=32,
-            dropout=0.99,
+            dense_size=256,
+            dropout=0.5,
             ann_rate=1e-2,
             final_dropout=0,
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -658,11 +658,11 @@ class BratsSurvivalNet(nn.Module):
             self,
             train_loader,
             val_loader,
-            optimizer='adam',
+            optimizer='adabound',
             epochs=50,
             patience=5,
             initial_lr=1e-1,
-            weight_decay=1e-1,
+            weight_decay=1e-2,
             verbose=True
     ):
         # Init
