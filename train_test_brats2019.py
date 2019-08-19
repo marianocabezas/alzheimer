@@ -6,7 +6,7 @@ from time import strftime
 import numpy as np
 from numpy import logical_not as log_not
 from models import BratsSegmentationNet, BratsSurvivalNet
-from datasets import BratsDataset
+from datasets import BratsDataset, BoundarySegmentationCroppingDataset
 from datasets import BBImageDataset, BBImageValueDataset
 from utils import color_codes, get_dirs
 from utils import get_mask, get_normalised_image, remove_small_regions
@@ -209,10 +209,8 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
     filters = options['filters']
     batch_size = options['batch_size']
     patch_size = options['patch_size']
-    images = ['_flair.nii.gz', '_t1.nii.gz', '_t1ce.nii.gz', '_t2.nii.gz']
 
     d_path = options['loo_dir']
-    v_path = options['val_dir']
     patients = get_dirs(d_path)
 
     cbica = filter(lambda p: 'CBICA' in p, patients)
@@ -298,8 +296,8 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
                     data, targets, rois, flip=True
                 )
             else:
-                train_dataset = BratsDataset(
-                    data, targets, rois, patch_size, flip=True
+                train_dataset = BoundarySegmentationCroppingDataset(
+                    data, targets, rois, patch_size
                 )
 
             print('Dataloader creation <with validation>')
@@ -424,6 +422,7 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
     options = parse_inputs()
     epochs = options['epochs']
     batch_size = options['batch_size']
+    patch_size = options['patch_size']
     patience = options['patience']
     depth = options['blocks']
     filters = options['filters']
@@ -475,9 +474,14 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
         rois, data = get_images(seg_patients)
 
         print('< Training dataset >')
-        seg_dataset = BBImageDataset(
-            data, targets, rois, flip=True
-        )
+        if patch_size is None:
+            train_dataset = BBImageDataset(
+                data, targets, rois, flip=True
+            )
+        else:
+            train_dataset = BoundarySegmentationCroppingDataset(
+                data, targets, rois, patch_size
+            )
 
         print('Dataloader creation <with validation>')
         train_loader = DataLoader(
