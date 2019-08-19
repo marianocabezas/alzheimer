@@ -631,7 +631,7 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
                 )
                 csvwriter.writerow([p, '%f' % float(survival_out)])
 
-            _, test_data = get_images(test_patients, True)
+            _, test_data = get_images(t_survival_patients, True)
 
             print(
                 'Testing patients = %d' % (
