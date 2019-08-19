@@ -163,8 +163,7 @@ class BratsSegmentationNet(nn.Module):
     def mini_batch_loop(
             self, training, train=True
     ):
-        # self.drop = train
-        self.drop = False
+        self.drop = train
         losses = list()
         mid_losses = list()
         n_batches = len(training)
