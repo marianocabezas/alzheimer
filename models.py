@@ -664,7 +664,7 @@ class BratsSurvivalNet(nn.Module):
             self,
             train_loader,
             val_loader,
-            optimizer='sgd',
+            optimizer='adam',
             epochs=50,
             patience=5,
             initial_lr=1e-1,
