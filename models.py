@@ -37,8 +37,8 @@ class BratsSegmentationNet(nn.Module):
             pool_size=2,
             depth=4,
             n_images=4,
-            dropout=0.98,
-            ann_rate=2e-2,
+            dropout=0.99,
+            ann_rate=1e-2,
             final_dropout=0,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -203,16 +203,15 @@ class BratsSegmentationNet(nn.Module):
 
             # Final loss from BraTS
             batch_loss_brats = batch_loss_wt + batch_loss_tc
+            batch_loss = torch.sum(batch_loss_c) + batch_loss_brats
 
             if train:
                 # batch_loss = multidsc_loss(
                 #     pred_labels, y.to(self.device), averaged=train
                 # )
-                batch_loss = batch_loss_wt + batch_loss_tc + batch_loss_c[-1]
                 batch_loss.backward()
                 self.optimizer_alg.step()
             else:
-                batch_loss = torch.sum(batch_loss_c) + batch_loss_brats
                 # roi_value = torch.mean(batch_loss_r).tolist()
                 # tumor_value = torch.mean(batch_loss_t).tolist()
                 # loss_value = roi_value + tumor_value
@@ -269,7 +268,7 @@ class BratsSegmentationNet(nn.Module):
             optimizer='adabound',
             epochs=100,
             patience=10,
-            initial_lr=1e-1,
+            initial_lr=5e-1,
             # weight_decay=1e-2,
             weight_decay=0,
             verbose=True
@@ -538,8 +537,8 @@ class BratsSurvivalNet(nn.Module):
             n_images=4,
             n_features=1,
             dense_size=256,
-            dropout=0.5,
-            ann_rate=1e-2,
+            dropout=0.98,
+            ann_rate=2e-1,
             final_dropout=0,
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     ):
@@ -622,7 +621,7 @@ class BratsSurvivalNet(nn.Module):
     def mini_batch_loop(
             self, training, train=True
     ):
-        self.drop = False
+        self.drop = train
         losses = list()
         n_batches = len(training)
         for batch_i, (im, feat, y) in enumerate(training):
@@ -660,11 +659,12 @@ class BratsSurvivalNet(nn.Module):
             self,
             train_loader,
             val_loader,
-            optimizer='adabound',
+            optimizer='sgd',
             epochs=50,
             patience=5,
             initial_lr=1e-1,
-            weight_decay=1e-2,
+            # weight_decay=1e-2,
+            weight_decay=0,
             verbose=True
     ):
         # Init
@@ -758,7 +758,7 @@ class BratsSurvivalNet(nn.Module):
                 )
                 print(final_s)
 
-            if no_improv_e == patience:
+            if no_improv_e == int(patience / (1 - self.dropout)):
                 break
 
         self.epoch = best_e
