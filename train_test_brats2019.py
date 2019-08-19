@@ -725,21 +725,21 @@ def test_seg_validation(net_name):
         niiname = os.path.join(d_path, p, p + '_seg.nii.gz')
         nii = load_nii(niiname)
         nii.get_data()[:] = seg_i
-        save_nii(nii, os.path.join(d_path, p_i + '.nii.gz'))
+        save_nii(nii, os.path.join(v_path, p_i + '.nii.gz'))
 
         niiname = os.path.join(v_path, p_i, p_i + '_flair.nii.gz')
         nii = load_nii(niiname)
         nii.get_data()[:] = whole_i
         save_nii(
-            nii, os.path.join(d_path, p_i + '_unc_whole.nii.gz')
+            nii, os.path.join(v_path, p_i + '_unc_whole.nii.gz')
         )
         nii.get_data()[:] = core_i
         save_nii(
-            nii, os.path.join(d_path, p_i + '_unc_core.nii.gz')
+            nii, os.path.join(v_path, p_i + '_unc_core.nii.gz')
         )
         nii.get_data()[:] = enhance_i
         save_nii(
-            nii, os.path.join(d_path, p_i + '_unc_enhance.nii.gz')
+            nii, os.path.join(v_path, p_i + '_unc_enhance.nii.gz')
         )
 
         print(
