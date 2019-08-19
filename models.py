@@ -626,7 +626,7 @@ class BratsSurvivalNet(nn.Module):
     def mini_batch_loop(
             self, training, train=True
     ):
-        self.drop = train
+        self.drop = False
         losses = list()
         n_batches = len(training)
         for batch_i, (im, feat, y) in enumerate(training):
