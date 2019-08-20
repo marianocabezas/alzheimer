@@ -439,7 +439,6 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
     
     survival_ages = map(lambda v: float(v['Age']), survival_dict.values())
     survivals = map(lambda v: float(v['Survival']), survival_dict.values())
-    max_survival = np.max(survivals)
 
     t_survival_ages = map(lambda v: float(v['Age']), t_survival_dict.values())
 
@@ -557,7 +556,7 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
             except IOError:
                 fold_i = survival_patients[:ini_i] + survival_patients[end_i:]
                 survival_i = map(
-                    lambda s_i: s_i / max_survival,
+                    lambda s_i: s_i,
                     survivals[:ini_i] + survivals[end_i:]
                 )
                 ages_i = survival_ages[:ini_i] + survival_ages[end_i:]
@@ -629,7 +628,6 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
             for p, survival_out, survival in zip(
                     test_patients, pred_y, test_survival
             ):
-                survival_out *= max_survival
                 print(
                     'Estimated survival = %f (%f)' % (survival_out, survival)
                 )
@@ -647,7 +645,6 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
             for p, survival_out, s in zip(
                     t_survival_patients, pred_y, test_survivals
             ):
-                survival_out *= max_survival
                 print(
                     'Estimated survival = %f (%f)' % (
                         survival_out, s / (i + 1)
@@ -656,7 +653,6 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
 
         test_survivals = test_survivals / n_folds
         for p, survival_out in zip(test_patients, test_survivals):
-            survival_out *= max_survival
             print('Final estimated survival = %f' % survival_out)
             val_csvwriter.writerow([p, '%f' % float(survival_out)])
 
@@ -782,7 +778,7 @@ def main():
             c['c'], strftime("%H:%M:%S"), c['g'], n_folds, c['nc']
         )
     )
-    train_test_survival(net_name, n_folds)
+    # train_test_survival(net_name, n_folds)
 
     ''' <Segmentation task> '''
     print(
@@ -795,7 +791,7 @@ def main():
         filters_s, depth_s
     )
 
-    # train_test_seg(net_name, n_folds)
+    train_test_seg(net_name, n_folds)
 
     # test_seg_validation(net_name)
 
