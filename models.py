@@ -660,10 +660,10 @@ class BratsSurvivalNet(nn.Module):
             self,
             train_loader,
             val_loader,
-            optimizer='sgd',
+            optimizer='adabound',
             epochs=50,
             patience=5,
-            initial_lr=5e-1,
+            initial_lr=1e-1,
             weight_decay=1e-2,
             # weight_decay=0,
             verbose=True
