@@ -538,7 +538,7 @@ class BratsSurvivalNet(nn.Module):
             n_features=1,
             dense_size=256,
             dropout=0.5,
-            ann_rate=1e-1,
+            ann_rate=1e-2,
             final_dropout=0,
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     ):
