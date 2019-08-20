@@ -577,11 +577,11 @@ class BratsSurvivalNet(nn.Module):
 
         self.linear1 = nn.Sequential(
             nn.Linear(end_features + n_features, dense_size),
-            nn.ReLU(),
+            nn.SELU(),
         )
         self.linear2 = nn.Sequential(
             nn.Linear(dense_size, dense_size // 2),
-            nn.ReLU(),
+            nn.SELU(),
         )
 
         self.out = nn.Linear(dense_size // 2, 1)
@@ -658,7 +658,6 @@ class BratsSurvivalNet(nn.Module):
             self,
             train_loader,
             val_loader,
-            optimizer='adam',
             epochs=50,
             patience=5,
             initial_lr=1e-1,
@@ -678,8 +677,6 @@ class BratsSurvivalNet(nn.Module):
             p.requires_grad = False
 
         model_params = filter(lambda p: p.requires_grad, self.parameters())
-
-        is_string = isinstance(optimizer, basestring)
 
         # Initial adam training
         dropout = self.dropout
