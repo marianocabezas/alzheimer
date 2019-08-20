@@ -265,10 +265,10 @@ class BratsSegmentationNet(nn.Module):
             self,
             train_loader,
             val_loader,
-            optimizer='adabound',
+            optimizer='sgd',
             epochs=100,
             patience=10,
-            initial_lr=1e-1,
+            initial_lr=5e-1,
             # weight_decay=1e-2,
             weight_decay=0,
             verbose=True
@@ -323,7 +323,7 @@ class BratsSegmentationNet(nn.Module):
             else:
                 # Learning rate update
                 if optimizer == 'sgd':
-                    current_lr /= 10
+                    current_lr *= max(self.dropout, 0.1)
                     self.optimizer_alg = optimizer_dict[optimizer](
                         model_params, current_lr
                     )
