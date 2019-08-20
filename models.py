@@ -702,6 +702,16 @@ class BratsSurvivalNet(nn.Module):
             model_params, initial_lr
         ) if is_string else optimizer
 
+        self.dropout = 0.5
+        self.optimizer_alg = torch.optim.Adam(
+            model_params, lr=1e-1, weight_decay=1e-2
+        )
+        self.mini_batch_loop(train_loader)
+        self.dropout = 0.99
+        self.optimizer_alg = torch.optim.SGD(
+            model_params, lr=initial_lr, weight_decay=0
+        )
+
         t_start = time.time()
 
         l_names = ['train', ' val ', 'pdrop']
