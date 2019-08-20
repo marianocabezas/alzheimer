@@ -567,7 +567,7 @@ class BratsSurvivalNet(nn.Module):
                     init_features * (2 ** d),
                     init_features * (2 ** (d + 1)),
                     1,
-                    groups=init_features,
+                    # groups=init_features,
                 ),
                 nn.SELU(),
             ),
