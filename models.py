@@ -322,11 +322,6 @@ class BratsSegmentationNet(nn.Module):
                 tr_loss_s = '\033[32m%0.5f\033[0m' % loss_tr
             else:
                 # Learning rate update
-                if optimizer == 'sgd':
-                    current_lr *= max(self.dropout, 0.1)
-                    self.optimizer_alg = optimizer_dict[optimizer](
-                        model_params, current_lr
-                    )
                 tr_loss_s = '%0.5f' % loss_tr
 
             with torch.no_grad():
