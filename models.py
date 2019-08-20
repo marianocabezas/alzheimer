@@ -613,7 +613,7 @@ class BratsSurvivalNet(nn.Module):
         x = F.dropout(x, p=min(self.dropout, 0.5), training=self.drop)
         self.out.to(self.device)
         output = self.out(x)
-        if self.dropout < 0.2:
+        if self.dropout <= 0.5:
             output = F.relu(output)
         return output
 
