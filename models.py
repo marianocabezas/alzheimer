@@ -677,20 +677,8 @@ class BratsSurvivalNet(nn.Module):
             p.requires_grad = False
 
         model_params = filter(lambda p: p.requires_grad, self.parameters())
-
-        # Initial adam training
-        dropout = self.dropout
-        self.dropout = 0.5
         self.optimizer_alg = torch.optim.Adam(
             model_params, lr=1e-1, weight_decay=1e-2
-        )
-        for _ in range(5):
-            self.mini_batch_loop(train_loader)
-
-        # Now we can setup the real network
-        self.dropout = dropout
-        self.optimizer_alg = torch.optim.SGD(
-            model_params, lr=initial_lr, weight_decay=0
         )
 
         t_start = time.time()
