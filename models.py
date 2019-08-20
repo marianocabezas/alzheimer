@@ -602,12 +602,15 @@ class BratsSurvivalNet(nn.Module):
 
         self.global_pooling.to(self.device)
         x = self.global_pooling(drop).view(im.shape[:2])
+        x = F.dropout3d(x, p=self.dropout, training=self.drop)
         x = torch.cat((x, features.type_as(x)), dim=1)
 
         self.linear1.to(self.device)
         x = self.linear1(x)
+        x = F.dropout3d(x, p=self.dropout, training=self.drop)
         self.linear2.to(self.device)
         x = self.linear2(x)
+        x = F.dropout3d(x, p=self.dropout, training=self.drop)
         self.out.to(self.device)
         output = self.out(x)
         if self.dropout < 0.2:
