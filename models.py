@@ -823,7 +823,7 @@ class BratsSurvivalNet(nn.Module):
                 )
                 inputf_i = to_torch_var([[feat_i]], self.device)
                 torch.cuda.synchronize()
-                pred = self(inputd_i, inputf_i).squeeze().tolist()
+                pred = F.relu(self(inputd_i, inputf_i)).squeeze().tolist()
                 torch.cuda.synchronize()
                 torch.cuda.empty_cache()
 
