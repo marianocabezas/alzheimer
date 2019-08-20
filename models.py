@@ -565,7 +565,7 @@ class BratsSurvivalNet(nn.Module):
                 nn.Conv3d(
                     init_features * (2 ** d),
                     init_features * (2 ** (d + 1)),
-                    3,
+                    2, stride=2,
                     groups=init_features,
                 ),
                 nn.SELU(),
