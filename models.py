@@ -268,7 +268,8 @@ class BratsSegmentationNet(nn.Module):
             optimizer='sgd',
             epochs=100,
             patience=10,
-            initial_lr=5e-1,
+            # initial_lr=5e-1,
+            initial_lr=1,
             # weight_decay=1e-2,
             weight_decay=0,
             verbose=True
@@ -565,7 +566,7 @@ class BratsSurvivalNet(nn.Module):
                 nn.Conv3d(
                     init_features * (2 ** d),
                     init_features * (2 ** (d + 1)),
-                    2, stride=2,
+                    3,
                     groups=init_features,
                 ),
                 nn.SELU(),
