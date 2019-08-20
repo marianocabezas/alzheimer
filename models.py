@@ -598,7 +598,7 @@ class BratsSurvivalNet(nn.Module):
         for p in self.pooling:
             p.to(self.device)
             im = p(drop)
-            drop = F.dropout3d(im, p=self.dropout, training=self.drop)
+            drop = F.dropout(im, p=self.dropout, training=self.drop)
 
         self.global_pooling.to(self.device)
         x = self.global_pooling(drop).view(im.shape[:2])
@@ -606,10 +606,10 @@ class BratsSurvivalNet(nn.Module):
 
         self.linear1.to(self.device)
         x = self.linear1(x)
-        x = F.dropout3d(x, p=min(self.dropout, 0.5), training=self.drop)
+        x = F.dropout(x, p=self.dropout, training=self.drop)
         self.linear2.to(self.device)
         x = self.linear2(x)
-        x = F.dropout3d(x, p=min(self.dropout, 0.5), training=self.drop)
+        x = F.dropout(x, p=self.dropout, training=self.drop)
         self.out.to(self.device)
         output = self.out(x)
         if self.dropout < 0.2:
