@@ -609,7 +609,6 @@ class BratsSurvivalNet(nn.Module):
         x = F.dropout3d(x, p=self.dropout, training=self.drop)
         self.linear2.to(self.device)
         x = self.linear2(x)
-        x = F.dropout3d(x, p=self.dropout, training=self.drop)
         self.out.to(self.device)
         output = self.out(x)
         if self.dropout < 0.2:
