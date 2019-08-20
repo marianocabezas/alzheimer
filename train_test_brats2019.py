@@ -556,7 +556,7 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
             except IOError:
                 fold_i = survival_patients[:ini_i] + survival_patients[end_i:]
                 survival_i = map(
-                    lambda s_i: s_i / max_survival,
+                    lambda s_i: s_i,
                     survivals[:ini_i] + survivals[end_i:]
                 )
                 ages_i = survival_ages[:ini_i] + survival_ages[end_i:]
