@@ -615,7 +615,8 @@ class BratsSurvivalNet(nn.Module):
         x = self.linear2(x)
         self.out.to(self.device)
         output = self.out(x)
-
+        if self.dropout < 0.2:
+            output = F.relu(output)
         return output
 
     def mini_batch_loop(
