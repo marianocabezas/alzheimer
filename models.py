@@ -662,8 +662,6 @@ class BratsSurvivalNet(nn.Module):
             epochs=50,
             patience=5,
             initial_lr=1e-1,
-            weight_decay=1e-2,
-            # weight_decay=0,
             verbose=True
     ):
         # Init
@@ -676,31 +674,12 @@ class BratsSurvivalNet(nn.Module):
         no_improv_e = 0
         best_state = deepcopy(self.state_dict())
 
-        optimizer_dict = {
-            'adam': lambda params, lr: torch.optim.Adam(
-                params, lr=lr, weight_decay=weight_decay
-            ),
-            'sgd': lambda params, lr: torch.optim.SGD(
-                params, lr=lr, weight_decay=weight_decay
-            ),
-            'adadelta': lambda params, lr: torch.optim.Adadelta(
-                params, weight_decay=weight_decay
-            ),
-            'adabound': lambda params, lr: AdaBound(
-                params, lr=lr, weight_decay=weight_decay
-            ),
-        }
-
         for p in self.base_model.parameters():
             p.requires_grad = False
 
         model_params = filter(lambda p: p.requires_grad, self.parameters())
 
         is_string = isinstance(optimizer, basestring)
-
-        self.optimizer_alg = optimizer_dict[optimizer](
-            model_params, initial_lr
-        ) if is_string else optimizer
 
         # Initial adam training
         dropout = self.dropout
