@@ -532,7 +532,7 @@ class BratsSurvivalNet(nn.Module):
             n_images=4,
             n_features=1,
             dense_size=256,
-            dropout=0.75,
+            dropout=0.99,
             ann_rate=1e-2,
             final_dropout=0,
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -702,12 +702,17 @@ class BratsSurvivalNet(nn.Module):
             model_params, initial_lr
         ) if is_string else optimizer
 
+        # Initial adam training
+        dropout = self.dropout
         self.dropout = 0.5
         self.optimizer_alg = torch.optim.Adam(
             model_params, lr=1e-1, weight_decay=1e-2
         )
-        self.mini_batch_loop(train_loader)
-        self.dropout = 0.99
+        for _ in range(5):
+            self.mini_batch_loop(train_loader)
+
+        # Now we can setup the real network
+        self.dropout = dropout
         self.optimizer_alg = torch.optim.SGD(
             model_params, lr=initial_lr, weight_decay=0
         )
