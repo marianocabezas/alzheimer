@@ -580,7 +580,7 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
 
                 print('Dataloader creation <train>')
                 train_loader = DataLoader(
-                    train_dataset, batch_size, True, num_workers=num_workers,
+                    train_dataset, 8, True, num_workers=num_workers,
                 )
 
                 # Validation
