@@ -607,7 +607,6 @@ class BratsSurvivalNet(nn.Module):
 
         self.linear1.to(self.device)
         x = self.linear1(x)
-        x = F.dropout(x, p=min(self.dropout, 0.5), training=self.drop)
         self.linear2.to(self.device)
         x = self.linear2(x)
         x = F.dropout(x, p=min(self.dropout, 0.5), training=self.drop)
