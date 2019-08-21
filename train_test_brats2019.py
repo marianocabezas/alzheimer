@@ -414,7 +414,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             nii.get_data()[:] = seg_unc_i
             save_nii(nii, os.path.join(unc_path, p_i + '.nii.gz'))
 
-            niiname = os.path.join(d_path, p_i + '_flair.nii.gz')
+            niiname = os.path.join(d_path, p_i, p_i + '_flair.nii.gz')
             nii = load_nii(niiname)
             nii.get_data()[:] = whole_i
             save_nii(nii, os.path.join(unc_path, p_i + '_unc_whole.nii.gz'))
