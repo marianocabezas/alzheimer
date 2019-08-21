@@ -736,6 +736,7 @@ def test_seg_validation(net_name):
         )
 
         seg_i[log_not(tumor_mask)] = 0
+        seg_unc_i[log_not(tumor_mask)] = 0
 
         whole_i = np.sum(unc_i[1:]) * tumor_mask.astype(np.float32)
         core_i = unc_i[1] + unc_i[-1] * tumor_mask.astype(np.float32)
