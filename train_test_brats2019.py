@@ -219,7 +219,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
     b2013 = filter(lambda p: '2013' in p, patients)
 
     # for i in range(n_folds):
-    for i in [2]:
+    for i in [0, 2]:
         print(
             '%s[%s] %sFold %s(%s%d%s%s/%d)%s' % (
                 c['c'], strftime("%H:%M:%S"), c['g'],
@@ -371,15 +371,18 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
         # 2. {ID}_unc_whole.nii.gz (Uncertainty map associated with whole tumor)
         # 3. {ID}_unc_core.nii.gz (Uncertainty map associated with tumor core)
         # 4. {ID}_unc_enhance.nii.gz (Uncertainty map associated with enhancing tumor)
-        for (path_i, p_i, test_i) in zip(
+        for p, (path_i, p_i, test_i) in enumerate(zip(
                 patient_paths, test_patients, test_x
-        ):
-            pred_i = net.uncertainty([test_i], steps=25)[0]
-            whole_i = np.sum(pred_i[1:])
-            core_i = pred_i[1] + pred_i[-1]
-            enhance_i = pred_i[-1]
+        )):
+            pred_i = net.segment([test_i])[0]
+            unc_i = net.uncertainty([test_i], steps=25)[0]
+            whole_i = np.sum(unc_i[1:])
+            core_i = unc_i[1] + unc_i[-1]
+            enhance_i = unc_i[-1]
             seg_i = np.argmax(pred_i, axis=0)
             seg_i[seg_i == 3] = 4
+            seg_unc_i = np.argmax(unc_i, axis=0)
+            seg_unc_i[seg_unc_i == 3] = 4
 
             tumor_mask = remove_small_regions(
                 seg_i.astype(np.bool), min_size=30
@@ -395,8 +398,13 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             nii = load_nii(niiname)
             seg = nii.get_data()
 
-            dsc = map(
-                lambda label: dsc_seg(seg == label, seg_i == label), [1, 2, 4]
+            dsc_seg = map(
+                lambda label: dsc_seg(seg == label, seg_i == label),
+                [1, 2, 4]
+            )
+            dsc_unc = map(
+                lambda label: dsc_seg(seg == label, seg_unc_i == label),
+                [1, 2, 4]
             )
 
             nii.get_data()[:] = seg_i
@@ -412,7 +420,14 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             save_nii(nii, os.path.join(path_i, p_i + '_unc_enhance.nii.gz'))
 
             print(
-                'Patient %s: %s' % (p_i, ' / '.join(map(str, dsc)))
+                'Segmentation - Patient %s (%d/%d): %s' % (
+                    p_i, p, len(test_x), ' / '.join(map(str, dsc_seg))
+                )
+            )
+            print(
+                'Uncertainty -Patient %s (%d/%d): %s' % (
+                    p_i, p, len(test_x), ' / '.join(map(str, dsc_unc))
+                )
             )
 
 
