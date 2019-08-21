@@ -211,6 +211,8 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
     patch_size = options['patch_size']
 
     d_path = options['loo_dir']
+    unc_path = os.path.join(d_path, 'uncertainty')
+    seg_path = os.path.join(d_path, 'segmentation')
     patients = get_dirs(d_path)
 
     cbica = filter(lambda p: 'CBICA' in p, patients)
@@ -408,16 +410,18 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             )
 
             nii.get_data()[:] = seg_i
-            save_nii(nii, os.path.join(path_i, p_i + '.nii.gz'))
+            save_nii(nii, os.path.join(seg_path, p_i + '.nii.gz'))
+            nii.get_data()[:] = unc_i
+            save_nii(nii, os.path.join(unc_path, p_i + '.nii.gz'))
 
-            niiname = os.path.join(path_i, p_i + '_flair.nii.gz')
+            niiname = os.path.join(d_path, p_i + '_flair.nii.gz')
             nii = load_nii(niiname)
             nii.get_data()[:] = whole_i
-            save_nii(nii, os.path.join(path_i, p_i + '_unc_whole.nii.gz'))
+            save_nii(nii, os.path.join(unc_path, p_i + '_unc_whole.nii.gz'))
             nii.get_data()[:] = core_i
-            save_nii(nii, os.path.join(path_i, p_i + '_unc_core.nii.gz'))
+            save_nii(nii, os.path.join(unc_path, p_i + '_unc_core.nii.gz'))
             nii.get_data()[:] = enhance_i
-            save_nii(nii, os.path.join(path_i, p_i + '_unc_enhance.nii.gz'))
+            save_nii(nii, os.path.join(unc_path, p_i + '_unc_enhance.nii.gz'))
 
             print(
                 'Segmentation - Patient %s (%d/%d): %s' % (
@@ -680,6 +684,8 @@ def test_seg_validation(net_name):
     filters = options['filters']
     d_path = options['loo_dir']
     v_path = options['val_dir']
+    seg_path = os.path.join(v_path, 'segmentation')
+    unc_path = os.path.join(v_path, 'uncertainty')
     p = get_dirs(d_path)[0]
     test_patients = get_dirs(v_path)
     _, test_x = get_images(test_patients, True)
@@ -710,51 +716,54 @@ def test_seg_validation(net_name):
     # 3. {ID}_unc_core.nii.gz (Uncertainty map associated with tumor core)
     # 4. {ID}_unc_enhance.nii.gz (Uncertainty map associated with enhancing tumor)
     for (p_i, test_i) in zip(test_patients, test_x):
-        bck_i = np.zeros(test_i.shape[1:])
-        net_i = np.zeros(test_i.shape[1:])
-        ed_i = np.zeros(test_i.shape[1:])
-        et_i = np.zeros(test_i.shape[1:])
-        for f in range(4):
+        unc_i = np.zeros((4,) + test_i.shape[1:])
+        pred_i = np.zeros((4,) + test_i.shape[1:])
+        for f in range(5):
             model_name = '%s-f%d.mdl' % (net_name, f)
             net = BratsSegmentationNet(depth=depth, filters=filters)
             net.load_model(os.path.join(d_path, model_name))
 
-            pred_fi = net.uncertainty([test_i], steps=10)[0]
+            unc_i += net.uncertainty([test_i], steps=10)[0] * 0.2
+            pred_i += net.segment([test_i])[0] * 0.2
 
-            if f in [0, 1, 3]:
-                net_i += (pred_fi[1] / 3)
-            if f < 3:
-                ed_i += (pred_fi[2] / 3)
-            ed_i += (pred_fi[3] / 4)
-            bck_i += (pred_fi[0] / 4)
-
-        unc_i = np.stack(
-            [bck_i, net_i, ed_i, et_i]
-        )
-        whole_i = np.sum(unc_i[1:])
-        core_i = unc_i[1] + unc_i[-1]
-        enhance_i = unc_i[-1]
-        seg_i = np.argmax(unc_i, axis=0)
+        seg_i = np.argmax(pred_i, axis=0)
         seg_i[seg_i == 3] = 4
+        seg_unc_i = np.argmax(unc_i, axis=0)
+        seg_unc_i[seg_unc_i == 3] = 4
+
+        tumor_mask = remove_small_regions(
+            seg_i.astype(np.bool), min_size=30
+        )
+
+        seg_i[log_not(tumor_mask)] = 0
+
+        whole_i = np.sum(unc_i[1:]) * tumor_mask.astype(np.float32)
+        core_i = unc_i[1] + unc_i[-1] * tumor_mask.astype(np.float32)
+        enhance_i = unc_i[-1] * tumor_mask.astype(np.float32)
+
+        seg_unc_i = np.argmax(unc_i, axis=0)
+        seg_unc_i[seg_unc_i == 3] = 4
 
         niiname = os.path.join(d_path, p, p + '_seg.nii.gz')
         nii = load_nii(niiname)
         nii.get_data()[:] = seg_i
-        save_nii(nii, os.path.join(v_path, p_i + '.nii.gz'))
+        save_nii(nii, os.path.join(seg_unc, p_i + '.nii.gz'))
+        nii.get_data()[:] = seg_i
+        save_nii(nii, os.path.join(unc_path, p_i + '.nii.gz'))
 
         niiname = os.path.join(v_path, p_i, p_i + '_flair.nii.gz')
         nii = load_nii(niiname)
         nii.get_data()[:] = whole_i
         save_nii(
-            nii, os.path.join(v_path, p_i + '_unc_whole.nii.gz')
+            nii, os.path.join(unc_path, p_i + '_unc_whole.nii.gz')
         )
         nii.get_data()[:] = core_i
         save_nii(
-            nii, os.path.join(v_path, p_i + '_unc_core.nii.gz')
+            nii, os.path.join(unc_path, p_i + '_unc_core.nii.gz')
         )
         nii.get_data()[:] = enhance_i
         save_nii(
-            nii, os.path.join(v_path, p_i + '_unc_enhance.nii.gz')
+            nii, os.path.join(unc_path, p_i + '_unc_enhance.nii.gz')
         )
 
         print(
