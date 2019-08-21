@@ -220,8 +220,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
     tmc = filter(lambda p: 'TMC' in p, patients)
     b2013 = filter(lambda p: '2013' in p, patients)
 
-    # for i in range(n_folds):
-    for i in [0, 1, 4]:
+    for i in range(n_folds):
         print(
             '%s[%s] %sFold %s(%s%d%s%s/%d)%s' % (
                 c['c'], strftime("%H:%M:%S"), c['g'],
@@ -819,7 +818,7 @@ def main():
 
     train_test_seg(net_name, n_folds)
 
-    # test_seg_validation(net_name)
+    test_seg_validation(net_name)
 
 
 if __name__ == '__main__':
