@@ -817,7 +817,7 @@ def main():
 
     train_test_seg(net_name, n_folds)
 
-    # test_seg_validation(net_name)
+    test_seg_validation(net_name)
 
 
 if __name__ == '__main__':
