@@ -218,7 +218,7 @@ def get_balanced_slices(
         max_bb = map(lambda mask: np.max(np.where(mask > 0), axis=-1), rois)
         bck_masks = map(
             lambda (m, roi): np.logical_and(m, roi.astype(bool)),
-            zip(map(np.logical_not, masks), rois)
+            zip(map(np.logical_not, masks), masks)
         )
 
     # The idea with this is to create a binary representation of illegal
