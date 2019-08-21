@@ -219,7 +219,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
     b2013 = filter(lambda p: '2013' in p, patients)
 
     # for i in range(n_folds):
-    for i in [1, 2]:
+    for i in [0, 3]:
         print(
             '%s[%s] %sFold %s(%s%d%s%s/%d)%s' % (
                 c['c'], strftime("%H:%M:%S"), c['g'],
@@ -425,7 +425,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
                 )
             )
             print(
-                'Uncertainty -Patient %s (%d/%d): %s' % (
+                'Uncertainty - Patient %s (%d/%d): %s' % (
                     p_i, p, len(test_x), ' / '.join(map(str, dsc_unc))
                 )
             )
