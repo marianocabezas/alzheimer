@@ -398,7 +398,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             nii = load_nii(niiname)
             seg = nii.get_data()
 
-            dsc_seg = map(
+            dsc = map(
                 lambda label: dsc_seg(seg == label, seg_i == label),
                 [1, 2, 4]
             )
@@ -421,7 +421,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
 
             print(
                 'Segmentation - Patient %s (%d/%d): %s' % (
-                    p_i, p, len(test_x), ' / '.join(map(str, dsc_seg))
+                    p_i, p, len(test_x), ' / '.join(map(str, dsc))
                 )
             )
             print(
