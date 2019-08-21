@@ -391,6 +391,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             )
 
             seg_i[log_not(tumor_mask)] = 0
+            seg_unc_i[log_not(tumor_mask)] = 0
 
             whole_i *= tumor_mask.astype(np.float32)
             core_i *= tumor_mask.astype(np.float32)
