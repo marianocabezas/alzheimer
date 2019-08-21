@@ -747,7 +747,7 @@ def test_seg_validation(net_name):
         niiname = os.path.join(d_path, p, p + '_seg.nii.gz')
         nii = load_nii(niiname)
         nii.get_data()[:] = seg_i
-        save_nii(nii, os.path.join(seg_unc_i, p_i + '.nii.gz'))
+        save_nii(nii, os.path.join(seg_path, p_i + '.nii.gz'))
         nii.get_data()[:] = seg_i
         save_nii(nii, os.path.join(unc_path, p_i + '.nii.gz'))
 
