@@ -802,7 +802,7 @@ class BratsSurvivalNet(nn.Module):
             print(
                 'Training finished in %d epochs (%s) '
                 'with minimum loss = %f (epoch %d)' % (
-                    self.epoch + 1, t_end_s, best_loss_tr, best_e)
+                    self.epoch + 1, t_end_s, best_loss_val, best_e)
             )
 
     def print_progress(self, batch_i, n_batches, b_loss, mean_loss, train=True):
