@@ -609,7 +609,7 @@ class BratsSurvivalNet(nn.Module):
         if self.dropout <= 0.5:
             output = F.relu(output)
         else:
-            output = F.leay_relu(output)
+            output = F.leaky_relu(output)
         return output
 
     def mini_batch_loop(
