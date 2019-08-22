@@ -630,7 +630,7 @@ class BratsSurvivalNet(nn.Module):
             # batch_loss = nn.MSELoss()(
             #     pred_y, y.to(self.device).type_as(pred_y)
             # )
-            batch_loss = nn.SmoothL1Loss()(
+            batch_loss = normalised_mse(
                 pred_y, y.to(self.device).type_as(pred_y)
             )
 
@@ -657,7 +657,6 @@ class BratsSurvivalNet(nn.Module):
             val_loader,
             epochs=50,
             patience=5,
-            initial_lr=1e-1,
             verbose=True
     ):
         # Init

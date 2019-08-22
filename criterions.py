@@ -3,6 +3,12 @@ import torch
 import torch.nn.functional as F
 
 
+def normalised_mse(pred, target, norm_rate=1):
+    diff = (target - pred)
+    sq_diff = diff * diff
+    max_diff = torch.max(sq_diff) * norm_rate
+    return torch.mean(sq_diff) / max_diff
+
 def multidsc_loss(pred, target, smooth=1, averaged=True):
     """
     Loss function based on a multi-class DSC metric.
