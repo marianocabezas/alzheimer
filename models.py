@@ -691,7 +691,7 @@ class BratsSurvivalNet(nn.Module):
                 best_loss_tr = loss_tr
                 tr_loss_s = '\033[32m%0.5f\033[0m' % loss_tr
             else:
-                for param_group in self.optimizer.param_groups:
+                for param_group in self.optimizer_alg.param_groups:
                     param_group['lr'] = initial_lr * self.dropout
                 tr_loss_s = '%0.5f' % loss_tr
 
