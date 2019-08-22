@@ -739,7 +739,7 @@ class BratsSurvivalNet(nn.Module):
         best_e = 0
         # SGD for MSE
         self.optimizer_alg = torch.optim.SGD(
-            model_params, lr=initial_lr, weight_decay=1e-2
+            model_params, lr=initial_lr * 0.1, weight_decay=1e-2
         )
         self.loss = nn.MSELoss()
         self.dropout = initial_dropout
