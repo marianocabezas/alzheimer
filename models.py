@@ -607,6 +607,8 @@ class BratsSurvivalNet(nn.Module):
         output = self.out(x)
         if self.dropout <= 0.9:
             output = F.relu(output)
+        else:
+            output = F.selu(output)
         return output
 
     def mini_batch_loop(
