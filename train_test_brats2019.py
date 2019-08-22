@@ -812,7 +812,7 @@ def main():
         )
     )
 
-    net_name = 'brats2019-seg_adabound%s%s' % (
+    net_name = 'brats2019-seg_adam%s%s' % (
         filters_s, depth_s
     )
 

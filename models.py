@@ -266,7 +266,7 @@ class BratsSegmentationNet(nn.Module):
             train_loader,
             val_loader,
             # optimizer='sgd',
-            optimizer='adabound',
+            optimizer='adam',
             epochs=100,
             patience=10,
             initial_lr=5e-1,
@@ -671,8 +671,8 @@ class BratsSurvivalNet(nn.Module):
             p.requires_grad = False
 
         model_params = filter(lambda p: p.requires_grad, self.parameters())
-        self.optimizer_alg = torch.optim.Adam(
-            model_params, lr=1e-1, weight_decay=1e-2
+        self.optimizer_alg = torch.optim.SGD(
+            model_params, lr=5e-1, weight_decay=1e-2
         )
 
         t_start = time.time()
