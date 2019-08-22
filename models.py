@@ -602,13 +602,13 @@ class BratsSurvivalNet(nn.Module):
 
         self.linear.to(self.device)
         x = self.linear(x)
-        x = F.dropout(x, p=min(self.dropout, 0.5), training=self.drop)
+        x = F.dropout(x, p=self.dropout, training=self.drop)
         self.out.to(self.device)
         output = self.out(x)
-        if self.dropout <= 0.9:
+        if self.dropout <= 0.25:
             output = F.relu(output)
         else:
-            output = F.leaky_relu(output)
+            output = F.selu(output)
         return output
 
     def mini_batch_loop(
