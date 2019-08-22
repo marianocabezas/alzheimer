@@ -681,7 +681,7 @@ class BratsSurvivalNet(nn.Module):
         best_e = 0
         # SGD for L1
         self.optimizer_alg = torch.optim.SGD(
-            model_params, lr=initial_lr, weight_decay=1e-2
+            model_params, lr=initial_lr, weight_decay=1e-1
         )
         for self.epoch in range(epochs):
             # Main epoch loop
@@ -739,7 +739,7 @@ class BratsSurvivalNet(nn.Module):
         best_e = 0
         # SGD for MSE
         self.optimizer_alg = torch.optim.SGD(
-            model_params, lr=initial_lr * 0.1, weight_decay=1e-2
+            model_params, lr=initial_lr * 0.1, weight_decay=1e-1
         )
         self.loss = nn.MSELoss()
         self.dropout = initial_dropout
