@@ -265,12 +265,10 @@ class BratsSegmentationNet(nn.Module):
             self,
             train_loader,
             val_loader,
-            # optimizer='sgd',
-            optimizer='adam',
+            optimizer='sgd',
             epochs=100,
             patience=10,
-            initial_lr=5e-1,
-            # initial_lr=1,
+            initial_lr=1,
             # weight_decay=1e-2,
             weight_decay=0,
             verbose=True
@@ -607,7 +605,7 @@ class BratsSurvivalNet(nn.Module):
         x = F.dropout(x, p=min(self.dropout, 0.5), training=self.drop)
         self.out.to(self.device)
         output = self.out(x)
-        if self.dropout <= 0.5:
+        if self.dropout <= 0.9:
             output = F.relu(output)
         return output
 
@@ -676,7 +674,7 @@ class BratsSurvivalNet(nn.Module):
 
         model_params = filter(lambda p: p.requires_grad, self.parameters())
         self.optimizer_alg = torch.optim.SGD(
-            model_params, lr=1e-3, weight_decay=1e-2
+            model_params, lr=5e-4, weight_decay=1e-2
         )
 
         t_start = time.time()
