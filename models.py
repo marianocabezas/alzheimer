@@ -692,7 +692,7 @@ class BratsSurvivalNet(nn.Module):
                 tr_loss_s = '\033[32m%0.5f\033[0m' % loss_tr
             else:
                 for param_group in self.optimizer_alg.param_groups:
-                    param_group['lr'] = initial_lr * self.dropout
+                    param_group['lr'] = param_group['lr'] * self.dropout
                 tr_loss_s = '%0.5f' % loss_tr
 
             with torch.no_grad():
