@@ -605,7 +605,7 @@ class BratsSurvivalNet(nn.Module):
         x = F.dropout(x, p=self.dropout, training=self.drop)
         self.out.to(self.device)
         output = self.out(x)
-        if self.dropout <= 0.25:
+        if self.dropout <= 0.5:
             output = F.relu(output)
         else:
             output = F.selu(output)
@@ -627,14 +627,9 @@ class BratsSurvivalNet(nn.Module):
                 self.eval()
             # We train the model and check the loss
             pred_y = self(im.to(self.device), feat.to(self.device))
-            if self.dropout <= 0.5:
-                batch_loss = nn.MSELoss()(
-                    pred_y, y.to(self.device).type_as(pred_y)
-                )
-            else:
-                batch_loss = nn.SmoothL1Loss()(
-                    pred_y, y.to(self.device).type_as(pred_y)
-                )
+            batch_loss = nn.SmoothL1Loss()(
+                pred_y, y.to(self.device).type_as(pred_y)
+            )
 
             if train:
                 batch_loss.backward()
