@@ -673,15 +673,16 @@ class BratsSurvivalNet(nn.Module):
             p.requires_grad = False
 
         model_params = filter(lambda p: p.requires_grad, self.parameters())
-        self.optimizer_alg = torch.optim.SGD(
-            model_params, lr=initial_lr, weight_decay=1e-2
-        )
 
         t_start = time.time()
 
         l_names = ['train', ' val ', 'pdrop']
-        best_e = 0
 
+        best_e = 0
+        # SGD for L1
+        self.optimizer_alg = torch.optim.SGD(
+            model_params, lr=initial_lr, weight_decay=1e-2
+        )
         for self.epoch in range(epochs):
             # Main epoch loop
             self.t_train = time.time()
@@ -737,6 +738,11 @@ class BratsSurvivalNet(nn.Module):
             if no_improv_e == int(patience / (1 - self.dropout)):
                 break
 
+        best_e = 0
+        # SGD for MSE
+        self.optimizer_alg = torch.optim.SGD(
+            model_params, lr=initial_lr, weight_decay=1e-2
+        )
         self.loss = nn.MSELoss()
         self.dropout = initial_dropout
         for self.epoch in range(epochs):
