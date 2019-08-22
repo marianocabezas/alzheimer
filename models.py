@@ -627,12 +627,14 @@ class BratsSurvivalNet(nn.Module):
                 self.eval()
             # We train the model and check the loss
             pred_y = self(im.to(self.device), feat.to(self.device))
-            # batch_loss = nn.MSELoss()(
-            #     pred_y, y.to(self.device).type_as(pred_y)
-            # )
-            batch_loss = normalised_mse(
-                pred_y, y.to(self.device).type_as(pred_y)
-            )
+            if self.dropout <= 0.5:
+                batch_loss = nn.MSELoss()(
+                    pred_y, y.to(self.device).type_as(pred_y)
+                )
+            else:
+                batch_loss = nn.SmoothL1Loss()(
+                    pred_y, y.to(self.device).type_as(pred_y)
+                )
 
             if train:
                 batch_loss.backward()
@@ -674,7 +676,7 @@ class BratsSurvivalNet(nn.Module):
 
         model_params = filter(lambda p: p.requires_grad, self.parameters())
         self.optimizer_alg = torch.optim.SGD(
-            model_params, lr=1e-1, weight_decay=1e-2
+            model_params, lr=1e-4, weight_decay=1e-2
         )
 
         t_start = time.time()
