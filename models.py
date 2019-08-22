@@ -672,7 +672,7 @@ class BratsSurvivalNet(nn.Module):
 
         model_params = filter(lambda p: p.requires_grad, self.parameters())
         self.optimizer_alg = torch.optim.SGD(
-            model_params, lr=1e-3, weight_decay=1e-2
+            model_params, lr=1e-4, weight_decay=1e-2
         )
 
         t_start = time.time()
