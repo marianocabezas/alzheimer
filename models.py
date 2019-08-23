@@ -400,7 +400,7 @@ class BratsSegmentationNet(nn.Module):
             print(
                 'Training finished in %d epochs (%s) '
                 'with minimum loss = %f (epoch %d)' % (
-                    self.epoch + 1, t_end_s, best_loss_tr, best_e)
+                    self.epoch + 1, t_end_s, best_loss_val, best_e)
             )
 
     def segment(
@@ -665,7 +665,7 @@ class BratsSurvivalNet(nn.Module):
             val_loader,
             epochs=50,
             patience=5,
-            initial_lr=1e-3,
+            initial_lr=1e-2,
             verbose=True
     ):
         # Init
@@ -693,66 +693,6 @@ class BratsSurvivalNet(nn.Module):
         self.optimizer_alg = torch.optim.SGD(
             model_params, lr=initial_lr, weight_decay=1e-1
         )
-        for self.epoch in range(epochs):
-            # Main epoch loop
-            self.t_train = time.time()
-            loss_tr = self.mini_batch_loop(train_loader)
-            if loss_tr < best_loss_tr:
-                best_loss_tr = loss_tr
-                tr_loss_s = '\033[32m%0.5f\033[0m' % loss_tr
-            else:
-                tr_loss_s = '%0.5f' % loss_tr
-
-            with torch.no_grad():
-                self.t_val = time.time()
-                loss_val = self.mini_batch_loop(val_loader, False)
-
-            # Patience check
-            improvement = loss_val < best_loss_val
-            loss_s = '{:7.3f}'.format(loss_val)
-            if improvement:
-                best_loss_val = loss_val
-                epoch_s = '\033[32mEpoch %03d\033[0m' % self.epoch
-                loss_s = '\033[32m%s\033[0m' % loss_s
-                best_e = self.epoch
-                best_state = deepcopy(self.state_dict())
-                no_improv_e = 0
-            else:
-                epoch_s = 'Epoch %03d' % self.epoch
-                no_improv_e += 1
-
-            t_out = time.time() - self.t_train
-            t_s = time_to_string(t_out)
-            drop_s = '{:8.5f}'.format(self.dropout)
-            self.dropout = max(
-                self.final_dropout, self.dropout - self.ann_rate
-            )
-
-            if verbose:
-                print('\033[K', end='')
-                whites = ' '.join([''] * 12)
-                if self.epoch == 0:
-                    l_bars = '--|--'.join(
-                        ['-' * 5] * 2 + ['-' * 6] * len(l_names[2:])
-                    )
-                    l_hdr = '  |  '.join(l_names)
-                    print('%sEpoch num |  %s  |' % (whites, l_hdr))
-                    print('%s----------|--%s--|' % (whites, l_bars))
-                final_s = whites + ' | '.join(
-                    [epoch_s, tr_loss_s, loss_s, drop_s] + [t_s]
-                )
-                print(final_s)
-
-            if no_improv_e == int(patience / (1 - self.dropout)):
-                break
-
-        best_e = 0
-        # SGD for MSE
-        self.optimizer_alg = torch.optim.SGD(
-            model_params, lr=initial_lr * 0.1, weight_decay=1e-1
-        )
-        self.loss = nn.MSELoss()
-        self.dropout = initial_dropout
         for self.epoch in range(epochs):
             # Main epoch loop
             self.t_train = time.time()
