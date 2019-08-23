@@ -302,6 +302,7 @@ class BratsSegmentationNet(nn.Module):
         self.optimizer_alg = optimizer_dict[optimizer](
             model_params, initial_lr
         ) if is_string else optimizer
+        best_opt = deepcopy(self.optimizer_alg.state_dict())
 
         t_start = time.time()
 
@@ -317,7 +318,8 @@ class BratsSegmentationNet(nn.Module):
             self.t_train = time.time()
             self.train()
             loss_tr = self.mini_batch_loop(train_loader)
-            if loss_tr < best_loss_tr:
+            improvement_tr = loss_tr < best_loss_tr
+            if improvement_tr:
                 best_loss_tr = loss_tr
                 tr_loss_s = '\033[32m%0.5f\033[0m' % loss_tr
             else:
@@ -351,10 +353,18 @@ class BratsSegmentationNet(nn.Module):
                 loss_s = '\033[32m%s\033[0m' % loss_s
                 best_e = self.epoch
                 best_state = deepcopy(self.state_dict())
+                best_opt = deepcopy(self.optimizer_alg.state_dict())
                 no_improv_e = 0
             else:
                 epoch_s = 'Epoch %03d' % self.epoch
                 no_improv_e += 1
+
+            if not (improvement_tr or improvement):
+                self.load_state_dict(best_state)
+                self.optimizer_alg.load_state_dict(best_opt)
+                lr_rate = max(self.dropout, 0.1)
+                for param_group in self.optimizer_alg.param_groups:
+                    param_group['lr'] = param_group['lr'] * lr_rate
 
             t_out = time.time() - self.t_train
             t_s = time_to_string(t_out)

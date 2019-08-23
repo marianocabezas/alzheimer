@@ -815,7 +815,7 @@ def main():
         )
     )
 
-    net_name = 'brats2019-seg_adam%s%s' % (
+    net_name = 'brats2019-seg%s%s' % (
         filters_s, depth_s
     )
 
