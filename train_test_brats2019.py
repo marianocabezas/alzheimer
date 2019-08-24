@@ -690,7 +690,7 @@ def test_seg_validation(net_name):
     seg_path = os.path.join(v_path, 'segmentation')
     unc_path = os.path.join(v_path, 'uncertainty')
     p = get_dirs(d_path)[0]
-    test_patients = get_dirs(v_path)
+    test_patients = filter(lambda p: 'BraTS19' in p, get_dirs(v_path))
     _, test_x = get_images(test_patients, True)
 
     print(
@@ -806,7 +806,7 @@ def main():
             c['c'], strftime("%H:%M:%S"), c['g'], n_folds, c['nc']
         )
     )
-    train_test_survival(net_name, n_folds)
+    # train_test_survival(net_name, n_folds)
 
     ''' <Segmentation task> '''
     print(
@@ -819,9 +819,9 @@ def main():
         filters_s, depth_s
     )
 
-    # train_test_seg(net_name, n_folds)
+    train_test_seg(net_name, n_folds)
 
-    # test_seg_validation(net_name)
+    test_seg_validation(net_name)
 
 
 if __name__ == '__main__':

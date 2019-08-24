@@ -362,9 +362,8 @@ class BratsSegmentationNet(nn.Module):
             if not (improvement_tr or improvement):
                 self.load_state_dict(best_state)
                 self.optimizer_alg.load_state_dict(best_opt)
-                lr_rate = max(self.dropout, 0.1)
                 for param_group in self.optimizer_alg.param_groups:
-                    param_group['lr'] = param_group['lr'] * lr_rate
+                    param_group['lr'] = param_group['lr'] * 0.9
 
             t_out = time.time() - self.t_train
             t_s = time_to_string(t_out)
