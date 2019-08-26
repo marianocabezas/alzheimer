@@ -425,7 +425,7 @@ class BratsSegmentationNet(nn.Module):
                     to_torch_var(data_i, self.device), 0
                 )
                 torch.cuda.synchronize()
-                pred = self(input_i).squeeze()
+                pred = np.array(self(input_i).squeeze().tolist())
                 torch.cuda.synchronize()
                 torch.cuda.empty_cache()
 
@@ -482,7 +482,7 @@ class BratsSegmentationNet(nn.Module):
 
                     # Testing itself
                     torch.cuda.synchronize()
-                    pred = self(input_i).squeeze()
+                    pred = np.array(self(input_i).squeeze().tolist())
                     torch.cuda.synchronize()
                     torch.cuda.empty_cache()
 
