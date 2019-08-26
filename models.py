@@ -639,17 +639,17 @@ class BratsSurvivalNet(nn.Module):
             # We train the model and check the loss
             pred_y = self(im.to(self.device), feat.to(self.device))
             target_y = y.to(self.device).type_as(pred_y)
-            diffs = pred_y - target_y
-            l1_loss = torch.norm(diffs, p=1)
-            diffs_l1 = l1_loss - torch.abs(diffs)
-            stdl1_loss = torch.norm(diffs_l1, p=1)
-            std_loss = torch.abs(torch.std(target_y) - torch.std(pred_y))
 
-            # batch_loss = self.loss(
-            #     pred_y, y.to(self.device).type_as(pred_y)
-            # )
+            if self.dropout > 0.5:
+                batch_loss = self.loss(pred_y, target_y)
+            else:
+                diffs = pred_y - target_y
+                l1_loss = torch.norm(diffs, p=1)
+                diffs_l1 = l1_loss - torch.abs(diffs)
+                stdl1_loss = torch.norm(diffs_l1, p=1)
+                std_loss = torch.abs(torch.std(target_y) - torch.std(pred_y))
 
-            batch_loss = l1_loss + 1e-2 * stdl1_loss
+                batch_loss = l1_loss + stdl1_loss
 
             if train:
                 batch_loss.backward()
