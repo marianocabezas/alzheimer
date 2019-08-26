@@ -2,6 +2,7 @@ from __future__ import print_function
 import argparse
 import os
 import csv
+import time
 from time import strftime
 import numpy as np
 from numpy import logical_not as log_not
@@ -14,7 +15,7 @@ from nibabel import save as save_nii
 from nibabel import load as load_nii
 from data_manipulation.metrics import dsc_seg
 from torch.utils.data import DataLoader
-import time
+
 
 def color_codes():
     codes = {
