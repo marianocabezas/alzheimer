@@ -648,12 +648,14 @@ class BratsSurvivalNet(nn.Module):
 
             if self.dropout > 0.75:
                 batch_loss = self.loss(pred_y, target_y)
+                loss_value = batch_loss.tolist()
             else:
                 diffs = pred_y - target_y
                 l1_loss = self.loss(pred_y, target_y)
                 std_loss = torch.std(pred_y)
 
                 batch_loss = l1_loss - std_loss
+                loss_value = l1_loss.tolist()
 
             if train:
                 batch_loss.backward()
@@ -661,8 +663,6 @@ class BratsSurvivalNet(nn.Module):
 
             torch.cuda.synchronize()
             torch.cuda.empty_cache()
-
-            loss_value = batch_loss.tolist()
 
             losses.append(loss_value)
 
