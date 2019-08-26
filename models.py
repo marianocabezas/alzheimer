@@ -649,7 +649,7 @@ class BratsSurvivalNet(nn.Module):
             #     pred_y, y.to(self.device).type_as(pred_y)
             # )
 
-            batch_loss = l1_loss + stdl1_loss + std_loss
+            batch_loss = l1_loss + stdl1_loss
 
             if train:
                 batch_loss.backward()
