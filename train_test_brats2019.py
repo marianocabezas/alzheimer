@@ -775,7 +775,9 @@ def test_seg_validation(net_name):
 
         t_s = time_to_string(time.time() - t_in)
 
-        print('Finished patient %s (%d/%d) %s' % (p_i, i, len(test_x), t_s))
+        print(
+            'Finished patient %s (%d/%d) %s' % (p_i, i + 1, len(test_x), t_s)
+        )
 
 
 def main():
