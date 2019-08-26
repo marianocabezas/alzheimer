@@ -589,10 +589,13 @@ class BratsSurvivalNet(nn.Module):
         self.linear = nn.Sequential(
             nn.Linear(end_features + n_features, dense_size),
             nn.SELU(),
+            nn.InstanceNorm1d(dense_size),
             nn.Linear(dense_size, dense_size),
             nn.SELU(),
+            nn.InstanceNorm1d(dense_size),
             nn.Linear(dense_size, dense_size),
             nn.SELU(),
+            nn.InstanceNorm1d(dense_size),
         )
 
         self.out = nn.Linear(dense_size, 1)
