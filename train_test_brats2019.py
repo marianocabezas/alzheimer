@@ -619,7 +619,7 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
 
                 print('Dataloader creation <val>')
                 val_loader = DataLoader(
-                    val_dataset, 1, num_workers=num_workers
+                    val_dataset, 4, num_workers=num_workers
                 )
 
                 print(
