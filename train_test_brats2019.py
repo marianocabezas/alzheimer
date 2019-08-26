@@ -727,7 +727,7 @@ def test_seg_validation(net_name):
             net.load_model(os.path.join(d_path, model_name))
 
             unc_i += net.uncertainty([test_i], steps=10)[0] * 0.2
-            pred_i += np.array(net.segment([test_i])[0])
+            pred_i += net.segment([test_i])[0]
 
         seg_i = np.argmax(pred_i, axis=0)
         seg_i[seg_i == 3] = 4
