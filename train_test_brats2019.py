@@ -8,12 +8,13 @@ from numpy import logical_not as log_not
 from models import BratsSegmentationNet, BratsSurvivalNet
 from datasets import BratsDataset, BoundarySegmentationCroppingDataset
 from datasets import BBImageDataset, BBImageValueDataset
-from utils import color_codes, get_dirs
+from utils import color_codes, get_dirs, time_to_string
 from utils import get_mask, get_normalised_image, remove_small_regions
 from nibabel import save as save_nii
 from nibabel import load as load_nii
 from data_manipulation.metrics import dsc_seg
 from torch.utils.data import DataLoader
+import time
 
 def color_codes():
     codes = {
@@ -719,6 +720,7 @@ def test_seg_validation(net_name):
     # 3. {ID}_unc_core.nii.gz (Uncertainty map associated with tumor core)
     # 4. {ID}_unc_enhance.nii.gz (Uncertainty map associated with enhancing tumor)
     for i, (p_i, test_i) in enumerate(zip(test_patients, test_x)):
+        t_in = time.time()
         unc_i = np.zeros((4,) + test_i.shape[1:])
         pred_i = np.zeros((4,) + test_i.shape[1:])
         for f in range(5):
@@ -770,7 +772,9 @@ def test_seg_validation(net_name):
             nii, os.path.join(unc_path, p_i + '_unc_enhance.nii.gz')
         )
 
-        print('Finished patient %s (%d/%d)' % (p_i, i, len(test_x)))
+        t_s = time_to_string(time.time() - t_in)
+
+        print('Finished patient %s (%d/%d) %s' % (p_i, i, len(test_x), t_s))
 
 
 def main():
