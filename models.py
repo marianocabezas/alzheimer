@@ -359,11 +359,12 @@ class BratsSegmentationNet(nn.Module):
                 epoch_s = 'Epoch %03d' % self.epoch
                 no_improv_e += 1
 
-            if not (improvement_tr or improvement) and self.dropout <= 0.5:
-                self.load_state_dict(best_state)
+            if not (improvement_tr or improvement):
                 self.optimizer_alg.load_state_dict(best_opt)
-                for param_group in self.optimizer_alg.param_groups:
-                    param_group['lr'] = param_group['lr'] * 0.9
+                if self.dropout <= 0.5:
+                    self.load_state_dict(best_state)
+                    for param_group in self.optimizer_alg.param_groups:
+                        param_group['lr'] = param_group['lr'] * 0.9
 
             t_out = time.time() - self.t_train
             t_s = time_to_string(t_out)
