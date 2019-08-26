@@ -649,7 +649,7 @@ class BratsSurvivalNet(nn.Module):
                 stdl1_loss = torch.norm(diffs_l1, p=1)
                 std_loss = torch.abs(torch.std(target_y) - torch.std(pred_y))
 
-                batch_loss = l1_loss + stdl1_loss
+                batch_loss = l1_loss + stdl1_loss + std_loss
 
             if train:
                 batch_loss.backward()
