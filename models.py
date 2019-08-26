@@ -646,7 +646,7 @@ class BratsSurvivalNet(nn.Module):
             pred_y = self(im.to(self.device), feat.to(self.device))
             target_y = y.to(self.device).type_as(pred_y)
 
-            if self.dropout > 0.5:
+            if self.dropout > 0.75:
                 batch_loss = self.loss(pred_y, target_y)
             else:
                 diffs = pred_y - target_y
