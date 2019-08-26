@@ -573,6 +573,7 @@ class BratsSurvivalNet(nn.Module):
 
         self.pooling = nn.ModuleList(map(
             lambda d: nn.Sequential(
+                nn.InstanceNorm3d(init_features * (2 ** d)),
                 nn.Conv3d(
                     init_features * (2 ** d),
                     init_features * (2 ** (d + 1)),
@@ -586,15 +587,15 @@ class BratsSurvivalNet(nn.Module):
 
         self.global_pooling = nn.AdaptiveAvgPool3d((1, 1, 1))
 
-        self.linear = nn.Sequential(
-            nn.Linear(end_features + n_features, dense_size),
-            nn.SELU(),
-            nn.InstanceNorm1d(dense_size),
-            nn.Linear(dense_size, dense_size),
-            nn.SELU(),
-            nn.InstanceNorm1d(dense_size),
-            nn.Linear(dense_size, dense_size),
-            nn.SELU(),
+        self.linear = nn.ModuleList(
+            map(
+                lambda ch_in: nn.Sequential(
+                    nn.InstanceNorm1d(ch_in),
+                    nn.Linear(ch_in, dense_size),
+                    nn.SELU()
+                ),
+                [end_features + n_features] + [dense_size] * (depth_pred - 1)
+            )
         )
 
         self.out = nn.Linear(dense_size, 1)
@@ -617,9 +618,10 @@ class BratsSurvivalNet(nn.Module):
         x = self.global_pooling(drop).view(im.shape[:2])
         x = torch.cat((x, features.type_as(x)), dim=1)
 
-        self.linear.to(self.device)
-        x = self.linear(x)
-        x = F.dropout(x, p=self.dropout, training=self.drop)
+        for l in self.linear:
+            l.to(self.device)
+            x = l(x)
+            x = F.dropout(x, p=self.dropout, training=self.drop)
         self.out.to(self.device)
         output = self.out(x)
         if self.dropout <= 0.5:
