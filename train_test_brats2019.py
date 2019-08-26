@@ -718,7 +718,7 @@ def test_seg_validation(net_name):
     # 2. {ID}_unc_whole.nii.gz (Uncertainty map associated with whole tumor)
     # 3. {ID}_unc_core.nii.gz (Uncertainty map associated with tumor core)
     # 4. {ID}_unc_enhance.nii.gz (Uncertainty map associated with enhancing tumor)
-    for (p_i, test_i) in zip(test_patients, test_x):
+    for i, (p_i, test_i) in enumerate(zip(test_patients, test_x)):
         unc_i = np.zeros((4,) + test_i.shape[1:])
         pred_i = np.zeros((4,) + test_i.shape[1:])
         for f in range(5):
@@ -770,9 +770,7 @@ def test_seg_validation(net_name):
             nii, os.path.join(unc_path, p_i + '_unc_enhance.nii.gz')
         )
 
-        print(
-            'Finished patient %s' % p_i
-        )
+        print('Finished patient %s (%d/%d)' % (p_i, i, len(test_x)))
 
 
 def main():
