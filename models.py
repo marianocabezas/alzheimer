@@ -570,7 +570,7 @@ class BratsSurvivalNet(nn.Module):
 
         self.global_pooling = nn.AdaptiveAvgPool3d((1, 1, 1))
 
-        init_feat = [filters * (2 ** depth_seg)]
+        init_feat = [filters * (2 ** (depth_seg - 1))]
         middle_feat = [dense_size] * (depth_pred - 1)
         channels_in = init_feat + middle_feat
         self.linear = nn.ModuleList(
