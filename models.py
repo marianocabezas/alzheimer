@@ -568,13 +568,11 @@ class BratsSurvivalNet(nn.Module):
             depth=depth_seg, n_images=n_images
         )
 
-        init_feat = [filters * (2 ** (depth_pred - 1))]
-
         self.global_pooling = nn.AdaptiveAvgPool3d((1, 1, 1))
 
-        end_feat = [dense_size + n_features]
-        middle_feat = [dense_size] * (depth_pred - 2)
-        channels_in = init_feat + middle_feat + end_feat
+        init_feat = [filters * (2 ** depth_seg)]
+        middle_feat = [dense_size] * (depth_pred - 1)
+        channels_in = init_feat + middle_feat
         self.linear = nn.ModuleList(
             map(
                 lambda ch_in: nn.Sequential(
@@ -586,7 +584,7 @@ class BratsSurvivalNet(nn.Module):
             )
         )
 
-        self.out = nn.Linear(dense_size, 1)
+        self.out = nn.Linear(dense_size + n_features, 1)
 
     def forward(self, im, features):
         for c, p in zip(self.base_model.convlist, self.base_model.pooling):
