@@ -648,7 +648,8 @@ class BratsSurvivalNet(nn.Module):
             pred_y = self(im.to(self.device), feat.to(self.device))
             target_y = y.to(self.device).type_as(pred_y)
 
-            batch_loss = torch.abs(target_y - pred_y)
+            diff = torch.abs(target_y - pred_y)
+            batch_loss = diff * diff
             loss_value = torch.squeeze(batch_loss).tolist()
 
             if train:
