@@ -591,13 +591,9 @@ class BratsSurvivalNet(nn.Module):
             p.to(self.device)
             im = p(c(im))
 
+        self.base_model.dropout = self.dropout
         im = self.base_model.midconv(im)
         drop = F.dropout3d(im, p=self.dropout, training=self.drop)
-
-        for p in self.pooling:
-            p.to(self.device)
-            im = p(drop)
-            drop = F.dropout(im, p=self.dropout, training=self.drop)
 
         self.global_pooling.to(self.device)
         x = self.global_pooling(drop).view(im.shape[:2])
