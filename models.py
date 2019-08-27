@@ -39,7 +39,7 @@ class BratsSegmentationNet(nn.Module):
             n_images=4,
             dropout=0.99,
             ann_rate=1e-2,
-            final_dropout=0,
+            final_dropout=0.25,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
