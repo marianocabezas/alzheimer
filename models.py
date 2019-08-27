@@ -671,6 +671,9 @@ class BratsSurvivalNet(nn.Module):
         no_improv_e = 0
         best_state = deepcopy(self.state_dict())
 
+        for p in self.base_model.parameters():
+            p.requires_grad = False
+
         model_params = filter(lambda p: p.requires_grad, self.parameters())
 
         t_start = time.time()
