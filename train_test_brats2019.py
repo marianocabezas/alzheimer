@@ -560,6 +560,7 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
 
         # After that, we can finally train the model to predict the survival.
         for i in range(n_folds):
+            model_name = '%s-init.mdl' % net_name
             net = BratsSurvivalNet(depth_seg=depth, depth_pred=depth, filters=filters)
             net.base_model.load_model(os.path.join(d_path, model_name))
 
