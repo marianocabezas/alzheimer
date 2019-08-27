@@ -604,7 +604,7 @@ class BratsSurvivalNet(nn.Module):
             x = l(x)
             x = F.dropout(x, p=self.dropout, training=self.drop)
 
-        torch.cat((x, features.type_as(x)), dim=1)
+        x = torch.cat((x, features.type_as(x)), dim=1)
         self.out.to(self.device)
         output = self.out(x)
         if self.dropout <= 0.5:
