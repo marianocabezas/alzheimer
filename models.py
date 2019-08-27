@@ -569,21 +569,6 @@ class BratsSurvivalNet(nn.Module):
         )
 
         init_features = filters * (2 ** (depth_pred - 1))
-        end_features = init_features * (2 ** (depth_pred))
-
-        self.pooling = nn.ModuleList(map(
-            lambda d: nn.Sequential(
-                nn.InstanceNorm3d(init_features * (2 ** d)),
-                nn.Conv3d(
-                    init_features * (2 ** d),
-                    init_features * (2 ** (d + 1)),
-                    1,
-                    groups=init_features,
-                ),
-                nn.SELU(),
-            ),
-            range(depth_pred)
-        ))
 
         self.global_pooling = nn.AdaptiveAvgPool3d((1, 1, 1))
 
@@ -594,7 +579,7 @@ class BratsSurvivalNet(nn.Module):
                     nn.Linear(ch_in, dense_size),
                     nn.SELU()
                 ),
-                [end_features + n_features] + [dense_size] * (depth_pred - 1)
+                [init_features + n_features] + [dense_size] * (depth_pred - 1)
             )
         )
 
@@ -648,8 +633,7 @@ class BratsSurvivalNet(nn.Module):
             pred_y = self(im.to(self.device), feat.to(self.device))
             target_y = y.to(self.device).type_as(pred_y)
 
-            diff = torch.abs(target_y - pred_y)
-            batch_loss = diff * diff
+            batch_loss = torch.abs(target_y - pred_y)
             loss_value = torch.squeeze(batch_loss).tolist()
 
             if train:
@@ -686,9 +670,6 @@ class BratsSurvivalNet(nn.Module):
         best_loss_val = np.inf
         no_improv_e = 0
         best_state = deepcopy(self.state_dict())
-
-        for p in self.base_model.parameters():
-            p.requires_grad = False
 
         model_params = filter(lambda p: p.requires_grad, self.parameters())
 
