@@ -37,7 +37,7 @@ class BratsSegmentationNet(nn.Module):
             pool_size=2,
             depth=4,
             n_images=4,
-            dropout=0.5,
+            dropout=0.0,
             ann_rate=1e-2,
             final_dropout=0.5,
             device=torch.device(
@@ -370,9 +370,14 @@ class BratsSegmentationNet(nn.Module):
             t_s = time_to_string(t_out)
 
             drop_s = '{:8.5f}'.format(self.dropout)
-            self.dropout = max(
-                self.final_dropout, self.dropout - self.ann_rate
-            )
+            if self.final_dropout >= self.dropout:
+                self.dropout = min(
+                    self.final_dropout, self.dropout + self.ann_rate
+                )
+            else:
+                self.dropout = max(
+                    self.final_dropout, self.dropout - self.ann_rate
+                )
 
             if verbose:
                 print('\033[K', end='')
