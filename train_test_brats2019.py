@@ -299,7 +299,10 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
                     data, targets, rois, flip=True
                 )
             else:
-                train_dataset = BoundarySegmentationCroppingDataset(
+                # train_dataset = BoundarySegmentationCroppingDataset(
+                #     data, targets, rois, patch_size
+                # )
+                train_dataset = BratsDataset(
                     data, targets, rois, patch_size
                 )
 

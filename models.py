@@ -37,9 +37,9 @@ class BratsSegmentationNet(nn.Module):
             pool_size=2,
             depth=4,
             n_images=4,
-            dropout=0.0,
+            dropout=0.99,
             ann_rate=1e-2,
-            final_dropout=0.5,
+            final_dropout=0.0,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
             ),
@@ -203,7 +203,7 @@ class BratsSegmentationNet(nn.Module):
 
             # Final loss from BraTS
             batch_loss_brats = batch_loss_wt + batch_loss_tc
-            batch_loss = torch.sum(batch_loss_c)
+            batch_loss = torch.sum(batch_loss_c[1:])
 
             if train:
                 # batch_loss = multidsc_loss(
@@ -225,6 +225,9 @@ class BratsSegmentationNet(nn.Module):
 
             loss_value = batch_loss.tolist()
             losses.append(loss_value)
+
+            # Curriculum dropout
+            # (1 − θ) * exp(−γt) + θ, γ > 0
 
             self.print_progress(
                 batch_i, n_batches, loss_value, np.mean(losses), train
@@ -370,11 +373,7 @@ class BratsSegmentationNet(nn.Module):
             t_s = time_to_string(t_out)
 
             drop_s = '{:8.5f}'.format(self.dropout)
-            if self.final_dropout >= self.dropout:
-                self.dropout = min(
-                    self.final_dropout, self.dropout + self.ann_rate
-                )
-            else:
+            if self.final_dropout <= self.dropout:
                 self.dropout = max(
                     self.final_dropout, self.dropout - self.ann_rate
                 )
