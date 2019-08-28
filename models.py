@@ -227,7 +227,7 @@ class BratsSegmentationNet(nn.Module):
             losses.append(loss_value)
 
             # Curriculum dropout
-            # (1 − rho) * exp(− gamma t) + rho, gamma > 0
+            # (1 − rho) * exp(− gamma * t) + rho, gamma > 0
 
             self.print_progress(
                 batch_i, n_batches, loss_value, np.mean(losses), train
