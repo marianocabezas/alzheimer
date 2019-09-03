@@ -37,8 +37,6 @@ class BratsSegmentationNet(nn.Module):
             pool_size=2,
             depth=4,
             n_images=4,
-            dropout=0.99,
-            ann_rate=1e-2,
             final_dropout=0.0,
             device=torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -47,9 +45,8 @@ class BratsSegmentationNet(nn.Module):
         super(BratsSegmentationNet, self).__init__()
         # Init
         self.to(device)
-        self.ann_rate = ann_rate
         self.drop = False
-        self.dropout = dropout
+        self.dropout = final_dropout
         self.final_dropout = final_dropout
         self.sampler = None
         self.t_train = 0
@@ -161,7 +158,7 @@ class BratsSegmentationNet(nn.Module):
         return output
 
     def mini_batch_loop(
-            self, training, train=True
+            self, training, train=True, refine=False
     ):
         self.drop = train
         losses = list()
@@ -202,8 +199,10 @@ class BratsSegmentationNet(nn.Module):
             )
 
             # Final loss from BraTS
-            batch_loss_brats = batch_loss_wt + batch_loss_tc
-            batch_loss = torch.sum(batch_loss_c)
+            if refine:
+                batch_loss = batch_loss_wt + batch_loss_tc + batch_loss_c[-1]
+            else:
+                batch_loss = torch.sum(batch_loss_c)
 
             if train:
                 # batch_loss = multidsc_loss(
@@ -271,13 +270,16 @@ class BratsSegmentationNet(nn.Module):
             optimizer='sgd',
             epochs=100,
             patience=10,
+            initial_dropout=0.99,
+            ann_rate=1e-2,
             initial_lr=1,
             # weight_decay=1e-2,
             weight_decay=0,
+            refine=False,
             verbose=True
     ):
         # Init
-        current_lr = initial_lr
+        self.dropout = initial_dropout
         best_loss_tr = np.inf
         best_loss_val = np.inf
         no_improv_e = 0
@@ -375,7 +377,7 @@ class BratsSegmentationNet(nn.Module):
             drop_s = '{:8.5f}'.format(self.dropout)
             if self.final_dropout <= self.dropout:
                 self.dropout = max(
-                    self.final_dropout, self.dropout - self.ann_rate
+                    self.final_dropout, self.dropout - ann_rate
                 )
 
             if verbose:
