@@ -202,7 +202,8 @@ def get_labels(names):
 
 
 def train_seg(
-        net, model_name, train_patients, val_patients, refine=False, dropout=0.99
+        net, model_name, train_patients, val_patients, refine=False,
+        dropout=0.99, lr=1.
 ):
     # Init
     c = color_codes()
@@ -269,7 +270,7 @@ def train_seg(
         )
 
         net.fit(
-            train_loader, val_loader, initial_dropout=dropout,
+            train_loader, val_loader, initial_dropout=dropout, initial_lr=lr,
             epochs=epochs, patience=patience, refine=refine
         )
 
@@ -361,7 +362,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
         model_name = '%s-f%d-R.mdl' % (net_name, i)
         train_seg(
             net, model_name, train_patients, val_patients,
-            refine=True, dropout=0.9
+            refine=True, dropout=0.9, lr=1e-1
         )
 
         # Testing data (with GT)
