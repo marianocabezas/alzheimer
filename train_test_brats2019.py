@@ -201,7 +201,9 @@ def get_labels(names):
     return targets
 
 
-def train_seg(net, model_name, train_patients, val_patients, refine=False):
+def train_seg(
+        net, model_name, train_patients, val_patients, refine=False, dropout=0.99
+):
     # Init
     c = color_codes()
     options = parse_inputs()
@@ -267,7 +269,7 @@ def train_seg(net, model_name, train_patients, val_patients, refine=False):
         )
 
         net.fit(
-            train_loader, val_loader,
+            train_loader, val_loader, initial_dropout=dropout,
             epochs=epochs, patience=patience, refine=refine
         )
 
@@ -357,7 +359,10 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
         train_seg(net, model_name, train_patients, val_patients)
 
         model_name = '%s-f%d-R.mdl' % (net_name, i)
-        train_seg(net, model_name, train_patients, val_patients, refine=True)
+        train_seg(
+            net, model_name, train_patients, val_patients,
+            refine=True, dropout=0.9
+        )
 
         # Testing data (with GT)
         test_cbica = cbica[ini_cbica:end_cbica]

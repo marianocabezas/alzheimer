@@ -292,7 +292,7 @@ class BratsSegmentationNet(nn.Module):
             with torch.no_grad():
                 self.eval()
                 self.t_train = time.time()
-                best_loss_tr, _ = self.mini_batch_loop(
+                loss_tr, _ = self.mini_batch_loop(
                     train_loader, train=False, refine=refine
                 )
                 self.t_val = time.time()
@@ -331,8 +331,7 @@ class BratsSegmentationNet(nn.Module):
         best_opt = deepcopy(self.optimizer_alg.state_dict())
 
         t_start = time.time()
-
-        best_losses = [-np.inf] * (len(l_names))
+        best_loss_tr = -np.inf
 
         for self.epoch in range(epochs):
             # Main epoch loop
