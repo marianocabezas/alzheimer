@@ -237,7 +237,7 @@ def train_seg(
                 train_dataset = BBImageDataset(
                     data, targets, rois, flip=True, mode='min'
                 )
-                batch_size = batch_size * 4
+                batch_size = batch_size * 2
             else:
                 train_dataset = BBImageDataset(
                     data, targets, rois, flip=True
