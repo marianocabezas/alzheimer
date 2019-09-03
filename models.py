@@ -283,13 +283,13 @@ class BratsSegmentationNet(nn.Module):
         ]
         self.dropout = initial_dropout
         model_params = filter(lambda p: p.requires_grad, self.parameters())
-        self.optimizer_alg = torch.optim.SGD(
-            model_params, lr=initial_lr
-        )
 
         # If we are refining, the best train and validation losses are the ones
         # we already have. That is the point of refining.
         if refine:
+            self.optimizer_alg = torch.optim.Adam(
+                model_params, lr=initial_lr, weight_decay=1e-1
+            )
             with torch.no_grad():
                 self.eval()
                 self.t_train = time.time()
@@ -325,6 +325,10 @@ class BratsSegmentationNet(nn.Module):
                         [epoch_s, tr_loss_s, loss_s] + losses_s + [' ' * 7, '']
                     )
                     print(final_s)
+        else:
+            self.optimizer_alg = torch.optim.SGD(
+                model_params, lr=initial_lr
+            )
 
         no_improv_e = 0
         best_state = deepcopy(self.state_dict())
