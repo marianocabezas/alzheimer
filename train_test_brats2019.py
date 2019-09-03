@@ -201,6 +201,79 @@ def get_labels(names):
     return targets
 
 
+def train_seg(net, model_name, train_patients, val_patients, refine=False):
+    # Init
+    c = color_codes()
+    options = parse_inputs()
+    epochs = options['epochs']
+    patience = options['patience']
+    batch_size = options['batch_size']
+    patch_size = options['patch_size']
+    d_path = options['loo_dir']
+
+    try:
+        net.load_model(os.path.join(d_path, model_name))
+    except IOError:
+        n_params = sum(
+            p.numel() for p in net.parameters() if p.requires_grad
+        )
+        print(
+            '%sStarting refinement with a unet%s (%d parameters)' %
+            (c['c'], c['nc'], n_params)
+        )
+
+        num_workers = 8
+
+        # Training
+        targets = get_labels(train_patients)
+        rois, data = get_images(train_patients)
+
+        print('< Training dataset >')
+        if patch_size is None:
+            train_dataset = BBImageDataset(
+                data, targets, rois, flip=True
+            )
+        else:
+            # train_dataset = BoundarySegmentationCroppingDataset(
+            #     data, targets, rois, patch_size
+            # )
+            train_dataset = BratsDataset(
+                data, targets, rois, patch_size
+            )
+
+        print('Dataloader creation <with validation>')
+        train_loader = DataLoader(
+            train_dataset, batch_size, True, num_workers=num_workers,
+        )
+
+        # Validation
+        targets = get_labels(val_patients)
+        rois, data = get_images(val_patients)
+
+        print('< Validation dataset >')
+        val_dataset = BBImageDataset(
+            data, targets, rois
+        )
+
+        print('Dataloader creation <val>')
+        val_loader = DataLoader(
+            val_dataset, 1
+        )
+
+        print(
+            'Training / validation samples = %d / %d' % (
+                len(train_dataset), len(val_dataset)
+            )
+        )
+
+        net.fit(
+            train_loader, val_loader,
+            epochs=epochs, patience=patience, refine=refine
+        )
+
+        net.save_model(os.path.join(d_path, model_name))
+
+
 def train_test_seg(net_name, n_folds, val_split=0.1):
     # Init
     c = color_codes()
@@ -268,156 +341,27 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
             )
         )
 
+        # Training
+        train_cbica = fold_cbica[:n_cbica]
+        train_tcia = fold_tcia[:n_tcia]
+        train_tmc = fold_tmc[:n_tmc]
+        train_b2013 = fold_b2013[:n_b2013]
+        train_patients = train_cbica + train_tcia + train_tmc + train_b2013
+
+        # Validation
+        val_cbica = fold_cbica[n_cbica:]
+        val_tcia = fold_tcia[n_tcia:]
+        val_tmc = fold_tmc[n_tmc:]
+        val_b2013 = fold_b2013[n_b2013:]
+        val_patients = val_cbica + val_tcia + val_tmc + val_b2013
+
         model_name = '%s-f%d.mdl' % (net_name, i)
         net = BratsSegmentationNet(depth=depth, filters=filters)
 
-        try:
-            net.load_model(os.path.join(d_path, model_name))
-        except IOError:
-            n_params = sum(
-                p.numel() for p in net.parameters() if p.requires_grad
-            )
-            print(
-                '%sStarting training with a unet%s (%d parameters)' %
-                (c['c'], c['nc'], n_params)
-            )
-
-            num_workers = 8
-
-            # Training
-            train_cbica = fold_cbica[:n_cbica]
-            train_tcia = fold_tcia[:n_tcia]
-            train_tmc = fold_tmc[:n_tmc]
-            train_b2013 = fold_b2013[:n_b2013]
-            train_patients = train_cbica + train_tcia + train_tmc + train_b2013
-            targets = get_labels(train_patients)
-            rois, data = get_images(train_patients)
-
-            print('< Training dataset >')
-            if patch_size is None:
-                train_dataset = BBImageDataset(
-                    data, targets, rois, flip=True
-                )
-            else:
-                # train_dataset = BoundarySegmentationCroppingDataset(
-                #     data, targets, rois, patch_size
-                # )
-                train_dataset = BratsDataset(
-                    data, targets, rois, patch_size
-                )
-
-            print('Dataloader creation <with validation>')
-            train_loader = DataLoader(
-                train_dataset, batch_size, True, num_workers=num_workers,
-            )
-
-            # Validation
-            val_cbica = fold_cbica[n_cbica:]
-            val_tcia = fold_tcia[n_tcia:]
-            val_tmc = fold_tmc[n_tmc:]
-            val_b2013 = fold_b2013[n_b2013:]
-
-            val_patients = val_cbica + val_tcia + val_tmc + val_b2013
-
-            targets = get_labels(val_patients)
-            rois, data = get_images(val_patients)
-
-            print('< Validation dataset >')
-            val_dataset = BBImageDataset(
-                data, targets, rois
-            )
-
-            print('Dataloader creation <val>')
-            val_loader = DataLoader(
-                val_dataset, 1
-            )
-
-            print(
-                'Training / validation samples = %d / %d' % (
-                     len(train_dataset), len(val_dataset)
-                )
-            )
-
-            net.fit(train_loader, val_loader, epochs=epochs, patience=patience)
-
-            net.save_model(os.path.join(d_path, model_name))
+        train_seg(net, model_name, train_patients, val_patients)
 
         model_name = '%s-f%d-R.mdl' % (net_name, i)
-        net = BratsSegmentationNet(depth=depth, filters=filters)
-
-        try:
-            net.load_model(os.path.join(d_path, model_name))
-        except IOError:
-            n_params = sum(
-                p.numel() for p in net.parameters() if p.requires_grad
-            )
-            print(
-                '%sStarting refinement with a unet%s (%d parameters)' %
-                (c['c'], c['nc'], n_params)
-            )
-
-            num_workers = 8
-
-            # Training
-            train_cbica = fold_cbica[:n_cbica]
-            train_tcia = fold_tcia[:n_tcia]
-            train_tmc = fold_tmc[:n_tmc]
-            train_b2013 = fold_b2013[:n_b2013]
-            train_patients = train_cbica + train_tcia + train_tmc + train_b2013
-            targets = get_labels(train_patients)
-            rois, data = get_images(train_patients)
-
-            print('< Training dataset >')
-            if patch_size is None:
-                train_dataset = BBImageDataset(
-                    data, targets, rois, flip=True
-                )
-            else:
-                # train_dataset = BoundarySegmentationCroppingDataset(
-                #     data, targets, rois, patch_size
-                # )
-                train_dataset = BratsDataset(
-                    data, targets, rois, patch_size
-                )
-
-            print('Dataloader creation <with validation>')
-            train_loader = DataLoader(
-                train_dataset, batch_size, True, num_workers=num_workers,
-            )
-
-            # Validation
-            val_cbica = fold_cbica[n_cbica:]
-            val_tcia = fold_tcia[n_tcia:]
-            val_tmc = fold_tmc[n_tmc:]
-            val_b2013 = fold_b2013[n_b2013:]
-
-            val_patients = val_cbica + val_tcia + val_tmc + val_b2013
-
-            targets = get_labels(val_patients)
-            rois, data = get_images(val_patients)
-
-            print('< Validation dataset >')
-            val_dataset = BBImageDataset(
-                data, targets, rois
-            )
-
-            print('Dataloader creation <val>')
-            val_loader = DataLoader(
-                val_dataset, 1
-            )
-
-            print(
-                'Training / validation samples = %d / %d' % (
-                    len(train_dataset), len(val_dataset)
-                )
-            )
-
-            net.fit(
-                train_loader, val_loader,
-                epochs=epochs, patience=patience, refine=True
-            )
-
-            net.save_model(os.path.join(d_path, model_name))
+        train_seg(net, model_name, train_patients, val_patients, refine=True)
 
         # Testing data (with GT)
         test_cbica = cbica[ini_cbica:end_cbica]
