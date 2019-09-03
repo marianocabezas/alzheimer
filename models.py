@@ -320,9 +320,8 @@ class BratsSegmentationNet(nn.Module):
                     l_hdr = '  |  '.join(l_names)
                     print('%sEpoch num |  %s  |' % (whites, l_hdr))
                     print('%s----------|--%s--|' % (whites, l_bars))
-                    dash = '-----'
                     final_s = whites + ' | '.join(
-                        [epoch_s, tr_loss_s, loss_s] + losses_s + [dash, dash]
+                        [epoch_s, tr_loss_s, loss_s] + losses_s + [' ' * 7, '']
                     )
                     print(final_s)
 
@@ -331,7 +330,7 @@ class BratsSegmentationNet(nn.Module):
         best_opt = deepcopy(self.optimizer_alg.state_dict())
 
         t_start = time.time()
-        best_loss_tr = -np.inf
+        best_loss_tr = np.inf
 
         for self.epoch in range(epochs):
             # Main epoch loop
