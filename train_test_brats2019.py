@@ -278,12 +278,8 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
     # Init
     c = color_codes()
     options = parse_inputs()
-    epochs = options['epochs']
-    patience = options['patience']
     depth = options['blocks']
     filters = options['filters']
-    batch_size = options['batch_size']
-    patch_size = options['patch_size']
 
     d_path = options['loo_dir']
     unc_path = os.path.join(d_path, 'uncertainty')

@@ -267,46 +267,37 @@ class BratsSegmentationNet(nn.Module):
             self,
             train_loader,
             val_loader,
-            optimizer='sgd',
             epochs=100,
             patience=10,
             initial_dropout=0.99,
             ann_rate=1e-2,
             initial_lr=1,
-            # weight_decay=1e-2,
-            weight_decay=0,
             refine=False,
             verbose=True
     ):
         # Init
         self.dropout = initial_dropout
-        best_loss_tr = np.inf
-        best_loss_val = np.inf
+        # If we are refining, the best train and validation losses are the ones
+        # we already have. That is the point of refining.
+        if refine:
+            with torch.no_grad():
+                self.eval()
+                self.t_train = time.time()
+                best_loss_tr = self.mini_batch_loop(
+                    train_loader, refine=refine
+                )
+                self.t_val = time.time()
+                best_loss_val, _ = self.mini_batch_loop(
+                    val_loader, train=False, refine=refine
+                )
         no_improv_e = 0
         best_state = deepcopy(self.state_dict())
 
-        optimizer_dict = {
-            'adam': lambda params, lr: torch.optim.Adam(
-                params, lr=lr, weight_decay=weight_decay
-            ),
-            'sgd': lambda params, lr: torch.optim.SGD(
-                params, lr=lr, weight_decay=weight_decay
-            ),
-            'adadelta': lambda params, lr: torch.optim.Adadelta(
-                params, weight_decay=weight_decay
-            ),
-            'adabound': lambda params, lr: AdaBound(
-                params, lr=lr, weight_decay=weight_decay
-            ),
-        }
-
         model_params = filter(lambda p: p.requires_grad, self.parameters())
 
-        is_string = isinstance(optimizer, basestring)
-
-        self.optimizer_alg = optimizer_dict[optimizer](
-            model_params, initial_lr
-        ) if is_string else optimizer
+        self.optimizer_alg = torch.optim.SGD(
+                model_params, lr=initial_lr
+            )
         best_opt = deepcopy(self.optimizer_alg.state_dict())
 
         t_start = time.time()
@@ -322,7 +313,9 @@ class BratsSegmentationNet(nn.Module):
             # Main epoch loop
             self.t_train = time.time()
             self.train()
-            loss_tr = self.mini_batch_loop(train_loader)
+            loss_tr = self.mini_batch_loop(
+                train_loader, refine=refine
+            )
             improvement_tr = loss_tr < best_loss_tr
             if improvement_tr:
                 best_loss_tr = loss_tr
@@ -334,7 +327,9 @@ class BratsSegmentationNet(nn.Module):
             with torch.no_grad():
                 self.eval()
                 self.t_val = time.time()
-                loss_val, mid_losses = self.mini_batch_loop(val_loader, False)
+                loss_val, mid_losses = self.mini_batch_loop(
+                    val_loader, train=False, refine=refine
+                )
 
             losses_color = map(
                 lambda (pl, l): '\033[36m%s\033[0m' if l > pl else '%s',
