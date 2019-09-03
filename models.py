@@ -287,7 +287,7 @@ class BratsSegmentationNet(nn.Module):
         # If we are refining, the best train and validation losses are the ones
         # we already have. That is the point of refining.
         if refine:
-            self.optimizer_alg = torch.optim.Adam(
+            self.optimizer_alg = torch.optim.SGD(
                 model_params, lr=initial_lr, weight_decay=1e-1
             )
             with torch.no_grad():
