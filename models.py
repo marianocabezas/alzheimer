@@ -302,7 +302,7 @@ class BratsSegmentationNet(nn.Module):
                 best_e = None
 
                 if verbose:
-                    tr_loss_s = '\033[32m%0.5f\033[0m' % best_loss_tr
+                    tr_loss_s = '\033[32m%0.5f\033[0m' % loss_tr
                     losses_color = map(
                         lambda l: '\033[36m%s\033[0m', best_losses
                     )
