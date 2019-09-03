@@ -292,7 +292,7 @@ class BratsSegmentationNet(nn.Module):
             with torch.no_grad():
                 self.eval()
                 self.t_train = time.time()
-                best_loss_tr = self.mini_batch_loop(
+                best_loss_tr, _ = self.mini_batch_loop(
                     train_loader, train=False, refine=refine
                 )
                 self.t_val = time.time()
