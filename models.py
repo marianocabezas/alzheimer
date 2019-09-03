@@ -293,7 +293,7 @@ class BratsSegmentationNet(nn.Module):
                 self.eval()
                 self.t_train = time.time()
                 best_loss_tr = self.mini_batch_loop(
-                    train_loader, refine=refine
+                    train_loader, train=False, refine=refine
                 )
                 self.t_val = time.time()
                 best_loss_val, best_losses = self.mini_batch_loop(
