@@ -368,7 +368,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
         model_name = '%s-f%d-R.mdl' % (net_name, i)
         train_seg(
             net, model_name, train_patients, val_patients,
-            refine=True, dropout=0.5, lr=1e-2
+            refine=True, dropout=0.5, lr=1e-3
         )
 
         # Testing data (with GT)
