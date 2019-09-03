@@ -200,7 +200,8 @@ class BratsSegmentationNet(nn.Module):
 
             # Final loss from BraTS
             if refine:
-                batch_loss = batch_loss_wt + batch_loss_tc + batch_loss_c[-1]
+                class_loss = torch.sum(batch_loss_c)
+                batch_loss = batch_loss_wt + batch_loss_tc + class_loss
             else:
                 batch_loss = torch.sum(batch_loss_c)
 
