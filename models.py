@@ -276,7 +276,12 @@ class BratsSegmentationNet(nn.Module):
             verbose=True
     ):
         # Init
+        l_names = [
+            'train', ' val ', '  BCK ', '  NET ', '  ED  ', '  ET  ',
+            '  WT  ', '  TC  ', 'p_drop'
+        ]
         self.dropout = initial_dropout
+
         # If we are refining, the best train and validation losses are the ones
         # we already have. That is the point of refining.
         if refine:
@@ -287,9 +292,36 @@ class BratsSegmentationNet(nn.Module):
                     train_loader, refine=refine
                 )
                 self.t_val = time.time()
-                best_loss_val, _ = self.mini_batch_loop(
+                best_loss_val, best_losses = self.mini_batch_loop(
                     val_loader, train=False, refine=refine
                 )
+                best_e = None
+
+                if verbose:
+                    tr_loss_s = '\033[32m%0.5f\033[0m' % best_loss_tr
+                    losses_color = map(
+                        lambda l: '\033[36m%s\033[0m', best_losses
+                    )
+                    losses_s = map(
+                        lambda (c, l): c % '{:8.4f}'.format(l),
+                        zip(losses_color, best_losses)
+                    )
+                    epoch_s = '\033[32mEpoch ini\033[0m'
+                    loss_s = '\033[32m%0.5f\033[0m' % best_loss_val
+                    print('\033[K', end='')
+                    whites = ' '.join([''] * 12)
+                    l_bars = '--|--'.join(
+                        ['-' * 5] * 2 + ['-' * 6] * len(l_names[2:])
+                    )
+                    l_hdr = '  |  '.join(l_names)
+                    print('%sEpoch num |  %s  |' % (whites, l_hdr))
+                    print('%s----------|--%s--|' % (whites, l_bars))
+                    dash = '-----'
+                    final_s = whites + ' | '.join(
+                        [epoch_s, tr_loss_s, loss_s] + losses_s + [dash, dash]
+                    )
+                    print(final_s)
+
         no_improv_e = 0
         best_state = deepcopy(self.state_dict())
 
@@ -302,12 +334,7 @@ class BratsSegmentationNet(nn.Module):
 
         t_start = time.time()
 
-        l_names = [
-            'train', ' val ', '  BCK ', '  NET ', '  ED  ', '  ET  ',
-            '  WT  ', '  TC  ', 'p_drop'
-        ]
         best_losses = [-np.inf] * (len(l_names))
-        best_e = 0
 
         for self.epoch in range(epochs):
             # Main epoch loop
@@ -378,7 +405,7 @@ class BratsSegmentationNet(nn.Module):
             if verbose:
                 print('\033[K', end='')
                 whites = ' '.join([''] * 12)
-                if self.epoch == 0:
+                if self.epoch == 0 and not refine:
                     l_bars = '--|--'.join(
                         ['-' * 5] * 2 + ['-' * 6] * len(l_names[2:])
                     )
