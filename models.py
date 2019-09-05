@@ -291,7 +291,7 @@ class BratsSegmentationNet(nn.Module):
             )
             with torch.no_grad():
                 self.eval()
-                self.t_train = time.time()
+                self.t_val = time.time()
                 loss_tr, _ = self.mini_batch_loop(
                     train_loader, train=False, refine=refine
                 )
@@ -660,12 +660,12 @@ class BratsSurvivalNet(nn.Module):
             target_y = y.to(self.device).type_as(pred_y)
 
             target_short = (target_y < 300).type_as(pred_y)
-            target_mid = (target_y >= 300).type_as(pred_y) +\
-                       (target_y < 450).type_as(pred_y)
+            target_mid = (target_y >= 300).type_as(pred_y) *\
+                         (target_y < 450).type_as(pred_y)
             target_long = (target_y >= 450).type_as(pred_y)
 
             pred_short = (pred_y < 300).type_as(pred_y)
-            pred_mid = (pred_y >= 300).type_as(pred_y) +\
+            pred_mid = (pred_y >= 300).type_as(pred_y) *\
                        (pred_y < 450).type_as(pred_y)
             pred_long = (pred_y >= 450).type_as(pred_y)
             pred_cat = torch.stack(
