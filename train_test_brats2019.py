@@ -233,9 +233,15 @@ def train_seg(
 
         print('< Training dataset >')
         if patch_size is None:
-            train_dataset = BBImageDataset(
-                data, targets, rois, flip=True
-            )
+            if refine:
+                train_dataset = BBImageDataset(
+                    data, targets, rois, flip=True, mode='min'
+                )
+                batch_size = batch_size * 2
+            else:
+                train_dataset = BBImageDataset(
+                    data, targets, rois, flip=True
+                )
         else:
             # train_dataset = BoundarySegmentationCroppingDataset(
             #     data, targets, rois, patch_size
@@ -362,7 +368,7 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
         model_name = '%s-f%d-R.mdl' % (net_name, i)
         train_seg(
             net, model_name, train_patients, val_patients,
-            refine=True, dropout=0.5, lr=1e-1
+            refine=True, dropout=0.5, lr=1e-2
         )
 
         # Testing data (with GT)
