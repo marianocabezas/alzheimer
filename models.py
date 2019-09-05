@@ -7,7 +7,6 @@ from torch import nn
 import torch.nn.functional as F
 import numpy as np
 from criterions import multidsc_loss
-from optimizers import AdaBound
 from utils import time_to_string
 
 
@@ -322,7 +321,7 @@ class BratsSegmentationNet(nn.Module):
                     print('%sEpoch num |  %s  |' % (whites, l_hdr))
                     print('%s----------|--%s--|' % (whites, l_bars))
                     final_s = whites + ' | '.join(
-                        [epoch_s, tr_loss_s, loss_s] + losses_s + [' ' * 7, '']
+                        [epoch_s, tr_loss_s, loss_s] + losses_s + [' ' * 8, '']
                     )
                     print(final_s)
 
@@ -656,7 +655,24 @@ class BratsSurvivalNet(nn.Module):
             pred_y = self(im.to(self.device), feat.to(self.device))
             target_y = y.to(self.device).type_as(pred_y)
 
-            batch_loss = torch.abs(target_y - pred_y)
+            target_short = (target_y < 300).type_as(pred_y)
+            target_mid = (target_y >= 300).type_as(pred_y) +\
+                       (target_y < 450).type_as(pred_y)
+            target_long = (target_y >= 450).type_as(pred_y)
+
+            pred_short = (pred_y < 300).type_as(pred_y)
+            pred_mid = (pred_y >= 300).type_as(pred_y) +\
+                       (pred_y < 450).type_as(pred_y)
+            pred_long = (pred_y >= 450).type_as(pred_y)
+            pred_cat = torch.stack(
+                (pred_short, pred_mid, pred_long), dim=1
+            )
+            target_cat = torch.stack(
+                (target_short, target_mid, target_long), dim=1
+            )
+            batch_loss_cat = multidsc_loss(pred_cat, target_cat)
+            batch_loss_abs = torch.abs(target_y - pred_y)
+            batch_loss = batch_loss_cat + batch_loss_abs
             loss_value = torch.squeeze(batch_loss).tolist()
 
             if train:
