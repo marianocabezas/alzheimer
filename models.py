@@ -681,7 +681,7 @@ class BratsSurvivalNet(nn.Module):
             batch_loss_sumabs = 1e2 * torch.sum(batch_loss_abs)
             batch_loss_std = torch.std(batch_loss_abs)
             batch_loss_sumcat = torch.sum(batch_loss_cat)
-            batch_loss = batch_loss_sumcat + batch_loss_sumabs + batch_loss_std
+            batch_loss = batch_loss_sumcat + batch_loss_sumabs
             loss_value = torch.squeeze(batch_loss).tolist()
 
             if train:
