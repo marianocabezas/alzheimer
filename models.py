@@ -566,7 +566,7 @@ class BratsSurvivalNet(nn.Module):
             kernel_size=3,
             pool_seg=2,
             depth_seg=4,
-            depth_pred=3,
+            depth_pred=2,
             n_images=4,
             n_features=1,
             dense_size=256,
@@ -680,7 +680,7 @@ class BratsSurvivalNet(nn.Module):
                 1. - torch.sum(pred_cat * target_cat, dim=1)
             )
             batch_loss_abs = torch.abs(target_y - pred_y)
-            batch_loss_sumabs = 1e-2 * torch.sum(batch_loss_abs)
+            batch_loss_sumabs = 5e-3 * torch.sum(batch_loss_abs)
             batch_loss = batch_loss_cat + batch_loss_sumabs
 
             loss_value = torch.squeeze(batch_loss).tolist()
