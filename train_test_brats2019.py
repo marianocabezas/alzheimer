@@ -735,19 +735,25 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
 
             # Split of the target survivals
             hi_survival = map(
-                lambda h_i: survival_dict[h_i]['Survival'], high_i
+                lambda h_i: float(survival_dict[h_i]['Survival']), high_i
             )
             mid_survival = map(
-                lambda h_i: survival_dict[h_i]['Survival'], mid_i
+                lambda h_i: float(survival_dict[h_i]['Survival']), mid_i
             )
             low_survival = map(
-                lambda h_i: survival_dict[h_i]['Survival'], low_i
+                lambda h_i: float(survival_dict[h_i]['Survival']), low_i
             )
             test_survival = hi_survival + mid_survival + low_survival
             # Split of the age feature
-            hi_ages = map(lambda h_i: survival_dict[h_i]['Age'], high_i)
-            mid_ages = map(lambda h_i: survival_dict[h_i]['Age'], high_i)
-            low_ages = map(lambda h_i: survival_dict[h_i]['Age'], high_i)
+            hi_ages = map(
+                lambda h_i: float(survival_dict[h_i]['Age']), high_i
+            )
+            mid_ages = map(
+                lambda h_i: float(survival_dict[h_i]['Age']), high_i
+            )
+            low_ages = map(
+                lambda h_i: float(survival_dict[h_i]['Age']), high_i
+            )
             test_ages = hi_ages + mid_ages + low_ages
 
             _, test_data = get_images(test_patients)
