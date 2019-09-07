@@ -790,7 +790,7 @@ class BratsSurvivalNet(nn.Module):
                     print('%sEpoch num |  %s  |' % (whites, l_hdr))
                     print('%s----------|--%s--|' % (whites, l_bars))
                 final_s = whites + ' | '.join(
-                    [epoch_s, tr_loss_s, cat_s, abs_s, loss_s, drop_s] + [t_s]
+                    [epoch_s, tr_loss_s, loss_s, cat_s, abs_s, drop_s] + [t_s]
                 )
                 print(final_s)
 
