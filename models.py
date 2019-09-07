@@ -754,7 +754,7 @@ class BratsSurvivalNet(nn.Module):
                 )
 
             # Mid losses check
-            if best_loss_cat < loss_cat:
+            if best_loss_cat > loss_cat:
                 best_loss_cat = loss_cat
                 cat_s = '\033[36m{:7.3f}\033[0m'.format(loss_cat)
             else:
@@ -789,9 +789,7 @@ class BratsSurvivalNet(nn.Module):
                 print('\033[K', end='')
                 whites = ' '.join([''] * 12)
                 if self.epoch == 0:
-                    l_bars = '--|--'.join(
-                        ['-' * 5] * 2 + ['-' * 6] * len(l_names[2:])
-                    )
+                    l_bars = '--|--'.join(['-' * 5] * len(l_names))
                     l_hdr = '  |  '.join(l_names)
                     print('%sEpoch num |  %s  |' % (whites, l_hdr))
                     print('%s----------|--%s--|' % (whites, l_bars))
