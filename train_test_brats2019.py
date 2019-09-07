@@ -713,7 +713,7 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
 
                 n_train = len(train_dataset)
                 n_val = len(val_dataset)
-                n_test = len(survival_patients - n_train - n_val)
+                n_test = len(survival_patients) - n_train - n_val
                 print(
                     'Train / validation / test samples = %d / %d / %d' % (
                         n_train, n_val, n_test
