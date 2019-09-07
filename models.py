@@ -698,7 +698,7 @@ class BratsSurvivalNet(nn.Module):
                 batch_i, n_batches, loss_value, np.mean(losses), train
             )
 
-        return np.mean(losses), np.mean(losses_cat), np.mean(losses_abs)
+        return np.mean(losses), np.sum(losses_cat), np.mean(losses_abs)
 
     def fit(
             self,
@@ -754,14 +754,14 @@ class BratsSurvivalNet(nn.Module):
             # Mid losses check
             if best_acc_cat < acc_cat:
                 best_acc_cat = acc_cat
-                cat_s = '\033[36m{:8.4f}\033[0m'.format(acc_cat)
+                cat_s = '\033[36m{:7.3f}\033[0m'.format(acc_cat)
             else:
                 cat_s = '{:7.3f}'.format(acc_cat)
             if best_loss_abs > loss_abs:
                 best_loss_abs = loss_abs
                 abs_s = '\033[36m{:7.3f}\033[0m'.format(loss_abs)
             else:
-                abs_s = '{:8.4f}'.format(loss_abs)
+                abs_s = '{:7.3f}'.format(loss_abs)
 
             # Patience check
             if loss_val < best_loss_val:
