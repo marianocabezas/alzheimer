@@ -749,10 +749,10 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
                 lambda h_i: float(survival_dict[h_i]['Age']), high_i
             )
             mid_ages = map(
-                lambda h_i: float(survival_dict[h_i]['Age']), high_i
+                lambda h_i: float(survival_dict[h_i]['Age']), mid_i
             )
             low_ages = map(
-                lambda h_i: float(survival_dict[h_i]['Age']), high_i
+                lambda h_i: float(survival_dict[h_i]['Age']), low_i
             )
             test_ages = hi_ages + mid_ages + low_ages
 
