@@ -674,14 +674,13 @@ class BratsSurvivalNet(nn.Module):
             target_cat = torch.stack(
                 (target_short, target_mid, target_long), dim=1
             )
-            batch_loss_cat = multidsc_loss(
-                pred_cat, target_cat, averaged=False
-            )
-            batch_loss_abs = 1e-2 * torch.abs(target_y - pred_y)
-            batch_loss_sumabs = torch.sum(batch_loss_abs)
+
+            batch_loss_cat = torch.sum(1. - pred_cat * target_cat)
+            batch_loss_abs = torch.abs(target_y - pred_y)
+            batch_loss_sumabs = 1e-2 * torch.sum(batch_loss_abs)
             batch_loss_std = torch.std(batch_loss_abs)
-            batch_loss_sumcat = torch.sum(batch_loss_cat)
-            batch_loss = batch_loss_sumcat + batch_loss_sumabs
+            batch_loss = batch_loss_cat + batch_loss_sumabs
+
             loss_value = torch.squeeze(batch_loss).tolist()
 
             if train:
@@ -697,7 +696,7 @@ class BratsSurvivalNet(nn.Module):
                 batch_i, n_batches, loss_value, np.mean(losses), train
             )
 
-        return np.mean(losses)
+        return np.mean(losses), 1. - batch_loss_cat, torch.sum(batch_loss_abs)
 
     def fit(
             self,
@@ -711,11 +710,12 @@ class BratsSurvivalNet(nn.Module):
         # Init
         self.train()
         self.base_model.eval()
-        initial_dropout = self.dropout
 
         # Now we actually train the prediction network.
         best_loss_tr = np.inf
         best_loss_val = np.inf
+        best_loss_abs = np.inf
+        best_acc_cat = -np.inf
         no_improv_e = 0
         best_state = deepcopy(self.state_dict())
 
@@ -726,7 +726,7 @@ class BratsSurvivalNet(nn.Module):
 
         t_start = time.time()
 
-        l_names = ['train', ' val ', 'pdrop']
+        l_names = ['train', ' val ', ' cat ', ' abs ', 'pdrop']
 
         best_e = 0
         # SGD for L1
@@ -736,28 +736,42 @@ class BratsSurvivalNet(nn.Module):
         for self.epoch in range(epochs):
             # Main epoch loop
             self.t_train = time.time()
-            loss_tr = self.mini_batch_loop(train_loader)
-            tr_loss_s = '{:7.3f}'.format(loss_tr)
+            loss_tr, _, _ = self.mini_batch_loop(train_loader)
             if loss_tr < best_loss_tr:
                 best_loss_tr = loss_tr
-                tr_loss_s = '\033[32m%s\033[0m' % tr_loss_s
+                tr_loss_s = '\033[32m{:7.3f}\033[0m'.format(loss_tr)
+            else:
+                tr_loss_s = '{:7.3f}'.format(loss_tr)
 
             with torch.no_grad():
                 self.t_val = time.time()
-                loss_val = self.mini_batch_loop(val_loader, False)
+                loss_val, acc_cat, loss_abs = self.mini_batch_loop(
+                    val_loader, False
+                )
+
+            # Mid losses check
+            if best_acc_cat < acc_cat:
+                best_acc_cat = acc_cat
+                cat_s = '\033[36m{:8.4f}\033[0m'.format(acc_cat)
+            else:
+                cat_s = '{:8.4f}'.format(acc_cat)
+            if best_loss_abs > loss_abs:
+                best_loss_abs = loss_abs
+                abs_s = '\033[36m{:8.4f}\033[0m'.format(loss_abs)
+            else:
+                abs_s = '{:8.4f}'.format(loss_abs)
 
             # Patience check
-            improvement = loss_val < best_loss_val
-            loss_s = '{:7.3f}'.format(loss_val)
-            if improvement:
+            if loss_val < best_loss_val:
                 best_loss_val = loss_val
                 epoch_s = '\033[32mEpoch %03d\033[0m' % self.epoch
-                loss_s = '\033[32m%s\033[0m' % loss_s
+                loss_s = '\033[32m{:7.3f}\033[0m'.format(loss_val)
                 best_e = self.epoch
                 best_state = deepcopy(self.state_dict())
                 no_improv_e = 0
             else:
                 epoch_s = 'Epoch %03d' % self.epoch
+                loss_s = '{:7.3f}'.format(loss_val)
                 no_improv_e += 1
 
             t_out = time.time() - self.t_train
@@ -778,7 +792,7 @@ class BratsSurvivalNet(nn.Module):
                     print('%sEpoch num |  %s  |' % (whites, l_hdr))
                     print('%s----------|--%s--|' % (whites, l_bars))
                 final_s = whites + ' | '.join(
-                    [epoch_s, tr_loss_s, loss_s, drop_s] + [t_s]
+                    [epoch_s, tr_loss_s, cat_s, abs_s, loss_s, drop_s] + [t_s]
                 )
                 print(final_s)
 
