@@ -485,6 +485,19 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
     survival_dict = get_survival_data()
     seg_patients = filter(lambda p: p not in survival_dict.keys(), patients)
     survival_patients = survival_dict.keys()
+    low_patients = filter(
+        lambda p: int(survival_dict[p]['Survival']) < 300,
+        survival_patients
+    )
+    mid_patients = filter(
+        lambda p: (int(survival_dict[p]['Survival']) >= 300) &
+                  (int(survival_dict[p]['Survival']) < 450),
+        survival_patients
+    )
+    hi_patients = filter(
+        lambda p: int(survival_dict[p]['Survival']) >= 450,
+        survival_patients
+    )
 
     t_survival_dict = get_survival_data(True)
     t_survival_patients = t_survival_dict.keys()
@@ -605,33 +618,64 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
                 )
             )
 
-            ini_i = len(survival_patients) * i / n_folds
-            end_i = len(survival_patients) * (i + 1) / n_folds
-
             try:
                 net.load_model(os.path.join(d_path, model_name))
             except IOError:
-                fold_i = survival_patients[:ini_i] + survival_patients[end_i:]
-                survival_i = map(
-                    lambda s_i: s_i,
-                    survivals[:ini_i] + survivals[end_i:]
+                # Train/Test patient split according to survival classes
+                hi_ini = len(hi_patients) * i / n_folds
+                mid_ini = len(mid_patients) * i / n_folds
+                low_ini = len(low_patients) * i / n_folds
+                hi_end = len(hi_patients) * (i + 1) / n_folds
+                mid_end = len(mid_patients) * (i + 1) / n_folds
+                low_end = len(low_patients) * (i + 1) / n_folds
+                high_i = hi_patients[:hi_ini] + hi_patients[hi_end:]
+                mid_i = mid_patients[:mid_ini] + mid_patients[mid_end:]
+                low_i = low_patients[:low_ini] + low_patients[low_end:]
+
+                # Split of the target survivals
+                hi_survival = map(
+                    lambda h_i: survival_dict[h_i]['Survival'], high_i
                 )
-                ages_i = survival_ages[:ini_i] + survival_ages[end_i:]
-                n_fold = len(fold_i)
-                n_train = int(n_fold * (1 - val_split))
+                mid_survival = map(
+                    lambda h_i: survival_dict[h_i]['Survival'], mid_i
+                )
+                low_survival = map(
+                    lambda h_i: survival_dict[h_i]['Survival'], low_i
+                )
+                # Split of the age feature
+                hi_ages = map(lambda h_i: survival_dict[h_i]['Age'], high_i)
+                mid_ages = map(lambda h_i: survival_dict[h_i]['Age'], high_i)
+                low_ages = map(lambda h_i: survival_dict[h_i]['Age'], high_i)
 
                 # Data split (using numpy) for train and validation.
                 # We also compute the number of batches for both training and
                 # validation according to the batch size.
+                # Train/Validation split
+                n_hi = len(high_i)
+                n_mid = len(mid_i)
+                n_low = len(low_i)
+                n_hitrain = int(n_hi * (1 - val_split))
+                n_midtrain = int(n_mid * (1 - val_split))
+                n_lowtrain = int(n_low * (1 - val_split))
+
                 # Training
-                train_i = fold_i[:n_train]
-                train_ages = ages_i[:n_train]
-                train_survival = survival_i[:n_train]
+                hi_train = high_i[:n_hitrain]
+                mid_train = mid_i[:n_midtrain]
+                low_train = low_i[:n_lowtrain]
+                train_i = hi_train + mid_train + low_train
+                hi_train_ages = hi_ages[:n_hitrain]
+                mid_train_ages = mid_ages[:n_midtrain]
+                low_train_ages = low_ages[:n_lowtrain]
+                train_ages = hi_train_ages + mid_train_ages + low_train_ages
+                hi_train_surv = hi_survival[:n_hitrain]
+                mid_train_surv = mid_survival[:n_midtrain]
+                low_train_surv = low_survival[:n_lowtrain]
+                train_surv = hi_train_surv + mid_train_surv + low_train_surv
 
                 print('< Training dataset >')
                 train_rois, train_data = get_images(train_i)
                 train_dataset = BBImageValueDataset(
-                    train_data, train_ages, train_survival, train_rois, bb=bb
+                    train_data, train_ages, train_surv, train_rois, bb=bb
                 )
 
                 print('Dataloader creation <train>')
@@ -640,14 +684,23 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
                 )
 
                 # Validation
-                val_i = fold_i[n_train:]
-                val_ages = ages_i[n_train:]
-                val_survival = survival_i[n_train:]
+                hi_train = high_i[n_hitrain:]
+                mid_train = mid_i[n_midtrain:]
+                low_train = low_i[n_lowtrain:]
+                val_i = hi_train + mid_train + low_train
+                hi_train_ages = hi_ages[n_hitrain:]
+                mid_train_ages = mid_ages[n_midtrain:]
+                low_train_ages = low_ages[n_lowtrain:]
+                val_ages = hi_train_ages + mid_train_ages + low_train_ages
+                hi_train_surv = hi_survival[n_hitrain:]
+                mid_train_surv = mid_survival[n_midtrain:]
+                low_train_surv = low_survival[n_lowtrain:]
+                val_surv = hi_train_surv + mid_train_surv + low_train_surv
 
                 print('< Validation dataset >')
                 val_rois, val_data = get_images(val_i)
                 val_dataset = BBImageValueDataset(
-                    val_data, val_ages, val_survival, val_rois, bb=bb
+                    val_data, val_ages, val_surv, val_rois, bb=bb
                 )
 
                 print('Dataloader creation <val>')
@@ -669,9 +722,27 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
 
             ''' Survival testing '''
             # Testing data
-            test_patients = survival_patients[ini_i:end_i]
-            test_survival = survivals[ini_i:end_i]
-            test_ages = survival_ages[ini_i:end_i]
+            high_i = hi_patients[hi_ini:hi_end]
+            mid_i = mid_patients[mid_ini:mid_end]
+            low_i = low_patients[low_ini:low_end]
+            test_patients = high_i + mid_i + low_i
+
+            # Split of the target survivals
+            hi_survival = map(
+                lambda h_i: survival_dict[h_i]['Survival'], high_i
+            )
+            mid_survival = map(
+                lambda h_i: survival_dict[h_i]['Survival'], mid_i
+            )
+            low_survival = map(
+                lambda h_i: survival_dict[h_i]['Survival'], low_i
+            )
+            test_survival = hi_survival + mid_survival + low_survival
+            # Split of the age feature
+            hi_ages = map(lambda h_i: survival_dict[h_i]['Age'], high_i)
+            mid_ages = map(lambda h_i: survival_dict[h_i]['Age'], high_i)
+            low_ages = map(lambda h_i: survival_dict[h_i]['Age'], high_i)
+            test_ages = hi_ages + mid_ages + low_ages
 
             _, test_data = get_images(test_patients)
 
