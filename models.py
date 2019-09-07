@@ -566,7 +566,7 @@ class BratsSurvivalNet(nn.Module):
             kernel_size=3,
             pool_seg=2,
             depth_seg=4,
-            depth_pred=5,
+            depth_pred=3,
             n_images=4,
             n_features=1,
             dense_size=256,
