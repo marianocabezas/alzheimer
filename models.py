@@ -694,7 +694,7 @@ class BratsSurvivalNet(nn.Module):
 
             losses.append(loss_value)
             losses_cat.append(batch_loss_cat.tolist())
-            losses_abs.append(torch.sum(batch_loss_abs).tolist())
+            losses_abs.append(torch.mean(batch_loss_abs).tolist())
 
             self.print_progress(
                 batch_i, n_batches, loss_value, np.mean(losses), train
