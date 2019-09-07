@@ -717,7 +717,7 @@ class BratsSurvivalNet(nn.Module):
         best_loss_tr = np.inf
         best_loss_val = np.inf
         best_loss_abs = np.inf
-        best_acc_cat = -np.inf
+        best_loss_cat = np.inf
         no_improv_e = 0
         best_state = deepcopy(self.state_dict())
 
@@ -747,16 +747,16 @@ class BratsSurvivalNet(nn.Module):
 
             with torch.no_grad():
                 self.t_val = time.time()
-                loss_val, acc_cat, loss_abs = self.mini_batch_loop(
+                loss_val, loss_cat, loss_abs = self.mini_batch_loop(
                     val_loader, False
                 )
 
             # Mid losses check
-            if best_acc_cat < acc_cat:
-                best_acc_cat = acc_cat
-                cat_s = '\033[36m{:7.3f}\033[0m'.format(acc_cat)
+            if best_loss_cat < loss_cat:
+                best_loss_cat = loss_cat
+                cat_s = '\033[36m{:7.3f}\033[0m'.format(loss_cat)
             else:
-                cat_s = '{:7.3f}'.format(acc_cat)
+                cat_s = '{:7.3f}'.format(loss_cat)
             if best_loss_abs > loss_abs:
                 best_loss_abs = loss_abs
                 abs_s = '\033[36m{:7.3f}\033[0m'.format(loss_abs)
