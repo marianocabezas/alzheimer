@@ -752,10 +752,10 @@ class BratsSurvivalNet(nn.Module):
                 best_acc_cat = acc_cat
                 cat_s = '\033[36m{:8.4f}\033[0m'.format(acc_cat)
             else:
-                cat_s = '{:8.4f}'.format(acc_cat)
+                cat_s = '{:7.3f}'.format(acc_cat)
             if best_loss_abs > loss_abs:
                 best_loss_abs = loss_abs
-                abs_s = '\033[36m{:8.4f}\033[0m'.format(loss_abs)
+                abs_s = '\033[36m{:7.3f}\033[0m'.format(loss_abs)
             else:
                 abs_s = '{:8.4f}'.format(loss_abs)
 
