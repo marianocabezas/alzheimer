@@ -646,6 +646,8 @@ class BratsSurvivalNet(nn.Module):
     ):
         self.drop = train
         losses = list()
+        losses_cat = list()
+        losses_abs = list()
         n_batches = len(training)
         for batch_i, (im, feat, y) in enumerate(training):
             torch.cuda.synchronize()
@@ -689,12 +691,14 @@ class BratsSurvivalNet(nn.Module):
             torch.cuda.empty_cache()
 
             losses.append(loss_value)
+            losses_cat.append(batch_loss_cat.tolist())
+            losses_abs.append(torch.sum(batch_loss_abs).tolist())
 
             self.print_progress(
                 batch_i, n_batches, loss_value, np.mean(losses), train
             )
 
-        return np.mean(losses), batch_loss_cat, torch.sum(batch_loss_abs)
+        return np.mean(losses), np.mean(losses_cat), np.mean(losses_abs)
 
     def fit(
             self,
