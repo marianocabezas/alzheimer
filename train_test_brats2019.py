@@ -502,9 +502,6 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
     t_survival_dict = get_survival_data(True)
     t_survival_patients = t_survival_dict.keys()
     test_survivals = np.zeros(len(t_survival_patients))
-    
-    survival_ages = map(lambda v: float(v['Age']), survival_dict.values())
-    survivals = map(lambda v: float(v['Survival']), survival_dict.values())
 
     t_survival_ages = map(lambda v: float(v['Age']), t_survival_dict.values())
 
@@ -634,18 +631,24 @@ def train_test_survival(net_name, n_folds, val_split=0.1):
 
                 # Split of the target survivals
                 hi_survival = map(
-                    lambda h_i: survival_dict[h_i]['Survival'], high_i
+                    lambda h_i: float(survival_dict[h_i]['Survival']), high_i
                 )
                 mid_survival = map(
-                    lambda h_i: survival_dict[h_i]['Survival'], mid_i
+                    lambda h_i: float(survival_dict[h_i]['Survival']), mid_i
                 )
                 low_survival = map(
-                    lambda h_i: survival_dict[h_i]['Survival'], low_i
+                    lambda h_i: float(survival_dict[h_i]['Survival']), low_i
                 )
                 # Split of the age feature
-                hi_ages = map(lambda h_i: survival_dict[h_i]['Age'], high_i)
-                mid_ages = map(lambda h_i: survival_dict[h_i]['Age'], high_i)
-                low_ages = map(lambda h_i: survival_dict[h_i]['Age'], high_i)
+                hi_ages = map(
+                    lambda h_i: float(survival_dict[h_i]['Age']), high_i
+                )
+                mid_ages = map(
+                    lambda h_i: float(survival_dict[h_i]['Age']), high_i
+                )
+                low_ages = map(
+                    lambda h_i: float(survival_dict[h_i]['Age']), high_i
+                )
 
                 # Data split (using numpy) for train and validation.
                 # We also compute the number of batches for both training and
