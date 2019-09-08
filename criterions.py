@@ -16,6 +16,8 @@ def gaussian_mse(pred, target, intervals=[0., 300., 450., np.inf], alpha=3.):
     ).to(pred.device)
     mse = 1 - torch.exp(- (pred - target) * (pred - target) / a)
 
+    return torch.sum(mse)
+
 
 def normalised_mse(pred, target, norm_rate=1):
     diff = (target - pred)
