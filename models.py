@@ -756,9 +756,9 @@ class BratsSurvivalNet(nn.Module):
             loss_tr, _, _ = self.mini_batch_loop(train_loader)
             if loss_tr < best_loss_tr:
                 best_loss_tr = loss_tr
-                tr_loss_s = '\033[32m{:7.3f}\033[0m'.format(loss_tr)
+                tr_loss_s = '\033[32m{:7.4f}\033[0m'.format(loss_tr)
             else:
-                tr_loss_s = '{:7.3f}'.format(loss_tr)
+                tr_loss_s = '{:7.4f}'.format(loss_tr)
 
             with torch.no_grad():
                 self.t_val = time.time()
@@ -782,13 +782,13 @@ class BratsSurvivalNet(nn.Module):
             if loss_val < best_loss_val:
                 best_loss_val = loss_val
                 epoch_s = '\033[32mEpoch %03d\033[0m' % self.epoch
-                loss_s = '\033[32m{:7.3f}\033[0m'.format(loss_val)
+                loss_s = '\033[32m{:7.4f}\033[0m'.format(loss_val)
                 best_e = self.epoch
                 best_state = deepcopy(self.state_dict())
                 no_improv_e = 0
             else:
                 epoch_s = 'Epoch %03d' % self.epoch
-                loss_s = '{:7.3f}'.format(loss_val)
+                loss_s = '{:7.4f}'.format(loss_val)
                 no_improv_e += 1
 
             t_out = time.time() - self.t_train
