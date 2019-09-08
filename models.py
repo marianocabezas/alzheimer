@@ -718,7 +718,7 @@ class BratsSurvivalNet(nn.Module):
             val_loader,
             epochs=50,
             patience=5,
-            initial_lr=1e-1,
+            initial_lr=1e-2,
             verbose=True
     ):
         # Init
