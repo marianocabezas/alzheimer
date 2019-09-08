@@ -1,11 +1,16 @@
 from __future__ import division
+import math
 import numpy as np
 import torch
 import torch.nn.functional as F
 
 
-def gaussian_ae(pred, target, alpha=80.):
-    mse = 1 - torch.exp(- torch.abs(pred - target) / alpha)
+def gaussian_mse(pred, target, sigma=16.):
+    left = 1. / torch.sqrt(2 * math.pi * sigma * sigma)
+    error = (pred - target)
+    exp = - error * error / (2 * sigma * sigma)
+    # mse = 1 - torch.exp(- torch.abs(pred - target) / alpha)
+    mse = 1 - left * torch.exp(exp)
 
     return torch.sum(mse)
 
