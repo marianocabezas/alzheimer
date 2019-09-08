@@ -670,7 +670,8 @@ class BratsSurvivalNet(nn.Module):
             pred_y = self(im.to(self.device), feat.to(self.device))
             target_y = y.to(self.device).type_as(pred_y)
 
-            target_short = (target_y < 300).type_as(pred_y)
+            target_short = (target_y < 300).type_as(pred_y) * \
+                           (target_y > 0).type_as(pred_y)
             target_mid = (target_y >= 300).type_as(pred_y) *\
                          (target_y < 450).type_as(pred_y)
             target_long = (target_y >= 450).type_as(pred_y)
