@@ -604,7 +604,7 @@ class BratsSurvivalNet(nn.Module):
         self.linear = nn.ModuleList(
             map(
                 lambda ch_in: nn.Sequential(
-                    nn.InstanceNorm1d(ch_in),
+                    # nn.InstanceNorm1d(ch_in),
                     nn.Linear(ch_in, dense_size),
                     nn.SELU()
                 ),
