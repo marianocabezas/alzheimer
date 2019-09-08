@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 
 
-def gaussian_mse(pred, target, sigma=30.):
+def gaussian_mse(pred, target, sigma=16.):
     left = torch.tensor(
         1. / np.sqrt(2 * math.pi * sigma * sigma)
     ).to(pred.device)
