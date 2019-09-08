@@ -15,6 +15,12 @@ def gaussian_mse(pred, target, sigma=16.):
     return torch.sum(mse)
 
 
+def gaussian_ae(pred, target, alpha=16.):
+    ae = 1 - torch.exp(- torch.abs(pred - target) / alpha)
+
+    return torch.sum(ae)
+
+
 def normalised_mse(pred, target, norm_rate=1):
     diff = (target - pred)
     sq_diff = diff * diff
