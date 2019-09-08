@@ -677,7 +677,8 @@ class BratsSurvivalNet(nn.Module):
                          (target_y < 450).type_as(pred_y)
             target_long = (target_y >= 450).type_as(pred_y)
 
-            pred_short = (pred_y < 300).type_as(pred_y)
+            pred_short = (pred_y < 300).type_as(pred_y) * \
+                         (pred_y > 0).type_as(pred_y)
             pred_mid = (pred_y >= 300).type_as(pred_y) *\
                        (pred_y < 450).type_as(pred_y)
             pred_long = (pred_y >= 450).type_as(pred_y)
