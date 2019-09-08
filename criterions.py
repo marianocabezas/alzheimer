@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 
 
-def gaussian_mse(pred, target, a=50.):
+def gaussian_ae(pred, target, a=50.):
     mse = 1 - torch.exp(- torch.abs(pred - target) / a)
 
     return torch.sum(mse)
