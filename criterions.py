@@ -10,7 +10,7 @@ def gaussian_mse(pred, target, sigma=30.):
         1. / np.sqrt(2 * math.pi * sigma * sigma)
     ).to(pred.device)
     error = (pred - target)
-    exp = - error * error / (2 * sigma * sigma)
+    exp = - F.mse_loss(pred, target) / (2 * sigma * sigma)
     mse = 1 - left * torch.exp(exp)
 
     return torch.sum(mse)
