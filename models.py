@@ -566,7 +566,7 @@ class BratsSurvivalNet(nn.Module):
             kernel_size=3,
             pool_seg=2,
             depth_seg=4,
-            depth_pred=2,
+            depth_pred=4,
             n_images=4,
             n_features=1,
             dense_size=256,
@@ -708,7 +708,7 @@ class BratsSurvivalNet(nn.Module):
             val_loader,
             epochs=50,
             patience=5,
-            initial_lr=1e-2,
+            initial_lr=5e-2,
             verbose=True
     ):
         # Init
