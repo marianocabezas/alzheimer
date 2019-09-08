@@ -793,7 +793,7 @@ class BratsSurvivalNet(nn.Module):
 
             t_out = time.time() - self.t_train
             t_s = time_to_string(t_out)
-            drop_s = '{:8.5f}'.format(self.dropout)
+            drop_s = '{:7.5f}'.format(self.dropout)
             self.dropout = max(
                 self.final_dropout, self.dropout - self.ann_rate
             )
