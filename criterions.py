@@ -6,16 +6,15 @@ import torch.nn.functional as F
 
 def gaussian_mse(pred, target, intervals=[0., 300., 450., np.inf], alpha=3.):
     intervals = torch.tensor(intervals).to(pred.device)
-    min_a = map(lambda t: torch.min(intervals[intervals >= t]), target)
-    max_a = map(lambda t: torch.max(intervals[intervals < t]), target)
+    max_a = map(lambda t: torch.min(intervals[intervals >= t]), target)
+    min_a = map(lambda t: torch.max(intervals[intervals < t]), target)
     a = torch.tensor(
         map(
             lambda (min_i, max_i, t): min(max_i - t, t - min_i) / alpha,
             zip(min_a, max_a, target)
         )
     ).to(pred.device)
-    print(torch.abs(pred - target) / a)
-    #print(- torch.exp(- torch.abs(pred - target) / a))
+    print(a)
     mse = 1 - torch.exp(- torch.abs(pred - target) / a)
 
     return torch.sum(mse)
