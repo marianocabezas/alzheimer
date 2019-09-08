@@ -620,7 +620,7 @@ class BratsSurvivalNet(nn.Module):
             nn.Linear(dense_size, n_features),
         )
 
-        self.out = nn.Linear(dense_size, 1)
+        self.out = nn.Linear(dense_size + n_features, 1)
 
     def forward(self, im, features):
         for c, p in zip(self.base_model.convlist, self.base_model.pooling):
