@@ -613,9 +613,11 @@ class BratsSurvivalNet(nn.Module):
         )
 
         self.combo = nn.Sequential(
-            nn.InstanceNorm1d(dense_size + n_features),
-            nn.Linear(dense_size + n_features, dense_size),
-            nn.SELU()
+            nn.InstanceNorm1d(n_features),
+            nn.Linear(n_features, dense_size),
+            nn.SELU(),
+            nn.InstanceNorm1d(dense_size),
+            nn.Linear(dense_size, n_features),
         )
 
         self.out = nn.Linear(dense_size, 1)
@@ -638,12 +640,11 @@ class BratsSurvivalNet(nn.Module):
             x = l(x)
             x = F.dropout(x, p=self.dropout, training=self.drop)
 
-        x = torch.cat((x, features.type_as(x)), dim=1)
         self.combo.to(self.device)
-        combo = self.combo(x)
-
+        xfeat = self.combo(features.type_as(x))
+        x = torch.cat((x, xfeat), dim=1)
         self.out.to(self.device)
-        output = self.out(combo)
+        output = self.out(x)
         if self.dropout <= 0.5:
             output = F.relu(output)
         else:
