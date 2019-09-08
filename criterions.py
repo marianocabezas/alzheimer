@@ -14,8 +14,7 @@ def gaussian_mse(pred, target, intervals=[0., 300., 450., np.inf], alpha=3.):
             zip(min_a, max_a, target)
         )
     ).to(pred.device)
-    print(a)
-    mse = 1 - torch.exp(- torch.abs(pred - target) / a)
+    mse = 1 - torch.exp(- (pred - target) * (pred - target) / a)
 
     return torch.sum(mse)
 
