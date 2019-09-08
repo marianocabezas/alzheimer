@@ -6,7 +6,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 import numpy as np
-from criterions import multidsc_loss
+from criterions import multidsc_loss, gaussian_mse
 from utils import time_to_string
 
 
@@ -693,7 +693,8 @@ class BratsSurvivalNet(nn.Module):
             )
             batch_loss_abs = torch.abs(target_y - pred_y)
             batch_loss_sumabs = 1e-2 * torch.sum(batch_loss_abs)
-            batch_loss = batch_loss_cat + batch_loss_sumabs
+            # batch_loss = batch_loss_cat + batch_loss_sumabs
+            batch_loss = gaussian_mse(pred_y, target_y)
 
             loss_value = torch.squeeze(batch_loss).tolist()
 

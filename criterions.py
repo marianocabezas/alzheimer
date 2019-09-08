@@ -1,6 +1,20 @@
 from __future__ import division
+import numpy as np
 import torch
 import torch.nn.functional as F
+
+
+def gaussian_mse(pred, target, intervals=[0., 300., 450., np.inf], alpha=3.):
+    intervals = torch.tensor(intervals)
+    min_a = map(lambda t: torch.min(intervals[intervals >= t]), target)
+    max_a = map(lambda t: torch.max(intervals[intervals < t]), target)
+    a = torch.tensor(
+        map(
+            lambda (min_i, max_i, t): min(max_i - t, t - min_i) / alpha,
+            zip(min_a, max_a, target)
+        )
+    )
+    mse = 1 - torch.exp(- (pred - target) * (pred - target) / a)
 
 
 def normalised_mse(pred, target, norm_rate=1):
