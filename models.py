@@ -718,7 +718,7 @@ class BratsSurvivalNet(nn.Module):
             val_loader,
             epochs=50,
             patience=5,
-            initial_lr=5e-2,
+            initial_lr=1e-1,
             verbose=True
     ):
         # Init
@@ -744,12 +744,12 @@ class BratsSurvivalNet(nn.Module):
 
         best_e = 0
         # SGD for L1
-        # self.optimizer_alg = torch.optim.SGD(
-        #     model_params, lr=initial_lr, #weight_decay=1e-1
-        # )
-        self.optimizer_alg = torch.optim.Adam(
-            model_params, lr=initial_lr,  # weight_decay=1e-1
+        self.optimizer_alg = torch.optim.SGD(
+            model_params, lr=initial_lr, #weight_decay=1e-1
         )
+        # self.optimizer_alg = torch.optim.Adam(
+        #     model_params, lr=initial_lr,  # weight_decay=1e-1
+        # )
         for self.epoch in range(epochs):
             # Main epoch loop
             self.t_train = time.time()
