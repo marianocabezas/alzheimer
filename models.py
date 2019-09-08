@@ -692,7 +692,6 @@ class BratsSurvivalNet(nn.Module):
                 1. - torch.sum(pred_cat * target_cat, dim=1)
             )
             batch_loss_abs = torch.abs(target_y - pred_y)
-            batch_loss_sumabs = 1e-2 * torch.sum(batch_loss_abs)
             # batch_loss = batch_loss_cat + batch_loss_sumabs
             batch_loss = gaussian_ae(pred_y, target_y)
 
