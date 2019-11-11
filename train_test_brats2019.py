@@ -202,7 +202,7 @@ def get_labels(names):
 
 
 def train_seg(
-        net, model_name, train_patients, val_patients, refine=False,
+        net, model_name, train_patients, val_patients,
         dropout=0.99, lr=1.
 ):
     # Init
@@ -233,15 +233,9 @@ def train_seg(
 
         print('< Training dataset >')
         if patch_size is None:
-            if refine:
-                train_dataset = BBImageDataset(
-                    data, targets, rois, flip=True, mode='min'
-                )
-                batch_size = batch_size * 2
-            else:
-                train_dataset = BBImageDataset(
-                    data, targets, rois, flip=True
-                )
+            train_dataset = BBImageDataset(
+                data, targets, rois, flip=True
+            )
         else:
             # train_dataset = BoundarySegmentationCroppingDataset(
             #     data, targets, rois, patch_size
@@ -277,7 +271,7 @@ def train_seg(
 
         net.fit(
             train_loader, val_loader, initial_dropout=dropout, initial_lr=lr,
-            epochs=epochs, patience=patience, refine=refine
+            epochs=epochs, patience=patience
         )
 
         net.save_model(os.path.join(d_path, model_name))
