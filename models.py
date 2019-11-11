@@ -318,7 +318,7 @@ class BratsSegmentationNet(nn.Module):
                 )
 
             losses_color = map(
-                lambda (pl, l): '\033[36m%s\033[0m' if l > pl else '%s',
+                lambda (bl, l): '\033[36m%s\033[0m' if l > bl else '%s',
                 zip(best_losses, mid_losses)
             )
             losses_s = map(
@@ -326,7 +326,7 @@ class BratsSegmentationNet(nn.Module):
                 zip(losses_color, mid_losses)
             )
             best_losses = map(
-                lambda (pl, l): l if l > pl else pl,
+                lambda (bl, l): l if l > bl else bl,
                 zip(best_losses, mid_losses)
             )
 
