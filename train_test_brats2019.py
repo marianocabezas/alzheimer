@@ -59,7 +59,7 @@ def parse_inputs():
     parser.add_argument(
         '-e', '--epochs',
         dest='epochs',
-        type=int,  default=10,
+        type=int,  default=20,
         help='Number of epochs'
     )
     parser.add_argument(
@@ -71,7 +71,7 @@ def parse_inputs():
     parser.add_argument(
         '-p', '--patience',
         dest='patience',
-        type=int, default=2,
+        type=int, default=10,
         help='Patience for early stopping'
     )
     parser.add_argument(
@@ -363,13 +363,16 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
         model_name = '%s-f%d.mdl' % (net_name, i)
         net = BratsSegmentationNet(depth=depth, filters=filters)
 
-        train_seg(net, model_name, train_patients, val_patients)
-
-        model_name = '%s-f%d-R.mdl' % (net_name, i)
+        # train_seg(net, model_name, train_patients, val_patients)
         train_seg(
-            net, model_name, train_patients, val_patients,
-            refine=True, dropout=0.5, lr=1e-2
+            net, model_name, train_patients, val_patients, dropout=0
         )
+
+        # model_name = '%s-f%d-R.mdl' % (net_name, i)
+        # train_seg(
+        #     net, model_name, train_patients, val_patients,
+        #     refine=True, dropout=0.5, lr=1e-2
+        # )
 
         # Testing data (with GT)
         test_cbica = cbica[ini_cbica:end_cbica]
@@ -410,25 +413,25 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
                 patient_paths, test_patients, test_x
         )):
             pred_i = net.segment([test_i])[0]
-            unc_i = net.uncertainty([test_i], steps=25)[0]
-            whole_i = np.sum(unc_i[1:])
-            core_i = unc_i[1] + unc_i[-1]
-            enhance_i = unc_i[-1]
+            # unc_i = net.uncertainty([test_i], steps=25)[0]
+            # whole_i = np.sum(unc_i[1:])
+            # core_i = unc_i[1] + unc_i[-1]
+            # enhance_i = unc_i[-1]
             seg_i = np.argmax(pred_i, axis=0)
             seg_i[seg_i == 3] = 4
-            seg_unc_i = np.argmax(unc_i, axis=0)
-            seg_unc_i[seg_unc_i == 3] = 4
+            # seg_unc_i = np.argmax(unc_i, axis=0)
+            # seg_unc_i[seg_unc_i == 3] = 4
 
-            tumor_mask = remove_small_regions(
-                seg_i.astype(np.bool), min_size=30
-            )
-
-            seg_i[log_not(tumor_mask)] = 0
-            seg_unc_i[log_not(tumor_mask)] = 0
-
-            whole_i *= tumor_mask.astype(np.float32)
-            core_i *= tumor_mask.astype(np.float32)
-            enhance_i *= tumor_mask.astype(np.float32)
+            # tumor_mask = remove_small_regions(
+            #     seg_i.astype(np.bool), min_size=30
+            # )
+            #
+            # seg_i[log_not(tumor_mask)] = 0
+            # seg_unc_i[log_not(tumor_mask)] = 0
+            #
+            # whole_i *= tumor_mask.astype(np.float32)
+            # core_i *= tumor_mask.astype(np.float32)
+            # enhance_i *= tumor_mask.astype(np.float32)
 
             niiname = os.path.join(path_i, p_i + '_seg.nii.gz')
             nii = load_nii(niiname)
@@ -438,35 +441,35 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
                 lambda label: dsc_seg(seg == label, seg_i == label),
                 [1, 2, 4]
             )
-            dsc_unc = map(
-                lambda label: dsc_seg(seg == label, seg_unc_i == label),
-                [1, 2, 4]
-            )
+            # dsc_unc = map(
+            #     lambda label: dsc_seg(seg == label, seg_unc_i == label),
+            #     [1, 2, 4]
+            # )
 
             nii.get_data()[:] = seg_i
             save_nii(nii, os.path.join(seg_path, p_i + '.nii.gz'))
-            nii.get_data()[:] = seg_unc_i
-            save_nii(nii, os.path.join(unc_path, p_i + '.nii.gz'))
+            # nii.get_data()[:] = seg_unc_i
+            # save_nii(nii, os.path.join(unc_path, p_i + '.nii.gz'))
 
-            niiname = os.path.join(d_path, p_i, p_i + '_flair.nii.gz')
-            nii = load_nii(niiname)
-            nii.get_data()[:] = whole_i
-            save_nii(nii, os.path.join(unc_path, p_i + '_unc_whole.nii.gz'))
-            nii.get_data()[:] = core_i
-            save_nii(nii, os.path.join(unc_path, p_i + '_unc_core.nii.gz'))
-            nii.get_data()[:] = enhance_i
-            save_nii(nii, os.path.join(unc_path, p_i + '_unc_enhance.nii.gz'))
+            # niiname = os.path.join(d_path, p_i, p_i + '_flair.nii.gz')
+            # nii = load_nii(niiname)
+            # nii.get_data()[:] = whole_i
+            # save_nii(nii, os.path.join(unc_path, p_i + '_unc_whole.nii.gz'))
+            # nii.get_data()[:] = core_i
+            # save_nii(nii, os.path.join(unc_path, p_i + '_unc_core.nii.gz'))
+            # nii.get_data()[:] = enhance_i
+            # save_nii(nii, os.path.join(unc_path, p_i + '_unc_enhance.nii.gz'))
 
             print(
                 'Segmentation - Patient %s (%d/%d): %s' % (
                     p_i, p, len(test_x), ' / '.join(map(str, dsc))
                 )
             )
-            print(
-                'Uncertainty - Patient %s (%d/%d): %s' % (
-                    p_i, p, len(test_x), ' / '.join(map(str, dsc_unc))
-                )
-            )
+            # print(
+            #     'Uncertainty - Patient %s (%d/%d): %s' % (
+            #         p_i, p, len(test_x), ' / '.join(map(str, dsc_unc))
+            #     )
+            # )
 
 
 def train_test_survival(net_name, n_folds, val_split=0.1):
@@ -838,56 +841,54 @@ def test_seg_validation(net_name):
     # 4. {ID}_unc_enhance.nii.gz (Uncertainty map associated with enhancing tumor)
     for i, (p_i, test_i) in enumerate(zip(test_patients, test_x)):
         t_in = time.time()
-        unc_i = np.zeros((4,) + test_i.shape[1:])
+        # unc_i = np.zeros((4,) + test_i.shape[1:])
         pred_i = np.zeros((4,) + test_i.shape[1:])
         for f in range(5):
             model_name = '%s-f%d.mdl' % (net_name, f)
             net = BratsSegmentationNet(depth=depth, filters=filters)
             net.load_model(os.path.join(d_path, model_name))
-
-            unc_i += net.uncertainty([test_i], steps=10)[0] * 0.2
+        #
+        #     unc_i += net.uncertainty([test_i], steps=10)[0] * 0.2
             pred_i += net.segment([test_i])[0]
 
         seg_i = np.argmax(pred_i, axis=0)
         seg_i[seg_i == 3] = 4
-        seg_unc_i = np.argmax(unc_i, axis=0)
-        seg_unc_i[seg_unc_i == 3] = 4
+        # seg_unc_i = np.argmax(unc_i, axis=0)
+        # seg_unc_i[seg_unc_i == 3] = 4
 
         tumor_mask = remove_small_regions(
             seg_i.astype(np.bool), min_size=30
         )
 
         seg_i[log_not(tumor_mask)] = 0
-        seg_unc_i[log_not(tumor_mask)] = 0
-
-        whole_i = np.sum(unc_i[1:]) * tumor_mask.astype(np.float32)
-        core_i = unc_i[1] + unc_i[-1] * tumor_mask.astype(np.float32)
-        enhance_i = unc_i[-1] * tumor_mask.astype(np.float32)
-
-        seg_unc_i = np.argmax(unc_i, axis=0)
-        seg_unc_i[seg_unc_i == 3] = 4
+        # seg_unc_i[log_not(tumor_mask)] = 0
+        #
+        # whole_i = np.sum(unc_i[1:]) * tumor_mask.astype(np.float32)
+        # core_i = unc_i[1] + unc_i[-1] * tumor_mask.astype(np.float32)
+        # enhance_i = unc_i[-1] * tumor_mask.astype(np.float32)
+        #
+        # seg_unc_i = np.argmax(unc_i, axis=0)
+        # seg_unc_i[seg_unc_i == 3] = 4
 
         niiname = os.path.join(d_path, p, p + '_seg.nii.gz')
         nii = load_nii(niiname)
         nii.get_data()[:] = seg_i
-        save_nii(nii, os.path.join(seg_path, p_i + '.nii.gz'))
-        nii.get_data()[:] = seg_i
         save_nii(nii, os.path.join(unc_path, p_i + '.nii.gz'))
 
-        niiname = os.path.join(v_path, p_i, p_i + '_flair.nii.gz')
-        nii = load_nii(niiname)
-        nii.get_data()[:] = whole_i
-        save_nii(
-            nii, os.path.join(unc_path, p_i + '_unc_whole.nii.gz')
-        )
-        nii.get_data()[:] = core_i
-        save_nii(
-            nii, os.path.join(unc_path, p_i + '_unc_core.nii.gz')
-        )
-        nii.get_data()[:] = enhance_i
-        save_nii(
-            nii, os.path.join(unc_path, p_i + '_unc_enhance.nii.gz')
-        )
+        # niiname = os.path.join(v_path, p_i, p_i + '_flair.nii.gz')
+        # nii = load_nii(niiname)
+        # nii.get_data()[:] = whole_i
+        # save_nii(
+        #     nii, os.path.join(unc_path, p_i + '_unc_whole.nii.gz')
+        # )
+        # nii.get_data()[:] = core_i
+        # save_nii(
+        #     nii, os.path.join(unc_path, p_i + '_unc_core.nii.gz')
+        # )
+        # nii.get_data()[:] = enhance_i
+        # save_nii(
+        #     nii, os.path.join(unc_path, p_i + '_unc_enhance.nii.gz')
+        # )
 
         t_s = time_to_string(time.time() - t_in)
 
@@ -902,7 +903,6 @@ def main():
     options = parse_inputs()
     patch_size = options['patch_size']
     filters = options['filters']
-    hybrid = options['hybrid']
     depth = options['blocks']
 
     # Prepare the sufix that will be added to the results for the net and images
@@ -936,11 +936,11 @@ def main():
         )
     )
 
-    net_name = 'brats2019-seg%s%s' % (
+    net_name = 'brats2019-seg-nodrop%s%s' % (
         filters_s, depth_s
     )
 
-    # train_test_seg(net_name, n_folds)
+    train_test_seg(net_name, n_folds)
 
     test_seg_validation(net_name)
 
