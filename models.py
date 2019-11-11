@@ -198,11 +198,8 @@ class BratsSegmentationNet(nn.Module):
             )
 
             # Final loss from BraTS
-            if refine:
-                class_loss = torch.sum(batch_loss_c)
-                batch_loss = batch_loss_wt + batch_loss_tc + class_loss
-            else:
-                batch_loss = torch.sum(batch_loss_c)
+            class_loss = torch.sum(batch_loss_c)
+            batch_loss = batch_loss_wt + batch_loss_tc + class_loss
 
             if train:
                 # batch_loss = multidsc_loss(
@@ -285,56 +282,19 @@ class BratsSegmentationNet(nn.Module):
 
         # If we are refining, the best train and validation losses are the ones
         # we already have. That is the point of refining.
-        if refine:
-            self.optimizer_alg = torch.optim.SGD(
-                model_params, lr=initial_lr, weight_decay=1e-1
-            )
-            with torch.no_grad():
-                self.eval()
-                self.t_val = time.time()
-                loss_tr, _ = self.mini_batch_loop(
-                    train_loader, train=False, refine=refine
-                )
-                self.t_val = time.time()
-                best_loss_val, best_losses = self.mini_batch_loop(
-                    val_loader, train=False, refine=refine
-                )
-                best_e = None
-
-                if verbose:
-                    tr_loss_s = '\033[32m%0.5f\033[0m' % loss_tr
-                    losses_color = map(
-                        lambda l: '\033[36m%s\033[0m', best_losses
-                    )
-                    losses_s = map(
-                        lambda (c, l): c % '{:8.4f}'.format(l),
-                        zip(losses_color, best_losses)
-                    )
-                    epoch_s = '\033[32mEpoch ini\033[0m'
-                    loss_s = '\033[32m%0.5f\033[0m' % best_loss_val
-                    print('\033[K', end='')
-                    whites = ' '.join([''] * 12)
-                    l_bars = '--|--'.join(
-                        ['-' * 5] * 2 + ['-' * 6] * len(l_names[2:])
-                    )
-                    l_hdr = '  |  '.join(l_names)
-                    print('%sEpoch num |  %s  |' % (whites, l_hdr))
-                    print('%s----------|--%s--|' % (whites, l_bars))
-                    final_s = whites + ' | '.join(
-                        [epoch_s, tr_loss_s, loss_s] + losses_s + [' ' * 8, '']
-                    )
-                    print(final_s)
-        else:
-            self.optimizer_alg = torch.optim.SGD(
-                model_params, lr=initial_lr
-            )
+        self.optimizer_alg = torch.optim.SGD(
+            model_params, lr=initial_lr
+        )
 
         no_improv_e = 0
         best_state = deepcopy(self.state_dict())
         best_opt = deepcopy(self.optimizer_alg.state_dict())
+        best_loss_tr = np.inf
+        best_loss_val = np.inf
+        best_losses = [-np.inf] * (len(l_names))
+        best_e = 0
 
         t_start = time.time()
-        best_loss_tr = np.inf
 
         for self.epoch in range(epochs):
             # Main epoch loop
