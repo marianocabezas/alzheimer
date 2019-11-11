@@ -203,7 +203,8 @@ def get_labels(names):
 
 def train_seg(
         net, model_name, train_patients, val_patients,
-        dropout=0.99, lr=1.
+        dropout=0.99, lr=1e-2
+        # lr=1.
 ):
     # Init
     c = color_codes()
