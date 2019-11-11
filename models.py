@@ -157,7 +157,7 @@ class BratsSegmentationNet(nn.Module):
         return output
 
     def mini_batch_loop(
-            self, training, train=True, refine=False
+            self, training, train=True
     ):
         self.drop = train
         losses = list()
@@ -269,7 +269,6 @@ class BratsSegmentationNet(nn.Module):
             initial_dropout=0.99,
             ann_rate=1e-2,
             initial_lr=1,
-            refine=False,
             verbose=True
     ):
         # Init
@@ -301,7 +300,7 @@ class BratsSegmentationNet(nn.Module):
             self.t_train = time.time()
             self.train()
             loss_tr = self.mini_batch_loop(
-                train_loader, refine=refine
+                train_loader
             )
             improvement_tr = loss_tr < best_loss_tr
             if improvement_tr:
@@ -315,7 +314,7 @@ class BratsSegmentationNet(nn.Module):
                 self.eval()
                 self.t_val = time.time()
                 loss_val, mid_losses = self.mini_batch_loop(
-                    val_loader, train=False, refine=refine
+                    val_loader, train=False
                 )
 
             losses_color = map(
@@ -365,7 +364,7 @@ class BratsSegmentationNet(nn.Module):
             if verbose:
                 print('\033[K', end='')
                 whites = ' '.join([''] * 12)
-                if self.epoch == 0 and not refine:
+                if self.epoch == 0:
                     l_bars = '--|--'.join(
                         ['-' * 5] * 2 + ['-' * 6] * len(l_names[2:])
                     )
