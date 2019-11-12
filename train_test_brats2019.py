@@ -287,7 +287,11 @@ def train_test_seg(net_name, n_folds, val_split=0.1):
 
     d_path = options['loo_dir']
     unc_path = os.path.join(d_path, 'uncertainty')
+    if not os.path.isdir(unc_path):
+        os.mkdir(unc_path)
     seg_path = os.path.join(d_path, 'segmentation')
+    if not os.path.isdir(seg_path):
+        os.mkdir(seg_path)
     patients = get_dirs(d_path)
 
     cbica = filter(lambda p: 'CBICA' in p, patients)
@@ -804,7 +808,11 @@ def test_seg_validation(net_name):
     d_path = options['loo_dir']
     v_path = options['val_dir']
     seg_path = os.path.join(v_path, 'segmentation')
+    if not os.path.isdir(seg_path):
+        os.mkdir(seg_path)
     unc_path = os.path.join(v_path, 'uncertainty')
+    if not os.path.isdir(unc_path):
+        os.mkdir(unc_path)
     p = get_dirs(d_path)[0]
     test_patients = filter(lambda p: 'BraTS19' in p, get_dirs(v_path))
     _, test_x = get_images(test_patients, True)
@@ -868,7 +876,9 @@ def test_seg_validation(net_name):
         niiname = os.path.join(d_path, p, p + '_seg.nii.gz')
         nii = load_nii(niiname)
         nii.get_data()[:] = seg_i
-        save_nii(nii, os.path.join(unc_path, p_i + '.nii.gz'))
+        save_nii(nii, os.path.join(seg_path, p_i + '.nii.gz'))
+        # nii.get_data()[:] = seg_unc_i
+        # save_nii(nii, os.path.join(unc_path, p_i + '.nii.gz'))
 
         # niiname = os.path.join(v_path, p_i, p_i + '_flair.nii.gz')
         # nii = load_nii(niiname)
